@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.2.0"
+Config.Version = "0.3.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 100
@@ -104,13 +104,208 @@ Config.BaseLevels = {
 }
 
 -- Map ----------------------------------------------------------------------
+-- Zwei Reihen mit je 4 Bases, dazwischen eine Straße mit dem Laufband.
 Config.Map = {
 	BaseCount = 8, -- passt zu 8 Spielern pro Server
-	BaseRadius = 120, -- Abstand der Bases von der Mitte
 	BaseSize = 56, -- Kantenlänge einer Base
-	ShopRadius = 30, -- Größe des Platzes in der Mitte
-	ShopUseDistance = 45, -- so nah an der Mitte muss man zum Kaufen sein
+	BaseSpacing = 66, -- Abstand der Bases nebeneinander
+	StreetWidth = 44, -- Breite der Straße zwischen den Reihen
 }
+
+-- ==========================================================================
+-- DROP-RATEN: Alle Chancen an einem Ort. Die Zahlen sind Gewichte, keine
+-- Prozente. Die Chance ist Gewicht / Summe aller Gewichte. Beispiel:
+-- { Common = 60, Rare = 30, Epic = 10 } = 60 % / 30 % / 10 %
+-- ==========================================================================
+
+-- Laufband ----------------------------------------------------------------
+Config.Conveyor = {
+	SpawnInterval = 3, -- alle X Sekunden kommt eine neue Kreatur aufs Band
+	Speed = 7, -- Studs pro Sekunde
+	BuyHoldTime = 0.3, -- so lange E halten zum Kaufen
+	PriceFactor = 1, -- Preis auf dem Band = Kreaturpreis x Mutation x das hier
+	AnnounceFrom = "Legendary", -- ab dieser Seltenheit gibt es eine Server-Ansage
+	Weights = {
+		Common = 55,
+		Uncommon = 26,
+		Rare = 12,
+		Epic = 5,
+		Legendary = 1.6,
+		Mythic = 0.4,
+	},
+}
+
+-- Mutationen ----------------------------------------------------------------
+-- Jede neue Kreatur (Laufband, Pack, Meteor) würfelt eine Mutation.
+-- Multiplier = mehr Geld pro Sekunde und höherer Wert
+Config.Mutations = {
+	Normal = { Name = "", Multiplier = 1 },
+	Gold = { Name = "Gold", Multiplier = 2, Color = Color3.fromRGB(255, 200, 40) },
+	Diamant = { Name = "Diamant", Multiplier = 3, Color = Color3.fromRGB(150, 240, 255) },
+	Regenbogen = { Name = "Regenbogen", Multiplier = 5, Color = Color3.fromRGB(255, 120, 220) },
+}
+Config.MutationWeights = {
+	Normal = 85,
+	Gold = 10,
+	Diamant = 4,
+	Regenbogen = 1,
+}
+
+-- Packs ----------------------------------------------------------------------
+-- Pity: Nach so vielen Packs ohne Legendär oder besser ist das nächste garantiert Legendär+.
+Config.PityThreshold = 20
+Config.Packs = {
+	{
+		Id = "Holz",
+		Name = "Holz-Pack",
+		Price = 300,
+		Color = Color3.fromRGB(170, 120, 70),
+		Weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 1.8, Legendary = 0.2, Mythic = 0 },
+	},
+	{
+		Id = "Gold",
+		Name = "Gold-Pack",
+		Price = 6000,
+		Color = Color3.fromRGB(255, 200, 40),
+		Weights = { Common = 20, Uncommon = 35, Rare = 30, Epic = 12, Legendary = 2.7, Mythic = 0.3 },
+	},
+	{
+		Id = "Kristall",
+		Name = "Kristall-Pack",
+		Price = 120000,
+		Color = Color3.fromRGB(180, 100, 255),
+		Weights = { Common = 0, Uncommon = 10, Rare = 35, Epic = 38, Legendary = 14, Mythic = 3 },
+	},
+}
+
+-- Events ---------------------------------------------------------------------
+Config.Events = {
+	MinPause = 180, -- frühestens alle 3 Minuten ein Event
+	MaxPause = 300, -- spätestens alle 5 Minuten
+	Warning = 10, -- so viele Sekunden vorher kommt der Countdown
+	FirstEventAfter = 45, -- das erste Event kommt schon nach X Sekunden (gut zum Testen)
+	Weights = { Meteor = 50, Goldrausch = 30, Diebesnacht = 20 },
+
+	Meteor = {
+		Duration = 90, -- so lange liegt die Kreatur herum, bis sie verschwindet
+		GrabTime = 1.5,
+		Weights = { Epic = 55, Legendary = 37, Mythic = 8 },
+		-- Mutationen beim Meteor sind wahrscheinlicher
+		MutationWeights = { Normal = 55, Gold = 25, Diamant = 14, Regenbogen = 6 },
+	},
+	Goldrausch = {
+		Duration = 60,
+		IncomeMultiplier = 2,
+	},
+	Diebesnacht = {
+		Duration = 60,
+		WalkSpeed = 22, -- alle laufen schneller
+		CarrySpeed = 18, -- auch mit Beute
+	},
+}
+
+-- Tagesbonus (einmal pro Tag beim Joinen), je nach Base-Stufe
+Config.DailyBonus = { 500, 2000, 10000, 50000, 200000 }
+
+-- Sounds (Roblox-Sound-IDs, kannst du im Toolbox-Fenster durch eigene ersetzen)
+Config.Sounds = {
+	Collect = "rbxasset://sounds/electronicpingshort.wav",
+	Reveal = "rbxasset://sounds/electronicpingshort.wav",
+	Stolen = "rbxasset://sounds/uuhhh.mp3",
+	Swoosh = "rbxasset://sounds/swoosh.wav",
+	Click = "rbxasset://sounds/button.wav",
+}
+
+-- Normale Laufgeschwindigkeit
+Config.WalkSpeed = 16
+
+-- Kreaturen-Einträge im Spielstand: "Blubbo" oder "Blubbo|Gold"
+function Config.ParseEntry(entry: string)
+	local id, mutation = string.match(entry, "^([^|]+)|?(.*)$")
+	local def = id and Config.CreatureById[id]
+	if mutation == nil or mutation == "" or not Config.Mutations[mutation] then
+		mutation = "Normal"
+	end
+	return def, mutation
+end
+
+function Config.MakeEntry(id: string, mutation: string?): string
+	if mutation and mutation ~= "Normal" then
+		return id .. "|" .. mutation
+	end
+	return id
+end
+
+function Config.EntryIncome(entry: string): number
+	local def, mutation = Config.ParseEntry(entry)
+	return if def then def.Income * Config.Mutations[mutation].Multiplier else 0
+end
+
+function Config.EntryValue(entry: string): number
+	local def, mutation = Config.ParseEntry(entry)
+	return if def then def.Price * Config.Mutations[mutation].Multiplier else 0
+end
+
+function Config.EntryName(entry: string): string
+	local def, mutation = Config.ParseEntry(entry)
+	if not def then
+		return "?"
+	end
+	local m = Config.Mutations[mutation]
+	return if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name
+end
+
+Config.RarityOrder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+function Config.RarityRank(rarity: string): number
+	return table.find(Config.RarityOrder, rarity) or 0
+end
+
+-- Zufall nach Gewichten: { A = 10, B = 5 } -> "A" oder "B"
+function Config.RollWeighted(weights, rng: Random?): string
+	local total = 0
+	for _, w in weights do
+		total += w
+	end
+	local roll = (if rng then rng:NextNumber() else math.random()) * total
+	-- feste Reihenfolge, damit es fair bleibt
+	local keys = {}
+	for k in weights do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+	for _, k in keys do
+		roll -= weights[k]
+		if roll <= 0 and weights[k] > 0 then
+			return k
+		end
+	end
+	for _, k in keys do
+		if weights[k] > 0 then
+			return k
+		end
+	end
+	return keys[1]
+end
+
+-- Zufällige Kreatur einer Seltenheit
+function Config.RandomCreatureOfRarity(rarity: string)
+	local list = {}
+	for _, def in Config.Creatures do
+		if def.Rarity == rarity then
+			table.insert(list, def)
+		end
+	end
+	return list[math.random(1, #list)]
+end
+
+-- Chance in Prozent (für die Anzeige)
+function Config.Percent(weights, key: string): number
+	local total = 0
+	for _, w in weights do
+		total += w
+	end
+	return if total > 0 then (weights[key] or 0) / total * 100 else 0
+end
 
 -- Zahlen hübsch anzeigen: 1500 -> "1.5K", 2300000 -> "2.3M"
 function Config.FormatNumber(n: number): string

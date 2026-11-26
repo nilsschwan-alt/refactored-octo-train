@@ -1,4 +1,4 @@
--- Server-Hauptskript: baut die Map, verbindet Spieler, Knöpfe, Shop und Klauen.
+-- Server-Hauptskript: baut die Map, verbindet Spieler, Knöpfe, Laufband, Packs, Events und Klauen.
 -- Liegt in Studio unter: ServerScriptService > Server > Main
 
 local Players = game:GetService("Players")
@@ -12,13 +12,16 @@ local Data = require(Modules.Data)
 local Map = require(Modules.Map)
 local Bases = require(Modules.Bases)
 local Steal = require(Modules.Steal)
+local Conveyor = require(Modules.Conveyor)
+local Packs = require(Modules.Packs)
+local Events = require(Modules.Events)
 
 print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "OpenShop", "BuyCreature" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -28,6 +31,10 @@ remotes.Parent = ReplicatedStorage
 -- Map bauen ------------------------------------------------------------------
 local plots = Map.Build()
 Bases.Init(plots, remotes)
+Packs.Init(remotes)
+local mapFolder = workspace:WaitForChild("KreaturenMap")
+Conveyor.Start(mapFolder)
+Events.Start(mapFolder)
 
 -- Klatsche (zum Schlagen von Dieben) -------------------------------------------
 local function giveSlapper(player: Player)
@@ -98,6 +105,10 @@ local function onCharacter(player: Player, character: Model)
 	if character.Parent then
 		character:PivotTo(Bases.SpawnCFrame(state))
 	end
+	local hum = character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.WalkSpeed = Steal.WalkSpeed
+	end
 	giveSlapper(player)
 end
 
@@ -121,6 +132,11 @@ local function onPlayerAdded(player: Player)
 		task.spawn(onCharacter, player, player.Character)
 	end
 	print(`[Server] {player.Name} hat Base {state.Plot.Index} bekommen.`)
+	task.delay(4, function()
+		if player.Parent and Bases.GetState(player) == state then
+			Bases.CheckDailyBonus(state)
+		end
+	end)
 end
 
 local function onPlayerRemoving(player: Player)
@@ -142,8 +158,12 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 	local kind = prompt:GetAttribute("Kind")
 	local plotIndex = prompt:GetAttribute("PlotIndex")
 	local slot = prompt:GetAttribute("Slot")
-	if kind == "Shop" then
-		remotes.OpenShop:FireClient(player)
+	if kind == "Packs" then
+		remotes.OpenPacks:FireClient(player)
+	elseif kind == "BeltBuy" then
+		Conveyor.Buy(player, prompt:GetAttribute("BeltId"))
+	elseif kind == "Wild" then
+		Events.Grab(player, prompt:GetAttribute("WildId"))
 	elseif kind == "Steal" then
 		Steal.TryStart(player, plotIndex, slot)
 	elseif kind == "Sell" then
@@ -155,18 +175,11 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 	end
 end)
 
--- Shop-Kauf vom Client -------------------------------------------------------
-remotes.BuyCreature.OnServerEvent:Connect(function(player, creatureId)
-	if type(creatureId) ~= "string" then
-		return
+-- Pack-Kauf vom Client ------------------------------------------------------
+remotes.BuyPack.OnServerEvent:Connect(function(player, packId)
+	if type(packId) == "string" then
+		Packs.Buy(player, packId)
 	end
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root or (root.Position * Vector3.new(1, 0, 1)).Magnitude > Config.Map.ShopUseDistance then
-		Bases.Notify(player, "Geh zum Shop in der Mitte, um zu kaufen!", Color3.fromRGB(255, 200, 90))
-		return
-	end
-	Bases.Buy(player, creatureId)
 end)
 
 -- Schleifen ------------------------------------------------------------------
