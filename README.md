@@ -46,9 +46,36 @@ Dateinamen bestimmen den Skript-Typ:
 
 ### Hat es geklappt?
 
-Nach Play solltest du sehen:
-- Im **Output**-Fenster (Ansicht > Output): `[Server] Mein Roblox-Spiel v0.1.0 läuft. Rojo-Verbindung klappt!`
-- Oben im Bild ein Schild „Willkommen, DeinName!“, das nach 5 Sekunden verschwindet.
+Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!` sehen und in deiner eigenen Base stehen.
+
+## Das Spiel: Kreaturen-Klau
+
+- **8 Bases** im Kreis, in der Mitte der **Shop**. Jeder Spieler bekommt beim Joinen eine freie Base.
+- **Kreaturen kaufen:** zur Theke in der Mitte laufen, E drücken, im Shop kaufen. Kreaturen stehen in deiner Base und bringen Geld pro Sekunde.
+- **Klauen:** In einer fremden Base E an einer Kreatur gedrückt halten. Seltene Kreaturen brauchen länger. Wer etwas trägt, ist langsamer, kann nicht springen und leuchtet gelb. Erst wenn du in deiner eigenen Base ankommst, gehört die Kreatur dir.
+- **Diebe hauen:** Mit der **Klatsche** (Taste 1) einen Dieb treffen, dann geht die Beute zurück.
+- **Schloss:** Roter Knopf in deiner Base. Danach kann eine Weile keiner klauen, dann lädt es wieder auf.
+- **Upgrade:** Grüner Knopf. 5 Stufen: Holz-Hütte, Stein-Burg, Lichter-Villa, Neon-Palast, Kristall-Festung. Mehr Plätze, längeres Schloss, mehr Einkommen und coolere Optik.
+- **Verkaufen:** E an einer eigenen Kreatur, gibt die Hälfte vom Preis zurück.
+- Wer offline ist, hat eine leere Base und kann nicht beklaut werden.
+
+**Balancen:** Alle Zahlen (Preise, Einkommen, Schloss-Zeit, Tempo beim Tragen ...) stehen in `src/shared/Config.luau`.
+
+### Klauen testen (mit 2 Spielern)
+
+In Studio oben im Tab **Test** bei „Clients and Servers“ **2 Players** einstellen und **Start** drücken. Dann öffnen sich zwei Spieler-Fenster, und du kannst dich selbst beklauen.
+
+### Speichern einschalten
+
+Damit Geld und Kreaturen gespeichert werden:
+1. Spiel einmal veröffentlichen: **File > Publish to Roblox**.
+2. **Home > Game Settings > Security** > **Enable Studio Access to API Services** einschalten > Save.
+
+Ohne das läuft das Spiel trotzdem, es wird nur nichts gespeichert (steht dann auch als Hinweis im Spiel).
+
+### Spieler pro Server
+
+Im Creator Dashboard bzw. in **Game Settings > Places** die **Server-Größe auf 8** stellen, passend zu den 8 Bases.
 
 ## Wichtig
 
