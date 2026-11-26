@@ -457,23 +457,56 @@ Remotes.OpenPacks.OnClientEvent:Connect(function()
 	shop.Visible = true
 end)
 
--- Shop schließen, wenn man weggeht
+-- Packs-Knopf: öffnet den Shop von überall (auch Taste P)
+local opening = false -- läuft gerade eine Pack-Öffnung?
+local UserInputService = game:GetService("UserInputService")
+local packsButton = Instance.new("TextButton")
+packsButton.Size = UDim2.fromOffset(240, 54)
+packsButton.Position = UDim2.new(0, 12, 0.5, 40)
+packsButton.BackgroundColor3 = Color3.fromRGB(255, 170, 40)
+packsButton.TextColor3 = Color3.new(1, 1, 1)
+packsButton.Font = Enum.Font.FredokaOne
+packsButton.TextScaled = true
+packsButton.Text = "📦 PACKS (P)"
+packsButton.Parent = gui
+corner(packsButton, 10)
+stroke(packsButton, Color3.fromRGB(255, 255, 255), 2)
+
+local function toggleShop()
+	if opening then
+		return
+	end
+	if shop.Visible then
+		shop.Visible = false
+	else
+		updateShop()
+		fitShop()
+		shop.Visible = true
+	end
+	playSound("Click")
+end
+packsButton.Activated:Connect(toggleShop)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.P then
+		toggleShop()
+	end
+end)
+
+-- Knopf leicht pulsieren lassen, wenn man sich ein Pack leisten kann
 task.spawn(function()
 	while true do
-		task.wait(0.5)
-		local shopPos = workspace:GetAttribute("PackShopPosition")
-		if shop.Visible and shopPos then
-			local char = player.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			if root and (root.Position - shopPos).Magnitude > 35 then
-				shop.Visible = false
-			end
+		local money = player:GetAttribute("Money") or 0
+		local canBuy = money >= Config.Packs[1].Price
+		if canBuy and not shop.Visible then
+			tween(packsButton, 0.4, { Size = UDim2.fromOffset(252, 58) }).Completed:Wait()
+			tween(packsButton, 0.4, { Size = UDim2.fromOffset(240, 54) }).Completed:Wait()
+		else
+			task.wait(0.5)
 		end
 	end
 end)
 
 -- Pack-Öffnung: Wackeln, Blitz, Reveal ------------------------------------------
-local opening = false
 local function openPackAnimation(entry: string, packId: string, wasPity: boolean)
 	local def, mutationId = Config.ParseEntry(entry)
 	if not def then
@@ -612,14 +645,9 @@ local function openPackAnimation(entry: string, packId: string, wasPity: boolean
 		closed = true
 		dim:Destroy()
 		opening = false
-		-- Shop wieder aufmachen, wenn man noch davor steht
-		local shopPos = workspace:GetAttribute("PackShopPosition")
-		local char = player.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if shopPos and root and (root.Position - shopPos).Magnitude <= 35 then
-			updateShop()
-			shop.Visible = true
-		end
+		-- Shop wieder aufmachen, damit man direkt das nächste Pack öffnen kann
+		updateShop()
+		shop.Visible = true
 	end
 	closeButtonOverlay.Activated:Connect(close)
 	task.delay(4, close)

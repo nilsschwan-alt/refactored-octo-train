@@ -1,11 +1,10 @@
--- Packs: Mit Ingame-Geld ein Pack kaufen, eine zufällige Kreatur kommt raus.
+-- Packs: Mit Ingame-Geld ein Pack kaufen (von überall über den Packs-Knopf), eine zufällige Kreatur kommt raus.
 -- Teurere Packs = bessere Chancen. Pity: nach X Packs ohne Legendär+ ist das nächste garantiert Legendär+.
 -- Die Chancen stehen in Config.Packs und werden im Shop angezeigt.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
-local Map = require(script.Parent.Map)
 local Bases = require(script.Parent.Bases)
 
 local Packs = {}
@@ -26,12 +25,6 @@ function Packs.Buy(player: Player, packId: string)
 	local state = Bases.GetState(player)
 	local pack = packById[packId]
 	if not state or not pack then
-		return
-	end
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root or (root.Position - Map.PackShopPosition).Magnitude > 35 then
-		Bases.Notify(player, "Geh zum Pack-Shop am Ende der Straße!", Color3.fromRGB(255, 200, 90))
 		return
 	end
 	if state.Data.Money < pack.Price then
