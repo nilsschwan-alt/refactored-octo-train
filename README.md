@@ -50,7 +50,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 
 ## Das Spiel: Kreaturen-Klau
 
-- **Map:** Zwei Reihen mit je 4 Bases, dazwischen eine Straße. Am Ende der Straße steht der **Pack-Shop**.
+- **Map:** Zwei Reihen mit je 4 Bases an einer breiten Straße mit Gehwegen, Laternen und Brunnen. Am einen Ende der **Pack-Shop**, am anderen eine Riesen-Statue. Drumherum Wald, Hügel, See und Berge (Welt-Deko in `src/server/Modules/World.luau`).
 - **Start:** Neue Spieler bekommen 300 $ und einen Blubbo geschenkt.
 - **Packs:** Im Pack-Shop gibt es 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
 - **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.

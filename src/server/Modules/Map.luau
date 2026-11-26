@@ -5,6 +5,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local World = require(script.Parent.World)
 
 local Map = {}
 
@@ -281,8 +282,9 @@ function Map.IsInside(plot, position: Vector3): boolean
 	return math.abs(localPos.X) <= S / 2 and math.abs(localPos.Z) <= S / 2 and localPos.Y < 40
 end
 
-local BELT_HALF = 150 -- halbe Länge der Straße (bei den Bases)
-Map.PackShopPosition = Vector3.new(BELT_HALF + 30, FLOOR_Y, 0)
+local STREET_HALF = Config.Map.StreetHalfLength
+Map.PackShopPosition = Vector3.new(STREET_HALF + 35, FLOOR_Y, 0)
+Map.StatuePosition = Vector3.new(-STREET_HALF - 35, FLOOR_Y, 0)
 
 -- Zufälliger Punkt auf der Straße (für den Meteor)
 function Map.RandomStreetPoint(): Vector3
@@ -291,7 +293,11 @@ function Map.RandomStreetPoint(): Vector3
 	if math.random() < 0.5 then
 		z = -z
 	end
-	return Vector3.new(math.random(-BELT_HALF + 10, BELT_HALF - 10), FLOOR_Y, z)
+	local x = math.random(-STREET_HALF + 15, STREET_HALF - 15)
+	if math.abs(x) < 18 then
+		x += 30 -- nicht im Brunnen landen
+	end
+	return Vector3.new(x, FLOOR_Y, z)
 end
 
 function Map.Build()
@@ -305,35 +311,17 @@ function Map.Build()
 
 	local street = Config.Map.StreetWidth
 
-	-- Wiese
-	part({
-		Name = "Wiese",
-		Size = Vector3.new(460, 1, 300),
-		CFrame = CFrame.new(0, 0.5, 0),
-		Color = Color3.fromRGB(90, 170, 70),
-		Material = Enum.Material.Grass,
-		Parent = root,
+	-- Boden, Straße, Deko, Landschaft und Licht baut das World-Modul
+	World.Build(root, {
+		Part = part,
+		Billboard = billboard,
+		FloorY = FLOOR_Y,
+		StreetHalf = STREET_HALF,
+		PackShop = Map.PackShopPosition,
+		Statue = Map.StatuePosition,
+		BaseSize = S,
+		BaseZ = street / 2 + S / 2 + 4,
 	})
-
-	-- Straße
-	part({
-		Name = "Strasse",
-		Size = Vector3.new(BELT_HALF * 2 + 80, 1, street),
-		CFrame = CFrame.new(25, 1.5, 0),
-		Color = Color3.fromRGB(60, 60, 68),
-		Material = Enum.Material.Asphalt,
-		Parent = root,
-	})
-	for _, side in { -1, 1 } do
-		part({
-			Name = "Bordstein",
-			Size = Vector3.new(BELT_HALF * 2 + 80, 0.4, 1),
-			CFrame = CFrame.new(25, 2.2, side * (street / 2 - 0.5)),
-			Color = Color3.fromRGB(200, 200, 200),
-			Material = Enum.Material.Concrete,
-			Parent = root,
-		})
-	end
 
 	-- Pack-Shop am Ende der Straße
 	local shopPos = Map.PackShopPosition
@@ -390,7 +378,7 @@ function Map.Build()
 		local row = if i <= perRow then 1 else -1
 		local col = (i - 1) % perRow + 1
 		local x = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
-		local z = row * (street / 2 + S / 2 + 2)
+		local z = row * (street / 2 + S / 2 + 4)
 		local pos = Vector3.new(x, FLOOR_Y, z)
 		local cf = CFrame.lookAt(pos, Vector3.new(x, FLOOR_Y, 0))
 

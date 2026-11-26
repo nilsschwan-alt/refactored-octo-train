@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.3.1"
+Config.Version = "0.4.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
@@ -109,8 +109,9 @@ Config.BaseLevels = {
 Config.Map = {
 	BaseCount = 8, -- passt zu 8 Spielern pro Server
 	BaseSize = 56, -- Kantenlänge einer Base
-	BaseSpacing = 66, -- Abstand der Bases nebeneinander
-	StreetWidth = 44, -- Breite der Straße zwischen den Reihen
+	BaseSpacing = 90, -- Abstand der Bases nebeneinander (Mitte zu Mitte)
+	StreetWidth = 76, -- Breite zwischen den Reihen (Fahrbahn + Gehwege)
+	StreetHalfLength = 200, -- Straße geht von x = -200 bis +200
 }
 
 -- ==========================================================================
