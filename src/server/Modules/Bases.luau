@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Map = require(script.Parent.Map)
 local CreatureModels = require(script.Parent.CreatureModels)
+local FX = require(script.Parent.FX)
 
 local Bases = {}
 
@@ -98,6 +99,7 @@ function Bases.CollectCash(state)
 	Bases.AddMoney(state, amount)
 	remotes.MoneyPopup:FireClient(state.Player, amount)
 	Bases.RefreshCash(state)
+	FX.Burst(state.Plot.CashPad.Position + Vector3.new(0, 1, 0), Color3.fromRGB(255, 215, 50), 25)
 end
 
 function Bases.RefreshCash(state)
@@ -173,6 +175,14 @@ function Bases.GiveCreature(state, entry: string): number?
 	end
 	state.Data.Slots[tostring(slot)] = entry
 	Bases.RenderSlot(state, slot)
+	-- Neue Kreatur ploppt mit Funken auf
+	local model = state.Plot.SlotModels[slot]
+	local def = Config.ParseEntry(entry)
+	if model and def then
+		FX.PopIn(model)
+		FX.Burst(model:GetPivot().Position + Vector3.new(0, 2, 0), Config.Rarities[def.Rarity].Color, 35)
+		FX.Ring(model:GetPivot().Position + Vector3.new(0, 0.3, 0), Config.Rarities[def.Rarity].Color, 8)
+	end
 	return slot
 end
 
@@ -346,7 +356,12 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	player:SetAttribute("BaseLevel", state.Data.BaseLevel)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
 	Bases.RefreshPlot(state.Plot)
-	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Reveal")
+	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
+	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)
+	FX.Ring(center, Color3.fromRGB(80, 255, 120), 50)
+	for _, offset in { Vector3.new(-20, 4, -20), Vector3.new(20, 4, -20), Vector3.new(-20, 4, 20), Vector3.new(20, 4, 20) } do
+		FX.Burst(state.Plot.CFrame:PointToWorldSpace(offset), Color3.fromRGB(80, 255, 120), 40)
+	end
 	Bases.Notify(player, `Jetzt {nextLevel.Slots} Plätze und x{nextLevel.IncomeBonus} Einkommen.`, Color3.fromRGB(80, 255, 120))
 	if state.Data.BaseLevel >= 4 then
 		Bases.Announce(`{player.DisplayName} hat jetzt einen {nextLevel.Name}!`, Color3.fromRGB(80, 255, 120))

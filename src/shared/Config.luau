@@ -192,13 +192,47 @@ Config.Events = {
 -- Tagesbonus (einmal pro Tag beim Joinen), je nach Base-Stufe
 Config.DailyBonus = { 500, 2000, 10000, 50000, 200000 }
 
--- Sounds (Roblox-Sound-IDs, kannst du im Toolbox-Fenster durch eigene ersetzen)
-Config.Sounds = {
-	Collect = "rbxasset://sounds/electronicpingshort.wav",
-	Reveal = "rbxasset://sounds/electronicpingshort.wav",
-	Stolen = "rbxasset://sounds/uuhhh.mp3",
-	Swoosh = "rbxasset://sounds/swoosh.wav",
+-- Sounds -------------------------------------------------------------------
+-- Grund-Geräusche. Die mitgelieferten Roblox-Sounds funktionieren immer.
+-- Eigene Sounds: In Studio Toolbox > Audio (Creator Store) einen Sound suchen,
+-- Rechtsklick > "Copy Asset ID" und hier eintragen, z.B. Ping = "rbxassetid://1234567890".
+Config.SoundSamples = {
+	Ping = "rbxasset://sounds/electronicpingshort.wav",
 	Click = "rbxasset://sounds/button.wav",
+	Swoosh = "rbxasset://sounds/swoosh.wav",
+	Oof = "rbxasset://sounds/uuhhh.mp3",
+	Tick = "rbxasset://sounds/clickfast.wav",
+}
+
+-- Daraus werden kleine Melodien: { Geräusch, Tonhöhe, Lautstärke, Verzögerung in Sekunden }
+-- Tonhöhe 1 = normal, 2 = eine Oktave höher, 1.26 / 1.5 = Terz / Quinte (klingt nach Fanfare)
+Config.Sounds = {
+	Click = { { "Click", 1, 0.5, 0 } },
+	Tick = { { "Tick", 1, 0.35, 0 } },
+	Collect = { { "Ping", 1.5, 0.45, 0 }, { "Ping", 2, 0.35, 0.07 } },
+	Coin = { { "Ping", 2.2, 0.25, 0 } },
+	Reveal = { { "Ping", 1, 0.5, 0 }, { "Ping", 1.26, 0.5, 0.09 }, { "Ping", 1.5, 0.6, 0.18 } },
+	Epic = { { "Ping", 1, 0.5, 0 }, { "Ping", 1.26, 0.5, 0.09 }, { "Ping", 1.5, 0.6, 0.18 }, { "Ping", 2, 0.7, 0.3 } },
+	Legendary = {
+		{ "Swoosh", 0.7, 0.6, 0 },
+		{ "Ping", 1, 0.6, 0.05 },
+		{ "Ping", 1.26, 0.6, 0.15 },
+		{ "Ping", 1.5, 0.7, 0.25 },
+		{ "Ping", 2, 0.8, 0.38 },
+		{ "Ping", 2.52, 0.8, 0.5 },
+		{ "Ping", 3, 0.9, 0.62 },
+	},
+	Upgrade = {
+		{ "Swoosh", 0.8, 0.6, 0 },
+		{ "Ping", 0.75, 0.6, 0.05 },
+		{ "Ping", 1, 0.6, 0.15 },
+		{ "Ping", 1.26, 0.6, 0.25 },
+		{ "Ping", 1.5, 0.8, 0.35 },
+	},
+	Announce = { { "Ping", 1.5, 0.4, 0 }, { "Ping", 2, 0.4, 0.12 } },
+	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },
+	Hit = { { "Swoosh", 1.6, 0.7, 0 }, { "Ping", 0.6, 0.6, 0.03 } },
+	Swoosh = { { "Swoosh", 1, 0.6, 0 } },
 }
 
 -- Normale Laufgeschwindigkeit

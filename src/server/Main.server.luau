@@ -79,7 +79,7 @@ local function giveSlapper(player: Player)
 		tool.Grip = normalGrip * CFrame.Angles(math.rad(-80), 0, 0)
 		local hit = Steal.Hit(player)
 		if hit then
-			Bases.Notify(player, "Treffer! Die Beute ist zurück.", Color3.fromRGB(100, 255, 130))
+			Bases.BigText(player, "TREFFER!", Color3.fromRGB(100, 255, 130), "Hit")
 		end
 		task.wait(0.25)
 		tool.Grip = normalGrip
