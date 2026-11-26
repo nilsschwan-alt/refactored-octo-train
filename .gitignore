@@ -1,0 +1,22 @@
+# Roblox-Spieldateien (gebaut aus dem Code, gehören nicht ins Repo)
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+*.rbxl.lock
+*.rbxlx.lock
+
+# Rojo-Sourcemap (wird automatisch erzeugt)
+sourcemap.json
+
+# Tool-Ordner
+/roblox_packages/
+/Packages/
+/ServerPackages/
+/DevPackages/
+
+# System / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
