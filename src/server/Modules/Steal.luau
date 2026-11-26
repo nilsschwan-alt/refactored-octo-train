@@ -243,6 +243,7 @@ function Steal.Deliver(thief: Player)
 		Bases.BigText(info.Owner, "DU WURDEST BEKLAUT!", RED, "Stolen", true)
 		Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {Config.EntryName(entry)} geklaut!`, RED)
 		Bases.AnnounceIfRare(thief, entry, "geklaut")
+		Bases.Track(tState, "Steal", 1)
 	else
 		cleanup(thief, info)
 		Bases.GiveCreature(tState, entry)

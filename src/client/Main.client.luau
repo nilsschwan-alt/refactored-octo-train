@@ -398,8 +398,17 @@ local function showBigText(text: string, color: Color3, sound: string?, doFlash:
 			end
 		end)
 	end
-	if sound == "Upgrade" or sound == "Reveal" then
+	if sound == "Upgrade" or sound == "Reveal" or sound == "Quest" then
 		confetti(50)
+	elseif sound == "Rebirth" then
+		confetti(160)
+		shake(5, 0.9)
+		task.spawn(function()
+			for i = 1, 4 do
+				starBurst(UDim2.fromScale(0.2 + math.random() * 0.6, 0.2 + math.random() * 0.5), color, 16, 200)
+				task.wait(0.18 * i)
+			end
+		end)
 	end
 	task.delay(2.2, function()
 		if token == bigToken then
@@ -545,54 +554,101 @@ for _, pack in Config.Packs do
 		Parent = card,
 	})
 
-	-- Chancen anzeigen
+	-- Chancen anzeigen (werden mit Glück aus dem Rebirth-Shop aktualisiert)
 	local y = 48
+	local chanceLabels = {}
 	for _, rarityKey in Config.RarityOrder do
-		local percent = Config.Percent(pack.Weights, rarityKey)
-		if percent > 0 then
+		if (pack.Weights[rarityKey] or 0) > 0 then
 			local rarity = Config.Rarities[rarityKey]
-			local text = if percent < 1 then string.format("%.1f %%", percent) else string.format("%d %%", math.floor(percent + 0.5))
-			label({
+			chanceLabels[rarityKey] = label({
 				Size = UDim2.new(1, -24, 0, 20),
 				Position = UDim2.fromOffset(12, y),
 				TextColor3 = rarity.Color,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = `{rarity.Name}: {text}`,
+				Text = "",
 				Parent = card,
 			})
 			y += 24
 		end
 	end
 
-	local buy = Instance.new("TextButton")
-	buy.Size = UDim2.new(1, -24, 0, 50)
-	buy.Position = UDim2.new(0, 12, 1, -62)
-	buy.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
-	buy.TextColor3 = Color3.new(1, 1, 1)
-	buy.Font = Enum.Font.GothamBold
-	buy.TextScaled = true
-	buy.Text = `Öffnen: {Config.FormatNumber(pack.Price)} $`
-	buy.Parent = card
-	corner(buy, 10)
-	buy.Activated:Connect(function()
-		playSound("Click")
-		Remotes.BuyPack:FireServer(pack.Id)
-	end)
-	packButtons[pack.Id] = { Button = buy, Price = pack.Price }
+	-- 1x / 3x / 10x
+	local buttonRow = Instance.new("Frame")
+	buttonRow.Size = UDim2.new(1, -16, 0, 58)
+	buttonRow.Position = UDim2.new(0, 8, 1, -66)
+	buttonRow.BackgroundTransparency = 1
+	buttonRow.Parent = card
+	local buttonLayout = Instance.new("UIListLayout")
+	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
+	buttonLayout.Padding = UDim.new(0, 5)
+	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	buttonLayout.Parent = buttonRow
+	local buttons = {}
+	for _, option in Config.PackCounts do
+		local cost = Config.PackCost(pack, option.Count)
+		local buy = Instance.new("TextButton")
+		buy.Size = UDim2.new(1 / #Config.PackCounts, -4, 1, 0)
+		buy.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
+		buy.TextColor3 = Color3.new(1, 1, 1)
+		buy.Font = Enum.Font.FredokaOne
+		buy.TextScaled = true
+		buy.TextStrokeTransparency = 0.5
+		buy.Text = `{option.Count}x\n{Config.FormatNumber(cost)} $`
+		buy.Parent = buttonRow
+		corner(buy, 10)
+		local pad = Instance.new("UIPadding")
+		pad.PaddingTop = UDim.new(0, 4)
+		pad.PaddingBottom = UDim.new(0, 4)
+		pad.PaddingLeft = UDim.new(0, 3)
+		pad.PaddingRight = UDim.new(0, 3)
+		pad.Parent = buy
+		if option.Discount < 1 then
+			local tag = label({
+				Size = UDim2.fromOffset(46, 18),
+				Position = UDim2.new(1, -40, 0, -14),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = Color3.fromRGB(255, 60, 90),
+				Font = Enum.Font.FredokaOne,
+				Text = `-{math.floor((1 - option.Discount) * 100 + 0.5)} %`,
+				ZIndex = 3,
+				Parent = buy,
+			})
+			tag.Rotation = 12
+			corner(tag, 6)
+		end
+		buy.Activated:Connect(function()
+			playSound("Click")
+			Remotes.BuyPack:FireServer(pack.Id, option.Count)
+		end)
+		table.insert(buttons, { Button = buy, Price = cost })
+	end
+	packButtons[pack.Id] = { Buttons = buttons, Pack = pack, Chances = chanceLabels }
+end
+
+local function percentText(percent: number): string
+	return if percent < 1 then string.format("%.1f %%", percent) else string.format("%d %%", math.floor(percent + 0.5))
 end
 
 local function updateShop()
 	local money = player:GetAttribute("Money") or 0
+	local luck = player:GetAttribute("Up_Luck") or 0
 	for _, entry in packButtons do
-		entry.Button.BackgroundColor3 = if money >= entry.Price
-			then Color3.fromRGB(60, 200, 90)
-			else Color3.fromRGB(90, 90, 100)
+		for _, b in entry.Buttons do
+			b.Button.BackgroundColor3 = if money >= b.Price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(90, 90, 100)
+		end
+		local weights = Config.PackWeights(entry.Pack, luck)
+		for rarityKey, l in entry.Chances do
+			local rarity = Config.Rarities[rarityKey]
+			l.Text = `{rarity.Name}: {percentText(Config.Percent(weights, rarityKey))}`
+		end
 	end
 	local left = Config.PityThreshold - (player:GetAttribute("Pity") or 0)
 	pityLabel.Text = `Garantiert Legendär oder besser in spätestens {math.max(1, left)} Packs`
 end
 player:GetAttributeChangedSignal("Money"):Connect(updateShop)
 player:GetAttributeChangedSignal("Pity"):Connect(updateShop)
+player:GetAttributeChangedSignal("Up_Luck"):Connect(updateShop)
+updateShop()
 
 local function fitShop()
 	local camera = workspace.CurrentCamera
@@ -939,11 +995,291 @@ local function openPackAnimation(entry: string, packId: string, wasPity: boolean
 	task.delay(if isLegendary then 6 else 4.5, close)
 end
 
-Remotes.PackResult.OnClientEvent:Connect(function(entry: string, packId: string, wasPity: boolean)
-	if opening then
+-- Mehrere Packs auf einmal: Pack platzt, dann drehen sich die Karten nacheinander um
+local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number)
+	local pack
+	for _, p in Config.Packs do
+		if p.Id == packId then
+			pack = p
+		end
+	end
+	local packColor = pack and pack.Color or Color3.new(1, 1, 1)
+	-- beste Kreatur finden (bestimmt, wie heftig es wird)
+	local bestRank, bestIndex = 0, 1
+	for i, entry in entries do
+		local def = Config.ParseEntry(entry)
+		local rank = def and Config.RarityRank(def.Rarity) or 0
+		if rank > bestRank then
+			bestRank, bestIndex = rank, i
+		end
+	end
+	local bestDef = Config.ParseEntry(entries[bestIndex])
+	local bestRarity = bestDef and Config.Rarities[bestDef.Rarity] or Config.Rarities.Common
+	local isEpic = bestRank >= Config.RarityRank("Epic")
+	local isLegendary = bestRank >= Config.RarityRank("Legendary")
+	opening = true
+	shop.Visible = false
+
+	local blur = Instance.new("BlurEffect")
+	blur.Size = 0
+	blur.Parent = Lighting
+	tween(blur, 0.4, { Size = 18 })
+	local dim = Instance.new("Frame")
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.BackgroundColor3 = Color3.new(0, 0, 0)
+	dim.BackgroundTransparency = 1
+	dim.Parent = overlayGui
+	tween(dim, 0.4, { BackgroundTransparency = 0.35 })
+	local rays = sunburst(dim, Color3.new(1, 1, 1), 700)
+	for _, r in rays:GetChildren() do
+		if r:IsA("Frame") then
+			r.BackgroundTransparency = 1
+		end
+	end
+
+	-- Stapel aus Packs fällt rein und lädt auf
+	local box = Instance.new("Frame")
+	box.AnchorPoint = Vector2.new(0.5, 0.5)
+	box.Position = UDim2.fromScale(0.5, -0.3)
+	box.Size = UDim2.fromOffset(170, 220)
+	box.BackgroundColor3 = packColor
+	box.Parent = dim
+	corner(box, 18)
+	local boxStroke = stroke(box, Color3.new(1, 1, 1), 5)
+	local boxScale = Instance.new("UIScale")
+	boxScale.Parent = box
+	label({
+		Size = UDim2.new(1, -16, 0.5, 0),
+		Position = UDim2.fromScale(0, 0.25),
+		Font = Enum.Font.FredokaOne,
+		TextStrokeTransparency = 0.3,
+		Text = `{#entries}x`,
+		Parent = box,
+	})
+	playSound("Swoosh", 0.7)
+	tween(box, 0.55, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Bounce).Completed:Wait()
+	local steps = 10 + math.max(0, bestRank - 2) * 3
+	for i = 1, steps do
+		local t = i / steps
+		box.Rotation = (if i % 2 == 0 then 1 else -1) * (2 + t * 14)
+		boxScale.Scale = 1 + t * 0.3
+		playSound("Tick", 0.8 + t * 1.2)
+		for _, r in rays:GetChildren() do
+			if r:IsA("Frame") then
+				r.BackgroundColor3 = if t > 0.6 and isEpic then bestRarity.Color else Color3.new(1, 1, 1)
+				r.BackgroundTransparency = 1 - t * 0.5
+			end
+		end
+		if t > 0.6 and isEpic then
+			boxStroke.Color = bestRarity.Color
+			boxStroke.Thickness = 5 + t * 8
+		end
+		if isLegendary and t > 0.5 then
+			shake(t * 1.5, 0.2)
+		end
+		task.wait(0.1 - t * 0.04)
+	end
+	tween(boxScale, 0.15, { Scale = 2 })
+	tween(box, 0.15, { BackgroundTransparency = 1 })
+	task.wait(0.12)
+	box:Destroy()
+	local white = Instance.new("Frame")
+	white.Size = UDim2.fromScale(1, 1)
+	white.BackgroundColor3 = Color3.new(1, 1, 1)
+	white.BorderSizePixel = 0
+	white.Parent = overlayGui
+	tween(white, 0.6, { BackgroundTransparency = 1 })
+	task.delay(0.7, function()
+		white:Destroy()
+	end)
+	playSound("Reveal")
+	starBurst(UDim2.fromScale(0.5, 0.5), packColor, 24, 320)
+
+	-- Karten-Raster: 3 in einer Reihe oder 5 x 2
+	local perRow = if #entries <= 5 then #entries else 5
+	local rowsCount = math.ceil(#entries / perRow)
+	local cardW, cardH, gap = 150, 190, 14
+	local grid = Instance.new("Frame")
+	grid.AnchorPoint = Vector2.new(0.5, 0.5)
+	grid.Position = UDim2.fromScale(0.5, 0.5)
+	grid.Size = UDim2.fromOffset(perRow * cardW + (perRow - 1) * gap, rowsCount * cardH + (rowsCount - 1) * gap)
+	grid.BackgroundTransparency = 1
+	grid.Parent = dim
+	local gridScale = Instance.new("UIScale")
+	gridScale.Parent = grid
+	local camera = workspace.CurrentCamera
+	if camera then
+		local view = camera.ViewportSize
+		gridScale.Scale = math.min(1, (view.X - 40) / grid.Size.X.Offset, (view.Y - 160) / grid.Size.Y.Offset)
+	end
+
+	local function makeCard(i: number, entry: string)
+		local def, mutationId = Config.ParseEntry(entry)
+		if not def then
+			return
+		end
+		local rarity = Config.Rarities[def.Rarity]
+		local mutation = Config.Mutations[mutationId]
+		local rank = Config.RarityRank(def.Rarity)
+		local col = (i - 1) % perRow
+		local row = math.floor((i - 1) / perRow)
+		local holder = Instance.new("Frame")
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.Position = UDim2.fromOffset(col * (cardW + gap) + cardW / 2, row * (cardH + gap) + cardH / 2)
+		holder.Size = UDim2.fromOffset(0, cardH)
+		holder.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+		holder.ClipsDescendants = true
+		holder.Parent = grid
+		corner(holder, 14)
+		stroke(holder, mutation.Color or rarity.Color, if rank >= 4 then 6 else 4)
+		label({
+			Size = UDim2.new(1, 0, 0, 24),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = rarity.Color,
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0.4,
+			Text = string.upper(rarity.Name),
+			Parent = holder,
+		})
+		local swatch = Instance.new("Frame")
+		swatch.AnchorPoint = Vector2.new(0.5, 0)
+		swatch.Position = UDim2.new(0.5, 0, 0, 32)
+		swatch.Size = UDim2.fromOffset(64, 64)
+		swatch.BackgroundColor3 = mutation.Color or def.Color
+		swatch.Parent = holder
+		corner(swatch, 16)
+		stroke(swatch, def.Accent, 3)
+		if mutationId == "Regenbogen" then
+			CollectionService:AddTag(swatch, "RainbowGui")
+		end
+		for _, x in { 0.3, 0.7 } do
+			local eye = Instance.new("Frame")
+			eye.AnchorPoint = Vector2.new(0.5, 0.5)
+			eye.Position = UDim2.fromScale(x, 0.42)
+			eye.Size = UDim2.fromOffset(14, 14)
+			eye.BackgroundColor3 = Color3.new(1, 1, 1)
+			eye.Parent = swatch
+			corner(eye, 7)
+			local pupil = Instance.new("Frame")
+			pupil.AnchorPoint = Vector2.new(0.5, 0.5)
+			pupil.Position = UDim2.fromScale(0.5, 0.55)
+			pupil.Size = UDim2.fromOffset(6, 8)
+			pupil.BackgroundColor3 = Color3.new(0, 0, 0)
+			pupil.Parent = eye
+			corner(pupil, 3)
+		end
+		label({
+			Size = UDim2.new(1, -12, 0, 30),
+			Position = UDim2.new(0, 6, 0, 102),
+			Font = Enum.Font.FredokaOne,
+			TextColor3 = rarity.Color,
+			TextStrokeTransparency = 0.5,
+			Text = Config.EntryName(entry),
+			Parent = holder,
+		})
+		if mutation.Name ~= "" then
+			label({
+				Size = UDim2.new(1, -24, 0, 18),
+				Position = UDim2.new(0, 12, 0, 134),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = mutation.Color or Color3.new(1, 1, 1),
+				Font = Enum.Font.FredokaOne,
+				TextColor3 = Color3.new(0, 0, 0),
+				Text = `{string.upper(mutation.Name)} x{mutation.Multiplier}`,
+				Parent = holder,
+			})
+		end
+		label({
+			Size = UDim2.new(1, -12, 0, 22),
+			Position = UDim2.new(0, 6, 1, -28),
+			TextColor3 = Color3.fromRGB(130, 255, 130),
+			Text = if pities[i] then `PITY! +{Config.FormatNumber(Config.EntryIncome(entry))} $/s` else `+{Config.FormatNumber(Config.EntryIncome(entry))} $/s`,
+			Parent = holder,
+		})
+		-- Umdrehen
+		tween(holder, 0.3, { Size = UDim2.fromOffset(cardW, cardH) }, Enum.EasingStyle.Back)
+		local center = UDim2.fromOffset(
+			holder.AbsolutePosition.X + holder.AbsoluteSize.X / 2,
+			holder.AbsolutePosition.Y + holder.AbsoluteSize.Y / 2
+		)
+		if rank >= Config.RarityRank("Legendary") then
+			playSound("Legendary")
+			shake(5, 0.6)
+			confetti(80)
+			starBurst(center, rarity.Color, 30, 300)
+		elseif rank >= Config.RarityRank("Epic") or mutationId ~= "Normal" then
+			playSound("Epic")
+			shake(2, 0.3)
+			starBurst(center, mutation.Color or rarity.Color, 16, 180)
+		else
+			playSound("Card", 0.9 + i * 0.05)
+		end
+	end
+
+	for i, entry in entries do
+		makeCard(i, entry)
+		local def = Config.ParseEntry(entry)
+		local rank = def and Config.RarityRank(def.Rarity) or 0
+		-- Seltene Karten: kurze Pause, damit man es feiert
+		task.wait(if rank >= 5 then 0.9 elseif rank >= 4 then 0.45 else 0.18)
+	end
+	for _, r in rays:GetChildren() do
+		if r:IsA("Frame") then
+			r.BackgroundColor3 = bestRarity.Color
+			r.BackgroundTransparency = 0.5
+		end
+	end
+	if isEpic then
+		confetti(if isLegendary then 120 else 50)
+	end
+
+	local hint = label({
+		Size = UDim2.new(0, 520, 0, 26),
+		Position = UDim2.new(0.5, -260, 1, -60),
+		TextColor3 = Color3.fromRGB(200, 200, 210),
+		Text = if soldCount > 0
+			then `Base voll: {soldCount} schwächste automatisch verkauft · Klicken zum Schließen`
+			else "Klicken zum Schließen",
+		Parent = dim,
+	})
+	local _ = hint
+
+	local closeButtonOverlay = Instance.new("TextButton")
+	closeButtonOverlay.Size = UDim2.fromScale(1, 1)
+	closeButtonOverlay.BackgroundTransparency = 1
+	closeButtonOverlay.Text = ""
+	closeButtonOverlay.Parent = dim
+	local closed = false
+	local function close()
+		if closed then
+			return
+		end
+		closed = true
+		tween(blur, 0.25, { Size = 0 }).Completed:Once(function()
+			blur:Destroy()
+		end)
+		tween(gridScale, 0.2, { Scale = 0.01 })
+		task.wait(0.2)
+		dim:Destroy()
+		opening = false
+		updateShop()
+		shop.Visible = true
+	end
+	task.delay(0.4, function()
+		closeButtonOverlay.Activated:Connect(close)
+	end)
+	task.delay(if isLegendary then 7 else 5, close)
+end
+
+Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?)
+	if opening or type(entries) ~= "table" or #entries == 0 then
 		return
 	end
-	task.spawn(openPackAnimation, entry, packId, wasPity)
+	if #entries == 1 then
+		task.spawn(openPackAnimation, entries[1], packId, pities[1])
+	else
+		task.spawn(openMultiAnimation, entries, packId, pities, soldCount or 0)
+	end
 end)
 
 -- Regenbogen-Mutation: Farbe wechselt ständig ------------------------------------
@@ -1013,6 +1349,461 @@ task.spawn(function()
 			end
 		end
 		task.wait(0.25)
+	end
+end)
+
+-- Münzen auf der Straße drehen sich und hüpfen ---------------------------------
+RunService.RenderStepped:Connect(function()
+	local t = os.clock()
+	for _, coin in CollectionService:GetTagged("SpinCoin") do
+		if coin:IsA("BasePart") then
+			local pos = coin.Position
+			local baseY = coin:GetAttribute("BaseY") or pos.Y
+			local phase = pos.X * 0.1 + pos.Z * 0.1
+			coin.CFrame = CFrame.new(pos.X, baseY + math.sin(t * 3 + phase) * 0.4, pos.Z) * CFrame.Angles(0, t * 3 + phase, 0)
+		end
+	end
+end)
+
+-- Schwebende "+X $" in der Welt (Klick auf Kreatur, Münze) ----------------------
+local squishing = {}
+local function squish(model: Model)
+	if squishing[model] then
+		return
+	end
+	squishing[model] = true
+	task.spawn(function()
+		local ok = pcall(function()
+			for _, s in { 1.12, 1.18, 1.08, 0.97, 1 } do
+				model:ScaleTo(s)
+				task.wait(0.03)
+			end
+		end)
+		local _ = ok
+		squishing[model] = nil
+	end)
+end
+
+Remotes.Pop.OnClientEvent:Connect(function(amount: number, position: Vector3, model: Instance?, color: Color3?)
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	anchor.CFrame = CFrame.new(position + Vector3.new((math.random() - 0.5) * 2, 0, (math.random() - 0.5) * 2))
+	anchor.Parent = workspace
+	local board = Instance.new("BillboardGui")
+	board.Size = UDim2.fromOffset(160, 50)
+	board.AlwaysOnTop = true
+	board.LightInfluence = 0
+	board.Parent = anchor
+	local text = label({
+		Size = UDim2.fromScale(1, 1),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = color or Color3.fromRGB(120, 255, 120),
+		TextStrokeTransparency = 0,
+		Text = `+{Config.FormatNumber(amount)} $`,
+		Parent = board,
+	})
+	local popScale = Instance.new("UIScale")
+	popScale.Scale = 0.4
+	popScale.Parent = text
+	tween(popScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+	tween(anchor, 0.9, { CFrame = anchor.CFrame + Vector3.new(0, 4, 0) })
+	task.delay(0.4, function()
+		tween(text, 0.5, { TextTransparency = 1, TextStrokeTransparency = 1 })
+	end)
+	task.delay(1, function()
+		anchor:Destroy()
+	end)
+	if color then
+		playSound("Coin", 0.9 + math.random() * 0.3)
+	else
+		playSound("Pop", 0.9 + math.random() * 0.25)
+	end
+	if model and model:IsA("Model") then
+		squish(model)
+	end
+end)
+
+-- Aufgaben (rechts) ---------------------------------------------------------------
+local questBox = Instance.new("Frame")
+questBox.Size = UDim2.fromOffset(300, 36)
+questBox.Position = UDim2.new(1, -312, 0, 112)
+questBox.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+questBox.BackgroundTransparency = 0.2
+questBox.AutomaticSize = Enum.AutomaticSize.Y
+questBox.Parent = gui
+corner(questBox, 10)
+local questPad = Instance.new("UIPadding")
+questPad.PaddingTop = UDim.new(0, 6)
+questPad.PaddingBottom = UDim.new(0, 8)
+questPad.PaddingLeft = UDim.new(0, 8)
+questPad.PaddingRight = UDim.new(0, 8)
+questPad.Parent = questBox
+local questLayout = Instance.new("UIListLayout")
+questLayout.Padding = UDim.new(0, 6)
+questLayout.SortOrder = Enum.SortOrder.LayoutOrder
+questLayout.Parent = questBox
+label({
+	Size = UDim2.new(1, 0, 0, 24),
+	Font = Enum.Font.FredokaOne,
+	TextColor3 = Color3.fromRGB(255, 220, 60),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "📜 Aufgaben",
+	LayoutOrder = 0,
+	Parent = questBox,
+})
+local questRows = {}
+local lastProgress = {}
+
+Remotes.Quests.OnClientEvent:Connect(function(list)
+	for i, quest in list do
+		local row = questRows[i]
+		if not row then
+			local frame = Instance.new("Frame")
+			frame.Size = UDim2.new(1, 0, 0, 50)
+			frame.BackgroundColor3 = Color3.fromRGB(40, 40, 58)
+			frame.LayoutOrder = i
+			frame.Parent = questBox
+			corner(frame, 8)
+			local text = label({
+				Size = UDim2.new(0.7, -6, 0, 22),
+				Position = UDim2.fromOffset(6, 3),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Text = "",
+				Parent = frame,
+			})
+			local reward = label({
+				Size = UDim2.new(0.3, -6, 0, 22),
+				Position = UDim2.new(0.7, 0, 0, 3),
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextColor3 = Color3.fromRGB(255, 220, 60),
+				Text = "",
+				Parent = frame,
+			})
+			local bar = Instance.new("Frame")
+			bar.Size = UDim2.new(1, -12, 0, 16)
+			bar.Position = UDim2.fromOffset(6, 29)
+			bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+			bar.Parent = frame
+			corner(bar, 8)
+			local fill = Instance.new("Frame")
+			fill.Size = UDim2.fromScale(0, 1)
+			fill.BackgroundColor3 = Color3.fromRGB(80, 220, 120)
+			fill.Parent = bar
+			corner(fill, 8)
+			local count = label({
+				Size = UDim2.fromScale(1, 1),
+				TextStrokeTransparency = 0.4,
+				Text = "",
+				ZIndex = 2,
+				Parent = bar,
+			})
+			local scale = Instance.new("UIScale")
+			scale.Parent = frame
+			row = { Frame = frame, Text = text, Reward = reward, Fill = fill, Count = count, Scale = scale }
+			questRows[i] = row
+		end
+		row.Frame.Visible = true
+		local changedQuest = row.Text.Text ~= quest.Text
+		row.Text.Text = quest.Text
+		row.Reward.Text = `🎁 {Config.FormatNumber(quest.Reward)} $`
+		row.Count.Text = `{Config.FormatNumber(quest.Progress)} / {Config.FormatNumber(quest.Goal)}`
+		local ratio = math.clamp(quest.Progress / math.max(1, quest.Goal), 0, 1)
+		if changedQuest then
+			row.Fill.Size = UDim2.fromScale(ratio, 1)
+			row.Scale.Scale = 0.6
+			tween(row.Scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+		else
+			tween(row.Fill, 0.2, { Size = UDim2.fromScale(ratio, 1) })
+			if (lastProgress[i] or 0) < quest.Progress then
+				row.Scale.Scale = 1.04
+				tween(row.Scale, 0.15, { Scale = 1 })
+			end
+		end
+		lastProgress[i] = quest.Progress
+	end
+	for i = #list + 1, #questRows do
+		questRows[i].Frame.Visible = false
+	end
+end)
+
+-- Wiedergeburt (Rebirth) ---------------------------------------------------------
+local PURPLE = Color3.fromRGB(170, 90, 255)
+local rebirthButton = Instance.new("TextButton")
+rebirthButton.Size = UDim2.fromOffset(72, 72)
+rebirthButton.Position = UDim2.new(0, 92, 0.5, 40)
+rebirthButton.BackgroundColor3 = PURPLE
+rebirthButton.Text = ""
+rebirthButton.Parent = gui
+corner(rebirthButton, 12)
+stroke(rebirthButton, Color3.fromRGB(255, 255, 255), 2)
+local rebirthButtonScale = Instance.new("UIScale")
+rebirthButtonScale.Parent = rebirthButton
+label({
+	Size = UDim2.new(1, 0, 0.62, 0),
+	Position = UDim2.fromScale(0, 0.04),
+	Text = "🔄",
+	Parent = rebirthButton,
+})
+label({
+	Size = UDim2.new(1, -8, 0.3, 0),
+	Position = UDim2.new(0, 4, 0.66, 0),
+	Font = Enum.Font.FredokaOne,
+	TextStrokeTransparency = 0.4,
+	Text = "Rebirth",
+	Parent = rebirthButton,
+})
+
+local rebirthPanel = Instance.new("Frame")
+rebirthPanel.Size = UDim2.fromOffset(620, 450)
+rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -225)
+rebirthPanel.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+rebirthPanel.Visible = false
+rebirthPanel.Parent = gui
+corner(rebirthPanel, 14)
+stroke(rebirthPanel, PURPLE, 3)
+local rebirthScale = Instance.new("UIScale")
+rebirthScale.Parent = rebirthPanel
+
+label({
+	Size = UDim2.new(1, -70, 0, 40),
+	Position = UDim2.fromOffset(16, 8),
+	Font = Enum.Font.FredokaOne,
+	TextColor3 = Color3.fromRGB(210, 160, 255),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "🔄 Wiedergeburt",
+	Parent = rebirthPanel,
+})
+local rebirthClose = Instance.new("TextButton")
+rebirthClose.Size = UDim2.fromOffset(40, 40)
+rebirthClose.Position = UDim2.new(1, -50, 0, 10)
+rebirthClose.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+rebirthClose.Text = "X"
+rebirthClose.TextColor3 = Color3.new(1, 1, 1)
+rebirthClose.Font = Enum.Font.GothamBold
+rebirthClose.TextScaled = true
+rebirthClose.Parent = rebirthPanel
+corner(rebirthClose, 8)
+
+local rebirthInfo = label({
+	Size = UDim2.new(1, -32, 0, 28),
+	Position = UDim2.fromOffset(16, 52),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = Color3.fromRGB(130, 255, 130),
+	Text = "",
+	Parent = rebirthPanel,
+})
+label({
+	Size = UDim2.new(1, -32, 0, 36),
+	Position = UDim2.fromOffset(16, 82),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	TextColor3 = Color3.fromRGB(200, 200, 215),
+	TextWrapped = true,
+	Font = Enum.Font.Gotham,
+	Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld, Kasse und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`,
+	Parent = rebirthPanel,
+})
+local costBar = Instance.new("Frame")
+costBar.Size = UDim2.new(1, -32, 0, 26)
+costBar.Position = UDim2.fromOffset(16, 124)
+costBar.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+costBar.Parent = rebirthPanel
+corner(costBar, 10)
+local costFill = Instance.new("Frame")
+costFill.Size = UDim2.fromScale(0, 1)
+costFill.BackgroundColor3 = PURPLE
+costFill.Parent = costBar
+corner(costFill, 10)
+local costText = label({
+	Size = UDim2.fromScale(1, 1),
+	TextStrokeTransparency = 0.3,
+	ZIndex = 2,
+	Text = "",
+	Parent = costBar,
+})
+local doRebirth = Instance.new("TextButton")
+doRebirth.Size = UDim2.new(1, -32, 0, 52)
+doRebirth.Position = UDim2.fromOffset(16, 158)
+doRebirth.BackgroundColor3 = PURPLE
+doRebirth.TextColor3 = Color3.new(1, 1, 1)
+doRebirth.Font = Enum.Font.FredokaOne
+doRebirth.TextScaled = true
+doRebirth.Text = "WIEDERGEBURT!"
+doRebirth.Parent = rebirthPanel
+corner(doRebirth, 12)
+local tokenLabel = label({
+	Size = UDim2.new(1, -32, 0, 28),
+	Position = UDim2.fromOffset(16, 220),
+	Font = Enum.Font.FredokaOne,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = Color3.fromRGB(120, 220, 255),
+	Text = "",
+	Parent = rebirthPanel,
+})
+
+local upgradeRow = Instance.new("Frame")
+upgradeRow.Size = UDim2.new(1, -24, 0, 180)
+upgradeRow.Position = UDim2.fromOffset(12, 256)
+upgradeRow.BackgroundTransparency = 1
+upgradeRow.Parent = rebirthPanel
+local upgradeLayout = Instance.new("UIListLayout")
+upgradeLayout.FillDirection = Enum.FillDirection.Horizontal
+upgradeLayout.Padding = UDim.new(0, 10)
+upgradeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+upgradeLayout.Parent = upgradeRow
+
+local upgradeCards = {}
+for _, id in Config.Rebirth.UpgradeOrder do
+	local info = Config.Rebirth.Upgrades[id]
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1 / #Config.Rebirth.UpgradeOrder, -8, 1, 0)
+	card.BackgroundColor3 = Color3.fromRGB(45, 40, 65)
+	card.Parent = upgradeRow
+	corner(card, 12)
+	label({
+		Size = UDim2.new(1, -12, 0, 30),
+		Position = UDim2.fromOffset(6, 6),
+		Font = Enum.Font.FredokaOne,
+		Text = `{info.Icon} {info.Name}`,
+		Parent = card,
+	})
+	label({
+		Size = UDim2.new(1, -16, 0, 36),
+		Position = UDim2.fromOffset(8, 38),
+		Font = Enum.Font.Gotham,
+		TextWrapped = true,
+		TextColor3 = Color3.fromRGB(200, 200, 215),
+		Text = info.Desc,
+		Parent = card,
+	})
+	local levelLabel = label({
+		Size = UDim2.new(1, -16, 0, 22),
+		Position = UDim2.fromOffset(8, 80),
+		TextColor3 = Color3.fromRGB(255, 220, 60),
+		Text = "",
+		Parent = card,
+	})
+	local buy = Instance.new("TextButton")
+	buy.Size = UDim2.new(1, -16, 0, 50)
+	buy.Position = UDim2.new(0, 8, 1, -58)
+	buy.TextColor3 = Color3.new(1, 1, 1)
+	buy.Font = Enum.Font.FredokaOne
+	buy.TextScaled = true
+	buy.Text = ""
+	buy.Parent = card
+	corner(buy, 10)
+	buy.Activated:Connect(function()
+		playSound("Click")
+		Remotes.BuyUpgrade:FireServer(id)
+	end)
+	upgradeCards[id] = { Level = levelLabel, Button = buy, Info = info }
+end
+
+local function updateRebirth()
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	local money = player:GetAttribute("Money") or 0
+	local tokens = player:GetAttribute("Tokens") or 0
+	local cost = Config.RebirthCost(rebirths)
+	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
+	costFill.Size = UDim2.fromScale(math.clamp(money / cost, 0, 1), 1)
+	costText.Text = `{Config.FormatNumber(money)} / {Config.FormatNumber(cost)} $`
+	doRebirth.BackgroundColor3 = if money >= cost then PURPLE else Color3.fromRGB(90, 90, 100)
+	tokenLabel.Text = `💠 Tokens: {tokens}`
+	for id, card in upgradeCards do
+		local level = player:GetAttribute("Up_" .. id) or 0
+		local info = card.Info
+		card.Level.Text = `Stufe {level} / {info.Max}`
+		if level >= info.Max then
+			card.Button.Text = "MAX"
+			card.Button.BackgroundColor3 = Color3.fromRGB(200, 160, 40)
+		else
+			local price = info.Costs[level + 1]
+			card.Button.Text = `Kaufen: {price} 💠`
+			card.Button.BackgroundColor3 = if tokens >= price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(90, 90, 100)
+		end
+	end
+end
+for _, attr in { "Money", "Rebirths", "Tokens", "Up_Luck", "Up_Magnet", "Up_ClickPower" } do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		if rebirthPanel.Visible then
+			updateRebirth()
+		end
+	end)
+end
+
+-- Sicherheitsabfrage: zweimal klicken
+local confirmUntil = 0
+doRebirth.Activated:Connect(function()
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	if (player:GetAttribute("Money") or 0) < Config.RebirthCost(rebirths) then
+		playSound("Click", 0.6)
+		return
+	end
+	if os.clock() > confirmUntil then
+		confirmUntil = os.clock() + 3
+		doRebirth.Text = "SICHER? NOCHMAL KLICKEN!"
+		playSound("Click")
+		task.delay(3, function()
+			if os.clock() >= confirmUntil then
+				doRebirth.Text = "WIEDERGEBURT!"
+			end
+		end)
+		return
+	end
+	confirmUntil = 0
+	doRebirth.Text = "WIEDERGEBURT!"
+	Remotes.Rebirth:FireServer()
+	rebirthPanel.Visible = false
+end)
+
+local function toggleRebirth()
+	if opening then
+		return
+	end
+	rebirthPanel.Visible = not rebirthPanel.Visible
+	if rebirthPanel.Visible then
+		shop.Visible = false
+		updateRebirth()
+		local camera = workspace.CurrentCamera
+		if camera then
+			local size = camera.ViewportSize
+			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 490)
+		end
+		rebirthScale.Scale *= 0.8
+		tween(rebirthScale, 0.25, { Scale = rebirthScale.Scale / 0.8 }, Enum.EasingStyle.Back)
+	end
+	playSound("Click")
+end
+rebirthButton.Activated:Connect(toggleRebirth)
+rebirthClose.Activated:Connect(function()
+	rebirthPanel.Visible = false
+end)
+shop:GetPropertyChangedSignal("Visible"):Connect(function()
+	if shop.Visible then
+		rebirthPanel.Visible = false
+	end
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.R then
+		toggleRebirth()
+	end
+end)
+
+-- Rebirth-Knopf pulsiert, sobald man sich die Wiedergeburt leisten kann
+task.spawn(function()
+	while true do
+		local cost = Config.RebirthCost(player:GetAttribute("Rebirths") or 0)
+		if (player:GetAttribute("Money") or 0) >= cost and not rebirthPanel.Visible then
+			tween(rebirthButtonScale, 0.35, { Scale = 1.15 }).Completed:Wait()
+			tween(rebirthButtonScale, 0.35, { Scale = 1 }).Completed:Wait()
+		else
+			task.wait(0.5)
+		end
 	end
 end)
 

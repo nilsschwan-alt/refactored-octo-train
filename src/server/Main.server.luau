@@ -14,13 +14,17 @@ local Bases = require(Modules.Bases)
 local Steal = require(Modules.Steal)
 local Packs = require(Modules.Packs)
 local Events = require(Modules.Events)
+local Coins = require(Modules.Coins)
+local Quests = require(Modules.Quests)
+local Rebirth = require(Modules.Rebirth)
+local Leaderboard = require(Modules.Leaderboard)
 
 print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuyUpgrade" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -33,6 +37,9 @@ Bases.Init(plots, remotes)
 Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
 Events.Start(mapFolder)
+Coins.Start(mapFolder)
+Quests.Init(remotes)
+Leaderboard.Start(mapFolder)
 
 -- Klatsche (zum Schlagen von Dieben) -------------------------------------------
 local function giveSlapper(player: Player)
@@ -80,6 +87,7 @@ local function giveSlapper(player: Player)
 		local hit = Steal.Hit(player)
 		if hit then
 			Bases.BigText(player, "TREFFER!", Color3.fromRGB(100, 255, 130), "Hit")
+			Bases.Track(Bases.GetState(player), "HitThief", 1)
 		end
 		task.wait(0.25)
 		tool.Grip = normalGrip
@@ -130,6 +138,7 @@ local function onPlayerAdded(player: Player)
 		task.spawn(onCharacter, player, player.Character)
 	end
 	print(`[Server] {player.Name} hat Base {state.Plot.Index} bekommen.`)
+	Quests.Fill(state)
 	task.delay(4, function()
 		if player.Parent and Bases.GetState(player) == state then
 			Bases.CheckDailyBonus(state)
@@ -140,6 +149,10 @@ end
 local function onPlayerRemoving(player: Player)
 	Steal.OnPlayerLeaving(player)
 	local state = Bases.RemovePlayer(player)
+	if state then
+		Quests.Forget(state)
+		task.spawn(Leaderboard.Submit, player, state)
+	end
 	if state and state.Saveable then
 		Data.Save(player.UserId, state.Data)
 	end
@@ -172,9 +185,19 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 end)
 
 -- Pack-Kauf vom Client ------------------------------------------------------
-remotes.BuyPack.OnServerEvent:Connect(function(player, packId)
-	if type(packId) == "string" then
-		Packs.Buy(player, packId)
+remotes.BuyPack.OnServerEvent:Connect(function(player, packId, count)
+	if type(packId) == "string" and (count == nil or type(count) == "number") then
+		Packs.Buy(player, packId, count)
+	end
+end)
+
+-- Wiedergeburt und Rebirth-Shop
+remotes.Rebirth.OnServerEvent:Connect(function(player)
+	Rebirth.Do(player)
+end)
+remotes.BuyUpgrade.OnServerEvent:Connect(function(player, id)
+	if type(id) == "string" then
+		Rebirth.BuyUpgrade(player, id)
 	end
 end)
 

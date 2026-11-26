@@ -16,7 +16,10 @@ Bases.Plots = {}
 Bases.States = {} -- [player] = state
 Bases.IncomeMultiplier = 1 -- wird vom Goldrausch-Event verändert
 Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
+-- Aufgaben-Fortschritt melden. Wird von Quests.Init gesetzt (so gibt es keine Schleife zwischen den Modulen).
+Bases.Track = function(_state, _kind: string, _amount: number) end
 local remotes
+local lastClick = {} -- [player] = os.clock()
 
 local RED = Color3.fromRGB(255, 90, 90)
 
@@ -79,8 +82,15 @@ function Bases.Level(state)
 end
 
 -- Geld ---------------------------------------------------------------------------
-function Bases.AddMoney(state, amount: number)
+-- source = "quest": zählt nicht für die "Verdiene X $"-Aufgabe
+function Bases.AddMoney(state, amount: number, source: string?)
 	state.Data.Money = math.max(0, state.Data.Money + amount)
+	if amount > 0 then
+		state.Data.TotalEarned += amount
+		if source ~= "quest" then
+			Bases.Track(state, "Earn", amount)
+		end
+	end
 	state.Player:SetAttribute("Money", math.floor(state.Data.Money))
 	if state.MoneyValue then
 		state.MoneyValue.Value = math.floor(state.Data.Money)
@@ -113,7 +123,63 @@ function Bases.Income(state): number
 			total += Config.EntryIncome(entry)
 		end
 	end
-	return total * Bases.Level(state).IncomeBonus * Bases.IncomeMultiplier
+	return total * Bases.Multiplier(state)
+end
+
+-- Alle Boni zusammen: Base-Stufe x Wiedergeburt x Goldrausch
+function Bases.Multiplier(state): number
+	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * Bases.IncomeMultiplier
+end
+
+-- Schwebende "+X $"-Zahl an einer Stelle in der Welt (nur für diesen Spieler)
+function Bases.Pop(player: Player, amount: number, position: Vector3, model: Instance?, color: Color3?)
+	if player.Parent then
+		remotes.Pop:FireClient(player, amount, position, model, color)
+	end
+end
+
+-- Attribute für die Anzeige im Client (Rebirth-Menü, Shop-Chancen)
+function Bases.RefreshStats(state)
+	local player = state.Player
+	local data = state.Data
+	player:SetAttribute("Rebirths", data.Rebirths)
+	player:SetAttribute("Tokens", data.Tokens)
+	player:SetAttribute("BaseLevel", data.BaseLevel)
+	for id in Config.Rebirth.Upgrades do
+		player:SetAttribute("Up_" .. id, data.Upgrades[id] or 0)
+	end
+	if state.RebirthValue then
+		state.RebirthValue.Value = data.Rebirths
+	end
+	if state.LevelValue then
+		state.LevelValue.Value = data.BaseLevel
+	end
+end
+
+-- Klick auf eine eigene Kreatur = sofort Geld
+function Bases.Click(player: Player, plot, slot: number)
+	local state = Bases.States[player]
+	if not state or state.Plot ~= plot or plot.Stolen[slot] then
+		return
+	end
+	local now = os.clock()
+	if lastClick[player] and now - lastClick[player] < Config.Click.Cooldown then
+		return
+	end
+	lastClick[player] = now
+	local entry = state.Data.Slots[tostring(slot)]
+	local model = plot.SlotModels[slot]
+	if not entry or not model then
+		return
+	end
+	local power = 1 + (state.Data.Upgrades.ClickPower or 0) * Config.Rebirth.Upgrades.ClickPower.PerLevel
+	local amount = math.max(
+		Config.Click.MinValue,
+		math.floor(Config.EntryIncome(entry) * Config.Click.IncomeSeconds * Bases.Multiplier(state) * power)
+	)
+	Bases.AddMoney(state, amount)
+	Bases.Track(state, "Clicks", 1)
+	Bases.Pop(player, amount, model:GetPivot().Position + Vector3.new(0, 4, 0), model)
 end
 
 -- Plätze ---------------------------------------------------------------------------
@@ -157,6 +223,13 @@ function Bases.RenderSlot(state, slot: number)
 	addPrompt(body, "Steal", "Klauen", name, rarity.StealTime, plot, slot)
 	local sellPrice = math.floor(Config.EntryValue(entry) * Config.SellFactor)
 	addPrompt(body, "Sell", `Verkaufen ({Config.FormatNumber(sellPrice)} $)`, name, 0.6, plot, slot)
+	-- Anklicken = Geld (nur der Besitzer bekommt etwas)
+	local clicker = Instance.new("ClickDetector")
+	clicker.MaxActivationDistance = Config.Click.MaxDistance
+	clicker.Parent = body
+	clicker.MouseClick:Connect(function(who)
+		Bases.Click(who, plot, slot)
+	end)
 	model.Parent = plot.Creatures
 	plot.SlotModels[slot] = model
 end
@@ -274,12 +347,17 @@ function Bases.AddPlayer(player: Player, data, saveable: boolean)
 	levelValue.Name = "Base"
 	levelValue.Value = data.BaseLevel
 	levelValue.Parent = leaderstats
+	local rebirthValue = Instance.new("IntValue")
+	rebirthValue.Name = "Rebirths"
+	rebirthValue.Value = data.Rebirths
+	rebirthValue.Parent = leaderstats
 	leaderstats.Parent = player
 	state.MoneyValue = money
 	state.LevelValue = levelValue
+	state.RebirthValue = rebirthValue
 
 	Bases.AddMoney(state, 0)
-	player:SetAttribute("BaseLevel", data.BaseLevel)
+	Bases.RefreshStats(state)
 	player:SetAttribute("Pity", data.Pity)
 	Map.BuildDecor(plot, data.BaseLevel)
 	Bases.RenderAll(state)
@@ -294,6 +372,7 @@ function Bases.RemovePlayer(player: Player)
 	end
 	local plot = state.Plot
 	Bases.States[player] = nil
+	lastClick[player] = nil
 	for slot, model in plot.SlotModels do
 		model:Destroy()
 		plot.SlotModels[slot] = nil
@@ -352,8 +431,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	end
 	Bases.AddMoney(state, -nextLevel.Cost)
 	state.Data.BaseLevel += 1
-	state.LevelValue.Value = state.Data.BaseLevel
-	player:SetAttribute("BaseLevel", state.Data.BaseLevel)
+	Bases.RefreshStats(state)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
 	Bases.RefreshPlot(state.Plot)
 	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")

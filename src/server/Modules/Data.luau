@@ -34,6 +34,11 @@ function Data.Default()
 		Cash = 0, -- Geld in der Kasse der Base, noch nicht eingesammelt
 		Pity = 0, -- Packs seit dem letzten Legendär+
 		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
+		Rebirths = 0, -- Wiedergeburten
+		Tokens = 0, -- für den Rebirth-Shop
+		Upgrades = { Luck = 0, Magnet = 0, ClickPower = 0 },
+		TotalEarned = 0, -- insgesamt verdient (für die Bestenliste)
+		Quests = {}, -- { { Kind = "Coins", Goal = 20, Progress = 3, Reward = 500 }, ... }
 	}
 end
 
@@ -58,9 +63,33 @@ local function sanitize(raw)
 	if type(raw.BaseLevel) == "number" then
 		data.BaseLevel = math.clamp(math.floor(raw.BaseLevel), 1, #Config.BaseLevels)
 	end
-	for _, field in { "Cash", "Pity", "LastDaily" } do
+	for _, field in { "Cash", "Pity", "LastDaily", "Rebirths", "Tokens", "TotalEarned" } do
 		if type(raw[field]) == "number" and raw[field] == raw[field] then
 			data[field] = math.max(0, raw[field])
+		end
+	end
+	data.Rebirths = math.floor(data.Rebirths)
+	data.Tokens = math.floor(data.Tokens)
+	if type(raw.Upgrades) == "table" then
+		for id, info in Config.Rebirth.Upgrades do
+			local level = raw.Upgrades[id]
+			if type(level) == "number" and level == level then
+				data.Upgrades[id] = math.clamp(math.floor(level), 0, info.Max)
+			end
+		end
+	end
+	if type(raw.Quests) == "table" then
+		for _, q in raw.Quests do
+			if
+				type(q) == "table"
+				and Config.Quests.Types[q.Kind]
+				and type(q.Goal) == "number"
+				and type(q.Progress) == "number"
+				and type(q.Reward) == "number"
+				and #data.Quests < Config.Quests.Active
+			then
+				table.insert(data.Quests, { Kind = q.Kind, Goal = math.max(1, q.Goal), Progress = math.max(0, q.Progress), Reward = math.max(0, q.Reward) })
+			end
 		end
 	end
 	local maxSlots = Config.BaseLevels[data.BaseLevel].Slots
@@ -113,7 +142,15 @@ function Data.Save(userId: number, data): boolean
 		Cash = math.floor(data.Cash),
 		Pity = data.Pity,
 		LastDaily = data.LastDaily,
+		Rebirths = data.Rebirths,
+		Tokens = data.Tokens,
+		Upgrades = table.clone(data.Upgrades),
+		TotalEarned = math.floor(data.TotalEarned),
+		Quests = {},
 	}
+	for _, q in data.Quests do
+		table.insert(copy.Quests, { Kind = q.Kind, Goal = q.Goal, Progress = math.floor(q.Progress), Reward = math.floor(q.Reward) })
+	end
 	for attempt = 1, 3 do
 		local ok, err = pcall(function()
 			store:SetAsync(key(userId), copy, { userId })
