@@ -52,7 +52,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 
 - **Map:** Zwei Reihen mit je 4 Bases an einer breiten Straße mit Gehwegen, Laternen und Brunnen. Am einen Ende der **Pack-Shop**, am anderen eine Riesen-Statue. Drumherum Wald, Hügel, See und Berge (Welt-Deko in `src/server/Modules/World.luau`).
 - **Start:** Neue Spieler bekommen 300 $ und einen Blubbo geschenkt.
-- **Packs:** Im Pack-Shop gibt es 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
+- **Packs:** Über den **Packs-Knopf** links (oder Taste **P**) von überall öffnen. Es gibt 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
 - **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.
 - **Kasse:** Deine Kreaturen füllen die grüne Kasse in deiner Base. Drüberlaufen = einsammeln.
 - **Events** alle 3 bis 5 Minuten (das erste schon nach 45 Sekunden): Meteor (seltene Kreatur auf der Straße, wer sie heimträgt, behält sie), Goldrausch (doppeltes Geld), Diebes-Nacht (dunkel, keine Schlösser, alle schneller).
