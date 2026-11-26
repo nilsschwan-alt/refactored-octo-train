@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.4.0"
+Config.Version = "0.5.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
@@ -163,6 +163,99 @@ Config.Packs = {
 	},
 }
 
+-- Mehrfach-Öffnen: 1x, 3x oder 10x auf einmal. Discount = Rabatt (0.9 = 10 % billiger)
+-- Ist die Base voll, bleiben die besten Kreaturen, der Rest wird automatisch verkauft.
+Config.PackCounts = {
+	{ Count = 1, Discount = 1 },
+	{ Count = 3, Discount = 1 },
+	{ Count = 10, Discount = 0.9 },
+}
+function Config.PackCost(pack, count: number): number
+	for _, option in Config.PackCounts do
+		if option.Count == count then
+			return math.floor(pack.Price * count * option.Discount)
+		end
+	end
+	return math.huge
+end
+
+-- Glück (aus dem Rebirth-Shop) macht Selten und besser wahrscheinlicher
+function Config.PackWeights(pack, luckLevel: number?)
+	local bonus = 1 + (luckLevel or 0) * Config.Rebirth.Upgrades.Luck.PerLevel
+	local weights = {}
+	for rarity, w in pack.Weights do
+		weights[rarity] = if Config.RarityRank(rarity) >= Config.RarityRank("Rare") then w * bonus else w
+	end
+	return weights
+end
+
+-- Selbst Geld machen ---------------------------------------------------------------
+-- Münzen liegen auf der Straße. Wert = so viele Sekunden von DEINEM Einkommen.
+Config.Coins = {
+	MaxOnMap = 30, -- so viele Münzen liegen höchstens herum
+	SpawnInterval = 1, -- alle X Sekunden kommt eine neue
+	Lifetime = 45, -- danach verschwindet sie
+	ValueSeconds = 4, -- Münze = 4 Sekunden Einkommen
+	MinValue = 10, -- aber mindestens so viel
+	BigChance = 0.07, -- Chance auf eine Riesen-Münze
+	BigFactor = 10, -- Riesen-Münze ist so viel mehr wert
+	PickupRadius = 4, -- so nah muss man ran (Münz-Magnet vergrößert das)
+}
+
+-- Auf eigene Kreaturen klicken = sofort Geld
+Config.Click = {
+	Cooldown = 0.1, -- höchstens 10 Klicks pro Sekunde
+	IncomeSeconds = 1, -- ein Klick = 1 Sekunde Einkommen DIESER Kreatur
+	MinValue = 1,
+	MaxDistance = 40,
+}
+
+-- Aufgaben -----------------------------------------------------------------------
+-- Immer 3 Aufgaben aktiv. Geschafft = Geld, und sofort kommt eine neue.
+-- Belohnung = RewardSeconds Sekunden Einkommen x Factor (mindestens MinReward)
+Config.Quests = {
+	Active = 3,
+	RewardSeconds = 150,
+	MinReward = 300,
+	Types = {
+		OpenPacks = { Text = "Öffne {n} Packs", Min = 3, Max = 8, Factor = 1.2 },
+		Steal = { Text = "Klau {n} Kreatur(en) aus fremden Bases", Min = 1, Max = 2, Factor = 2 },
+		Coins = { Text = "Sammle {n} Münzen auf der Straße", Min = 15, Max = 35, Factor = 1 },
+		Clicks = { Text = "Klick {n}x auf deine Kreaturen", Min = 60, Max = 150, Factor = 0.8 },
+		Earn = { Text = "Verdiene {n} $", EarnSeconds = 200, MinGoal = 1000, Factor = 1 },
+		HitThief = { Text = "Hau {n} Dieb(e) mit der Klatsche", Min = 1, Max = 2, Factor = 1.5 },
+	},
+}
+
+-- Bestenliste
+Config.Leaderboard = {
+	StoreName = "Bestenliste_Verdient_v1",
+	RefreshInterval = 60,
+}
+
+-- Wiedergeburt (Rebirth) ---------------------------------------------------------
+-- Kostet Geld, setzt Geld, Kasse und Base-Stufe zurück, die besten Kreaturen bleiben.
+-- Dafür: dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop.
+Config.Rebirth = {
+	BaseCost = 15000, -- erste Wiedergeburt
+	CostGrowth = 3, -- jede weitere kostet 3x so viel
+	IncomePerRebirth = 0.5, -- +50 % Einkommen pro Wiedergeburt
+	KeepCreatures = 4, -- so viele der besten Kreaturen bleiben
+	TokensPerRebirth = 2,
+	Upgrades = {
+		Luck = { Name = "Glück", Icon = "🍀", Desc = "Selten+ in Packs wahrscheinlicher", Max = 5, PerLevel = 0.2, Costs = { 1, 2, 3, 4, 5 } },
+		Magnet = { Name = "Münz-Magnet", Icon = "🧲", Desc = "Münzen von weiter weg einsammeln", Max = 5, PerLevel = 3, Costs = { 1, 1, 2, 2, 3 } },
+		ClickPower = { Name = "Klick-Kraft", Icon = "👆", Desc = "Mehr Geld pro Klick", Max = 5, PerLevel = 1, Costs = { 1, 2, 2, 3, 4 } },
+	},
+	UpgradeOrder = { "Luck", "Magnet", "ClickPower" },
+}
+function Config.RebirthCost(rebirths: number): number
+	return math.floor(Config.Rebirth.BaseCost * Config.Rebirth.CostGrowth ^ rebirths)
+end
+function Config.RebirthMultiplier(rebirths: number): number
+	return 1 + rebirths * Config.Rebirth.IncomePerRebirth
+end
+
 -- Events ---------------------------------------------------------------------
 Config.Events = {
 	MinPause = 180, -- frühestens alle 3 Minuten ein Event
@@ -233,6 +326,19 @@ Config.Sounds = {
 	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },
 	Hit = { { "Swoosh", 1.6, 0.7, 0 }, { "Ping", 0.6, 0.6, 0.03 } },
 	Swoosh = { { "Swoosh", 1, 0.6, 0 } },
+	Pop = { { "Click", 1.6, 0.25, 0 }, { "Ping", 2.6, 0.12, 0 } },
+	Quest = { { "Ping", 1.5, 0.5, 0 }, { "Ping", 2, 0.5, 0.1 }, { "Ping", 3, 0.6, 0.2 } },
+	Card = { { "Swoosh", 1.8, 0.35, 0 }, { "Click", 1.2, 0.3, 0 } },
+	Rebirth = {
+		{ "Swoosh", 0.5, 0.8, 0 },
+		{ "Ping", 0.5, 0.6, 0.1 },
+		{ "Ping", 0.75, 0.6, 0.25 },
+		{ "Ping", 1, 0.7, 0.4 },
+		{ "Ping", 1.5, 0.8, 0.55 },
+		{ "Ping", 2, 0.9, 0.7 },
+		{ "Ping", 3, 1, 0.85 },
+		{ "Swoosh", 1.5, 0.7, 0.85 },
+	},
 }
 
 -- Normale Laufgeschwindigkeit

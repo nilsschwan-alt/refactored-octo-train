@@ -52,7 +52,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 
 - **Map:** Zwei Reihen mit je 4 Bases an einer breiten Straße mit Gehwegen, Laternen und Brunnen. Am einen Ende der **Pack-Shop**, am anderen eine Riesen-Statue. Drumherum Wald, Hügel, See und Berge (Welt-Deko in `src/server/Modules/World.luau`).
 - **Start:** Neue Spieler bekommen 300 $ und einen Blubbo geschenkt.
-- **Packs:** Über den **Packs-Knopf** links (oder Taste **P**) von überall öffnen. Es gibt 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
+- **Packs:** Über den **Packs-Knopf** links (oder Taste **P**) von überall öffnen. Es gibt 3 Packs mit angezeigten Chancen, jeweils als **1x, 3x oder 10x** (10x mit 10 % Rabatt). Ist die Base voll, bleiben die besten Kreaturen, die schwächsten werden automatisch verkauft. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
 - **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.
 - **Kasse:** Deine Kreaturen füllen die grüne Kasse in deiner Base. Drüberlaufen = einsammeln.
 - **Events** alle 3 bis 5 Minuten (das erste schon nach 45 Sekunden): Meteor (seltene Kreatur auf der Straße, wer sie heimträgt, behält sie), Goldrausch (doppeltes Geld), Diebes-Nacht (dunkel, keine Schlösser, alle schneller).
@@ -60,6 +60,10 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 - **Klatsche** (Taste 1): Träger hauen, dann ist die Beute weg.
 - **Schloss** (roter Knopf) und **Upgrade** (grüner Knopf, 5 Stufen) in deiner Base. **Verkaufen:** E an einer eigenen Kreatur.
 - **Tagesbonus** beim ersten Joinen am Tag.
+- **Selbst Geld machen:** Auf der Straße liegen **Münzen** (drüberlaufen, manchmal eine Riesen-Münze). **Klick auf deine eigenen Kreaturen** gibt sofort Geld.
+- **Aufgaben** (rechts): immer 3 gleichzeitig, z.B. "Sammle 20 Münzen". Geschafft = Geld, dann kommt sofort eine neue.
+- **Bestenlisten** neben der Riesen-Statue: Top 10 aller Zeiten (nur im veröffentlichten Spiel) und dieser Server.
+- **Wiedergeburt** (lila Knopf oder Taste **R**): Kostet Geld, setzt Geld und Base-Stufe zurück, deine 4 besten Kreaturen bleiben. Dafür +50 % Einkommen für immer und Tokens für den Rebirth-Shop (Glück, Münz-Magnet, Klick-Kraft).
 
 **Balancen:** Alle Zahlen und **alle Drop-Raten** (Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.
 
