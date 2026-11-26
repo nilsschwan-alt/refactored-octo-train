@@ -1,4 +1,4 @@
--- Baut die komplette Map per Skript: Straße mit Laufband, Pack-Shop und 2 Reihen mit je 4 Bases.
+-- Baut die komplette Map per Skript: Straße, Pack-Shop und 2 Reihen mit je 4 Bases.
 -- BuildDecor() baut die Optik einer Base je nach Stufe neu (Holz -> Stein -> Lichter -> Neon -> Kristall).
 
 local CollectionService = game:GetService("CollectionService")
@@ -281,9 +281,7 @@ function Map.IsInside(plot, position: Vector3): boolean
 	return math.abs(localPos.X) <= S / 2 and math.abs(localPos.Z) <= S / 2 and localPos.Y < 40
 end
 
-local BELT_HALF = 150 -- Laufband geht von x = -150 bis +150
-Map.BeltStart = Vector3.new(-BELT_HALF, FLOOR_Y + 0.5, 0)
-Map.BeltEnd = Vector3.new(BELT_HALF, FLOOR_Y + 0.5, 0)
+local BELT_HALF = 150 -- halbe Länge der Straße (bei den Bases)
 Map.PackShopPosition = Vector3.new(BELT_HALF + 30, FLOOR_Y, 0)
 
 -- Zufälliger Punkt auf der Straße (für den Meteor)
@@ -336,63 +334,6 @@ function Map.Build()
 			Parent = root,
 		})
 	end
-
-	-- Laufband
-	local belt = part({
-		Name = "Laufband",
-		Size = Vector3.new(BELT_HALF * 2, 0.5, 7),
-		CFrame = CFrame.new(0, FLOOR_Y + 0.25, 0),
-		Color = Color3.fromRGB(35, 35, 40),
-		Material = Enum.Material.DiamondPlate,
-		Parent = root,
-	})
-	local _ = belt
-	for x = -BELT_HALF + 5, BELT_HALF - 5, 10 do
-		part({
-			Name = "Pfeil",
-			Size = Vector3.new(1, 0.05, 4),
-			CFrame = CFrame.new(x, FLOOR_Y + 0.52, 0),
-			Color = Color3.fromRGB(255, 200, 0),
-			Material = Enum.Material.Neon,
-			CanCollide = false,
-			Parent = root,
-		})
-	end
-	for _, side in { -1, 1 } do
-		part({
-			Name = "Gelaender",
-			Size = Vector3.new(BELT_HALF * 2, 1, 0.6),
-			CFrame = CFrame.new(0, FLOOR_Y + 1, side * 3.8),
-			Color = Color3.fromRGB(255, 200, 0),
-			Parent = root,
-		})
-	end
-	-- Maschine am Anfang, Röhre am Ende
-	local machine = part({
-		Name = "KreaturenMaschine",
-		Size = Vector3.new(12, 14, 14),
-		CFrame = CFrame.new(-BELT_HALF - 6, FLOOR_Y + 7, 0),
-		Color = Color3.fromRGB(120, 60, 200),
-		Parent = root,
-	})
-	part({
-		Name = "MaschinenLicht",
-		Size = Vector3.new(12.2, 2, 14.2),
-		CFrame = CFrame.new(-BELT_HALF - 6, FLOOR_Y + 12, 0),
-		Color = Color3.fromRGB(0, 255, 255),
-		Material = Enum.Material.Neon,
-		Parent = root,
-	})
-	local _, machineLabels = billboard(machine, UDim2.fromOffset(300, 60), Vector3.new(0, 10, 0), 1, 400)
-	machineLabels[1].Text = "KREATUREN-LAUFBAND"
-	machineLabels[1].TextColor3 = Color3.fromRGB(0, 255, 255)
-	part({
-		Name = "Endroehre",
-		Size = Vector3.new(6, 12, 12),
-		CFrame = CFrame.new(BELT_HALF + 3, FLOOR_Y + 6, 0),
-		Color = Color3.fromRGB(60, 60, 70),
-		Parent = root,
-	})
 
 	-- Pack-Shop am Ende der Straße
 	local shopPos = Map.PackShopPosition

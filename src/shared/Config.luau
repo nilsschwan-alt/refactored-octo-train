@@ -4,10 +4,11 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.3.0"
+Config.Version = "0.3.1"
 
 -- Geld & Speichern ---------------------------------------------------------
-Config.StartMoney = 100
+Config.StartMoney = 300 -- reicht für das erste Holz-Pack
+Config.StarterCreature = "Blubbo" -- jeder Neue bekommt diese Kreatur geschenkt
 Config.IncomeInterval = 1 -- alle X Sekunden gibt's Geld
 Config.AutoSaveInterval = 120 -- Sekunden zwischen automatischen Speicherungen
 Config.DataStoreName = "KreaturenDaten_v1" -- Name ändern = alle Spielstände neu
@@ -104,7 +105,7 @@ Config.BaseLevels = {
 }
 
 -- Map ----------------------------------------------------------------------
--- Zwei Reihen mit je 4 Bases, dazwischen eine Straße mit dem Laufband.
+-- Zwei Reihen mit je 4 Bases, dazwischen eine Straße.
 Config.Map = {
 	BaseCount = 8, -- passt zu 8 Spielern pro Server
 	BaseSize = 56, -- Kantenlänge einer Base
@@ -118,25 +119,8 @@ Config.Map = {
 -- { Common = 60, Rare = 30, Epic = 10 } = 60 % / 30 % / 10 %
 -- ==========================================================================
 
--- Laufband ----------------------------------------------------------------
-Config.Conveyor = {
-	SpawnInterval = 3, -- alle X Sekunden kommt eine neue Kreatur aufs Band
-	Speed = 7, -- Studs pro Sekunde
-	BuyHoldTime = 0.3, -- so lange E halten zum Kaufen
-	PriceFactor = 1, -- Preis auf dem Band = Kreaturpreis x Mutation x das hier
-	AnnounceFrom = "Legendary", -- ab dieser Seltenheit gibt es eine Server-Ansage
-	Weights = {
-		Common = 55,
-		Uncommon = 26,
-		Rare = 12,
-		Epic = 5,
-		Legendary = 1.6,
-		Mythic = 0.4,
-	},
-}
-
 -- Mutationen ----------------------------------------------------------------
--- Jede neue Kreatur (Laufband, Pack, Meteor) würfelt eine Mutation.
+-- Jede neue Kreatur (Pack, Meteor) würfelt eine Mutation.
 -- Multiplier = mehr Geld pro Sekunde und höherer Wert
 Config.Mutations = {
 	Normal = { Name = "", Multiplier = 1 },

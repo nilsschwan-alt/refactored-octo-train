@@ -649,7 +649,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Welche E-Knöpfe sieht MEIN Spieler? -------------------------------------------
--- Eigene Base: Verkaufen, Schloss, Upgrade. Fremde Base: Klauen. Überall: Laufband, Packs, Meteor.
+-- Eigene Base: Verkaufen, Schloss, Upgrade. Fremde Base: Klauen. Überall: Packs, Meteor.
 local function findPlot(inst: Instance): Instance?
 	local current = inst.Parent
 	while current and current ~= workspace do

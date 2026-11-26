@@ -50,8 +50,8 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 
 ## Das Spiel: Kreaturen-Klau
 
-- **Map:** Zwei Reihen mit je 4 Bases, dazwischen eine Straße mit dem **Laufband**. Am Ende der Straße steht der **Pack-Shop**.
-- **Laufband:** Alle paar Sekunden kommt eine zufällige Kreatur. E halten zum Kaufen, wer zuerst kommt, gewinnt. Seltene werden im ganzen Server angesagt.
+- **Map:** Zwei Reihen mit je 4 Bases, dazwischen eine Straße. Am Ende der Straße steht der **Pack-Shop**.
+- **Start:** Neue Spieler bekommen 300 $ und einen Blubbo geschenkt.
 - **Packs:** Im Pack-Shop gibt es 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
 - **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.
 - **Kasse:** Deine Kreaturen füllen die grüne Kasse in deiner Base. Drüberlaufen = einsammeln.
@@ -61,7 +61,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 - **Schloss** (roter Knopf) und **Upgrade** (grüner Knopf, 5 Stufen) in deiner Base. **Verkaufen:** E an einer eigenen Kreatur.
 - **Tagesbonus** beim ersten Joinen am Tag.
 
-**Balancen:** Alle Zahlen und **alle Drop-Raten** (Laufband, Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.
+**Balancen:** Alle Zahlen und **alle Drop-Raten** (Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.
 
 ### Klauen testen (mit 2 Spielern)
 

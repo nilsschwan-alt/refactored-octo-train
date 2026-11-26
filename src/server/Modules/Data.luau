@@ -37,6 +37,15 @@ function Data.Default()
 	}
 end
 
+-- Ganz neuer Spieler: Startgeld + eine Gratis-Kreatur
+function Data.NewPlayer()
+	local data = Data.Default()
+	if Config.CreatureById[Config.StarterCreature] then
+		data.Slots["1"] = Config.StarterCreature
+	end
+	return data
+end
+
 -- Prüft geladene Daten und repariert Unsinn (falsche Typen, gelöschte Kreaturen ...)
 local function sanitize(raw)
 	local data = Data.Default()
@@ -69,13 +78,16 @@ end
 -- Gibt (daten, darfSpeichern) zurück
 function Data.Load(userId: number)
 	if not store then
-		return Data.Default(), false
+		return Data.NewPlayer(), false
 	end
 	for attempt = 1, 3 do
 		local ok, result = pcall(function()
 			return store:GetAsync(key(userId))
 		end)
 		if ok then
+			if result == nil then
+				return Data.NewPlayer(), true
+			end
 			return sanitize(result), true
 		end
 		warn(`[Data] Laden fehlgeschlagen (Versuch {attempt}):`, result)
@@ -87,7 +99,7 @@ function Data.Load(userId: number)
 		end
 		task.wait(2)
 	end
-	return Data.Default(), false
+	return Data.NewPlayer(), false
 end
 
 function Data.Save(userId: number, data): boolean

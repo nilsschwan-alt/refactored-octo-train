@@ -1,4 +1,4 @@
--- Server-Hauptskript: baut die Map, verbindet Spieler, Knöpfe, Laufband, Packs, Events und Klauen.
+-- Server-Hauptskript: baut die Map, verbindet Spieler, Knöpfe, Packs, Events und Klauen.
 -- Liegt in Studio unter: ServerScriptService > Server > Main
 
 local Players = game:GetService("Players")
@@ -12,7 +12,6 @@ local Data = require(Modules.Data)
 local Map = require(Modules.Map)
 local Bases = require(Modules.Bases)
 local Steal = require(Modules.Steal)
-local Conveyor = require(Modules.Conveyor)
 local Packs = require(Modules.Packs)
 local Events = require(Modules.Events)
 
@@ -33,7 +32,6 @@ local plots = Map.Build()
 Bases.Init(plots, remotes)
 Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
-Conveyor.Start(mapFolder)
 Events.Start(mapFolder)
 
 -- Klatsche (zum Schlagen von Dieben) -------------------------------------------
@@ -160,8 +158,6 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 	local slot = prompt:GetAttribute("Slot")
 	if kind == "Packs" then
 		remotes.OpenPacks:FireClient(player)
-	elseif kind == "BeltBuy" then
-		Conveyor.Buy(player, prompt:GetAttribute("BeltId"))
 	elseif kind == "Wild" then
 		Events.Grab(player, prompt:GetAttribute("WildId"))
 	elseif kind == "Steal" then
