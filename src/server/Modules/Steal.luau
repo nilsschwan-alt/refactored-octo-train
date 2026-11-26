@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local CreatureModels = require(script.Parent.CreatureModels)
 local Bases = require(script.Parent.Bases)
+local FX = require(script.Parent.FX)
 
 local Steal = {}
 
@@ -205,7 +206,7 @@ function Steal.Return(thief: Player, reason: string?)
 	end
 
 	if reason == "hit" then
-		Bases.BigText(thief, "ERWISCHT!", RED, "Swoosh")
+		Bases.BigText(thief, "ERWISCHT!", RED, "Hit")
 	elseif reason == "full" then
 		Bases.Notify(thief, "Deine Base ist voll, die Beute ist weg.", RED)
 	elseif reason == "died" then
@@ -237,7 +238,7 @@ function Steal.Deliver(thief: Player)
 		info.Plot.Stolen[info.Slot] = nil
 		Bases.RenderSlot(oState, info.Slot)
 		Bases.GiveCreature(tState, entry)
-		Bases.BigText(thief, "GEKLAUT!", GREEN, "Reveal")
+		Bases.BigText(thief, "GEKLAUT!", GREEN, "Epic")
 		Bases.Notify(thief, `{Config.EntryName(entry)} gehört jetzt dir!`, GREEN)
 		Bases.BigText(info.Owner, "DU WURDEST BEKLAUT!", RED, "Stolen", true)
 		Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {Config.EntryName(entry)} geklaut!`, RED)
@@ -245,7 +246,7 @@ function Steal.Deliver(thief: Player)
 	else
 		cleanup(thief, info)
 		Bases.GiveCreature(tState, entry)
-		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Reveal")
+		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
 		Bases.AnnounceIfRare(thief, entry, "den Meteor geschnappt")
 	end
 end
@@ -283,6 +284,7 @@ function Steal.Hit(hitter: Player): boolean
 			if hum and (root.Position - myRoot.Position).Magnitude <= Config.Steal.HitRange then
 				Steal.Return(thief, "hit")
 				hitSomeone = true
+				FX.Burst(root.Position, Color3.fromRGB(255, 220, 60), 50)
 				-- Kurz betäubt + Schubs
 				hum.WalkSpeed = 0
 				local push = (root.Position - myRoot.Position) * Vector3.new(1, 0, 1)
