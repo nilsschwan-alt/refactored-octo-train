@@ -30,7 +30,10 @@ function Data.Default()
 	return {
 		Money = Config.StartMoney,
 		BaseLevel = 1,
-		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs", ...
+		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", ...
+		Cash = 0, -- Geld in der Kasse der Base, noch nicht eingesammelt
+		Pity = 0, -- Packs seit dem letzten Legendär+
+		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
 	}
 end
 
@@ -46,11 +49,16 @@ local function sanitize(raw)
 	if type(raw.BaseLevel) == "number" then
 		data.BaseLevel = math.clamp(math.floor(raw.BaseLevel), 1, #Config.BaseLevels)
 	end
+	for _, field in { "Cash", "Pity", "LastDaily" } do
+		if type(raw[field]) == "number" and raw[field] == raw[field] then
+			data[field] = math.max(0, raw[field])
+		end
+	end
 	local maxSlots = Config.BaseLevels[data.BaseLevel].Slots
 	if type(raw.Slots) == "table" then
 		for slotKey, creatureId in raw.Slots do
 			local slot = tonumber(slotKey)
-			if slot and slot >= 1 and slot <= maxSlots and Config.CreatureById[creatureId] then
+			if slot and slot >= 1 and slot <= maxSlots and type(creatureId) == "string" and Config.ParseEntry(creatureId) then
 				data.Slots[tostring(slot)] = creatureId
 			end
 		end
@@ -90,6 +98,9 @@ function Data.Save(userId: number, data): boolean
 		Money = math.floor(data.Money),
 		BaseLevel = data.BaseLevel,
 		Slots = table.clone(data.Slots),
+		Cash = math.floor(data.Cash),
+		Pity = data.Pity,
+		LastDaily = data.LastDaily,
 	}
 	for attempt = 1, 3 do
 		local ok, err = pcall(function()

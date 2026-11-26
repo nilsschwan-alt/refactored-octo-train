@@ -2,6 +2,7 @@
 -- Vorne ist -Z (dahin schaut die Kreatur). Der Pivot liegt unten in der Mitte,
 -- damit model:PivotTo(cf) die Kreatur genau auf den Boden bei cf stellt.
 
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -25,7 +26,7 @@ local function makePart(model: Model, size: Vector3, cf: CFrame, color: Color3, 
 	return p
 end
 
--- opts = { Scale = number?, Anchored = boolean?, Label = boolean? }
+-- opts = { Scale = number?, Anchored = boolean?, Label = boolean?, Mutation = string?, PriceText = string? }
 function CreatureModels.Build(def, opts): Model
 	opts = opts or {}
 	local rarity = Config.Rarities[def.Rarity]
@@ -36,8 +37,28 @@ function CreatureModels.Build(def, opts): Model
 	local model = Instance.new("Model")
 	model.Name = def.Id
 
+	local mutationId = opts.Mutation or "Normal"
+	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
+	local bodyColor = def.Color
 	local bodyMaterial = if def.Rarity == "Mythic" then Enum.Material.Glass else Enum.Material.SmoothPlastic
-	local body = makePart(model, Vector3.new(s, h, s), CFrame.new(0, h / 2, 0), def.Color, bodyMaterial)
+	if mutationId == "Gold" then
+		bodyColor = mutation.Color
+		bodyMaterial = Enum.Material.Metal
+	elseif mutationId == "Diamant" then
+		bodyColor = mutation.Color
+		bodyMaterial = Enum.Material.Glass
+	elseif mutationId == "Regenbogen" then
+		bodyMaterial = Enum.Material.Neon
+	end
+	local body = makePart(model, Vector3.new(s, h, s), CFrame.new(0, h / 2, 0), bodyColor, bodyMaterial)
+	if mutationId == "Gold" then
+		body.Reflectance = 0.35
+	elseif mutationId == "Diamant" then
+		body.Transparency = 0.15
+		body.Reflectance = 0.2
+	elseif mutationId == "Regenbogen" then
+		CollectionService:AddTag(body, "Rainbow") -- Farbe wechselt beim Client
+	end
 	body.Name = "Body"
 	body.PivotOffset = CFrame.new(0, -h / 2, 0)
 	model.PrimaryPart = body
@@ -118,10 +139,10 @@ function CreatureModels.Build(def, opts): Model
 		light.Brightness = 2
 		light.Parent = body
 	end
-	if rarity.Sparkles then
+	if rarity.Sparkles or mutationId ~= "Normal" then
 		local sparkles = Instance.new("ParticleEmitter")
 		sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		sparkles.Color = ColorSequence.new(rarity.Color, def.Accent)
+		sparkles.Color = ColorSequence.new(mutation.Color or rarity.Color, def.Accent)
 		sparkles.Size = NumberSequence.new(0.4, 0)
 		sparkles.Lifetime = NumberRange.new(0.8, 1.5)
 		sparkles.Rate = 12
@@ -134,7 +155,8 @@ function CreatureModels.Build(def, opts): Model
 	-- Namensschild
 	if opts.Label then
 		local gui = Instance.new("BillboardGui")
-		gui.Size = UDim2.fromOffset(170, 48)
+		local lines = if opts.PriceText then 3 else 2
+		gui.Size = UDim2.fromOffset(190, 24 * lines)
 		gui.StudsOffsetWorldSpace = Vector3.new(0, h / 2 + s * 0.6 + 1.2, 0)
 		gui.MaxDistance = 70
 		gui.AlwaysOnTop = false
@@ -142,25 +164,39 @@ function CreatureModels.Build(def, opts): Model
 		gui.Parent = body
 
 		local name = Instance.new("TextLabel")
-		name.Size = UDim2.new(1, 0, 0.55, 0)
+		name.Size = UDim2.new(1, 0, 1 / lines, 0)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.FredokaOne
 		name.TextScaled = true
 		name.TextColor3 = rarity.Color
 		name.TextStrokeTransparency = 0.3
-		name.Text = def.Name
+		name.Text = if mutation.Name ~= "" then `{mutation.Name}-{def.Name}` else def.Name
+		if mutation.Color then
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = mutation.Color
+			stroke.Thickness = 2
+			stroke.Parent = name
+		end
 		name.Parent = gui
 
 		local info = Instance.new("TextLabel")
-		info.Size = UDim2.new(1, 0, 0.45, 0)
-		info.Position = UDim2.fromScale(0, 0.55)
+		info.Size = UDim2.new(1, 0, 1 / lines, 0)
+		info.Position = UDim2.fromScale(0, 1 / lines)
 		info.BackgroundTransparency = 1
 		info.Font = Enum.Font.GothamBold
 		info.TextScaled = true
 		info.TextColor3 = Color3.fromRGB(120, 255, 120)
 		info.TextStrokeTransparency = 0.3
-		info.Text = `{rarity.Name} · +{Config.FormatNumber(def.Income)} $/s`
+		info.Text = `{rarity.Name} · +{Config.FormatNumber(def.Income * mutation.Multiplier)} $/s`
 		info.Parent = gui
+
+		if opts.PriceText then
+			local price = info:Clone()
+			price.Position = UDim2.fromScale(0, 2 / lines)
+			price.TextColor3 = Color3.fromRGB(255, 220, 60)
+			price.Text = opts.PriceText
+			price.Parent = gui
+		end
 	end
 
 	-- Zum Tragen: alles an den Körper schweißen und schwerelos machen

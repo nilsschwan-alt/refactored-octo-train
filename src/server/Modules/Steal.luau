@@ -1,7 +1,10 @@
--- Klauen: Kreatur aus fremder Base nehmen, tragen (langsam, leuchtet), in die eigene Base bringen.
--- Wer getroffen wird, stirbt oder das Spiel verlässt, verliert die Beute: Sie geht zurück zum Besitzer.
--- Solange die Kreatur getragen wird, gehört sie im Spielstand noch dem Besitzer.
+-- Tragen & Klauen: Kreatur aus fremder Base nehmen (oder wilde Kreatur vom Meteor schnappen),
+-- tragen (langsam, leuchtet) und in die eigene Base bringen.
+-- Wer getroffen wird, stirbt oder das Spiel verlässt, verliert die Beute:
+--   geklaut -> zurück zum Besitzer, wild -> fällt auf den Boden.
+-- Eine geklaute Kreatur gehört im Spielstand so lange dem Besitzer, bis sie angekommen ist.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -9,6 +12,10 @@ local CreatureModels = require(script.Parent.CreatureModels)
 local Bases = require(script.Parent.Bases)
 
 local Steal = {}
+
+-- Werden von der Diebes-Nacht verändert
+Steal.WalkSpeed = Config.WalkSpeed
+Steal.CarrySpeed = Config.Steal.CarrySpeed
 
 local carrying = {} -- [thief] = info
 local lastHit = {} -- [player] = os.clock()
@@ -31,6 +38,16 @@ function Steal.IsCarrying(player: Player): boolean
 	return carrying[player] ~= nil
 end
 
+-- Tempo für alle Spieler neu setzen (z.B. Start/Ende der Diebes-Nacht)
+function Steal.ApplySpeeds()
+	for _, player in Players:GetPlayers() do
+		local hum = getHumanoid(player)
+		if hum and hum.WalkSpeed > 0 then
+			hum.WalkSpeed = if carrying[player] then Steal.CarrySpeed else Steal.WalkSpeed
+		end
+	end
+end
+
 -- Entfernt Träger-Optik und stellt Tempo wieder her
 local function cleanup(thief: Player, info)
 	carrying[thief] = nil
@@ -42,13 +59,55 @@ local function cleanup(thief: Player, info)
 	end
 	local hum = info.Humanoid
 	if hum and hum.Parent then
-		hum.WalkSpeed = info.OldSpeed
+		hum.WalkSpeed = Steal.WalkSpeed
 		hum.UseJumpPower = info.OldUseJumpPower
 		hum.JumpPower = info.OldJumpPower
 	end
 	thief:SetAttribute("Carrying", nil)
 end
 
+-- Gemeinsamer Teil: Kreatur auf den Kopf, langsam machen, leuchten
+local function startCarry(thief: Player, entry: string, info)
+	local hum, _, char = getHumanoid(thief)
+	local head = char and char:FindFirstChild("Head")
+	if not hum or not head then
+		return false
+	end
+	local def, mutation = Config.ParseEntry(entry)
+	local carried = CreatureModels.Build(def, { Scale = 0.55, Anchored = false, Mutation = mutation })
+	carried:PivotTo(head.CFrame * CFrame.new(0, 0.8, 0))
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = head
+	weld.Part1 = carried.PrimaryPart
+	weld.Parent = carried.PrimaryPart
+	carried.Name = "Beute"
+	carried.Parent = char
+
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = Color3.fromRGB(255, 220, 40)
+	highlight.OutlineColor = Color3.fromRGB(255, 80, 0)
+	highlight.FillTransparency = 0.5
+	highlight.Parent = char
+
+	info.Entry = entry
+	info.Model = carried
+	info.Highlight = highlight
+	info.Character = char
+	info.Humanoid = hum
+	info.OldUseJumpPower = hum.UseJumpPower
+	info.OldJumpPower = hum.JumpPower
+	carrying[thief] = info
+
+	hum.WalkSpeed = Steal.CarrySpeed
+	if not Config.Steal.CanJumpWhileCarrying then
+		hum.UseJumpPower = true
+		hum.JumpPower = 0
+	end
+	thief:SetAttribute("Carrying", entry)
+	return true
+end
+
+-- Aus fremder Base klauen
 function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 	local tState = Bases.GetState(thief)
 	local plot = Bases.Plots[plotIndex]
@@ -71,96 +130,84 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 		Bases.Notify(thief, "Diese Base ist abgeschlossen!", RED)
 		return
 	end
-	local id = oState.Data.Slots[tostring(slot)]
-	if not id or plot.Stolen[slot] then
+	local entry = oState.Data.Slots[tostring(slot)]
+	if not entry or plot.Stolen[slot] then
 		return
 	end
 	if not Bases.FreeSlot(tState) then
 		Bases.Notify(thief, "Deine Base ist voll, du kannst nichts mehr klauen!", RED)
 		return
 	end
-	local hum, root, char = getHumanoid(thief)
-	if not hum then
-		return
-	end
+	local _, root = getHumanoid(thief)
 	local model = plot.SlotModels[slot]
-	if not model or (model:GetPivot().Position - root.Position).Magnitude > Config.Steal.MaxStealDistance then
-		return
-	end
-	local head = char:FindFirstChild("Head")
-	if not head then
+	if not root or not model or (model:GetPivot().Position - root.Position).Magnitude > Config.Steal.MaxStealDistance then
 		return
 	end
 
+	local info = { Source = "base", Owner = owner, Plot = plot, Slot = slot }
+	if not startCarry(thief, entry, info) then
+		return
+	end
 	-- Kreatur aus der Base nehmen (bleibt im Spielstand des Besitzers!)
 	plot.Stolen[slot] = thief
 	Bases.RenderSlot(oState, slot)
 
-	local def = Config.CreatureById[id]
-	local carried = CreatureModels.Build(def, { Scale = 0.55, Anchored = false })
-	carried:PivotTo(head.CFrame * CFrame.new(0, 0.8, 0))
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = head
-	weld.Part1 = carried.PrimaryPart
-	weld.Parent = carried.PrimaryPart
-	carried.Name = "Beute"
-	carried.Parent = char
-
-	local highlight = Instance.new("Highlight")
-	highlight.FillColor = Color3.fromRGB(255, 220, 40)
-	highlight.OutlineColor = Color3.fromRGB(255, 80, 0)
-	highlight.FillTransparency = 0.5
-	highlight.Parent = char
-
-	local info = {
-		Owner = owner,
-		Plot = plot,
-		Slot = slot,
-		Id = id,
-		Model = carried,
-		Highlight = highlight,
-		Character = char,
-		Humanoid = hum,
-		OldSpeed = hum.WalkSpeed,
-		OldUseJumpPower = hum.UseJumpPower,
-		OldJumpPower = hum.JumpPower,
-	}
-	carrying[thief] = info
-
-	hum.WalkSpeed = Config.Steal.CarrySpeed
-	if not Config.Steal.CanJumpWhileCarrying then
-		hum.UseJumpPower = true
-		hum.JumpPower = 0
-	end
-	thief:SetAttribute("Carrying", id)
-
-	Bases.Notify(thief, `Du hast {def.Name}! Schnell in deine Base!`, YELLOW)
-	Bases.Notify(owner, `{thief.DisplayName} klaut deinen {def.Name}! Hau den Dieb mit der Klatsche!`, RED)
+	local name = Config.EntryName(entry)
+	Bases.Notify(thief, `Du hast {name}! Schnell in deine Base!`, YELLOW)
+	Bases.BigText(owner, "DU WIRST BEKLAUT!", RED, "Stolen", true)
+	Bases.Notify(owner, `{thief.DisplayName} klaut deinen {name}! Hau den Dieb mit der Klatsche!`, RED)
 end
 
--- Beute geht zurück zum Besitzer
+-- Wilde Kreatur (Meteor) schnappen. onDrop(position) wird aufgerufen, wenn sie wieder runterfällt.
+function Steal.StartWild(thief: Player, entry: string, onDrop): boolean
+	local tState = Bases.GetState(thief)
+	if not tState or carrying[thief] then
+		return false
+	end
+	if not Bases.FreeSlot(tState) then
+		Bases.Notify(thief, "Deine Base ist voll!", RED)
+		return false
+	end
+	local ok = startCarry(thief, entry, { Source = "wild", OnDrop = onDrop })
+	if ok then
+		Bases.Notify(thief, `Du hast {Config.EntryName(entry)}! Bring es nach Hause!`, YELLOW)
+	end
+	return ok
+end
+
+-- Beute verlieren
 function Steal.Return(thief: Player, reason: string?)
 	local info = carrying[thief]
 	if not info then
 		return
 	end
+	local _, root = getHumanoid(thief)
+	local dropPos = if root then root.Position elseif info.Model and info.Model.PrimaryPart then info.Model.PrimaryPart.Position else nil
 	cleanup(thief, info)
-	local def = Config.CreatureById[info.Id]
-	local plot = info.Plot
-	if plot.Stolen[info.Slot] == thief then
-		plot.Stolen[info.Slot] = nil
-	end
-	local oState = Bases.GetState(info.Owner)
-	if oState and oState.Plot == plot then
-		Bases.RenderSlot(oState, info.Slot)
-		if reason == "hit" then
-			Bases.Notify(info.Owner, `{def.Name} ist zurück!`, GREEN)
+	local name = Config.EntryName(info.Entry)
+
+	if info.Source == "wild" then
+		if info.OnDrop then
+			info.OnDrop(dropPos)
+		end
+	else
+		local plot = info.Plot
+		if plot.Stolen[info.Slot] == thief then
+			plot.Stolen[info.Slot] = nil
+		end
+		local oState = Bases.GetState(info.Owner)
+		if oState and oState.Plot == plot then
+			Bases.RenderSlot(oState, info.Slot)
+			if reason == "hit" then
+				Bases.Notify(info.Owner, `{name} ist zurück!`, GREEN)
+			end
 		end
 	end
+
 	if reason == "hit" then
-		Bases.Notify(thief, "Erwischt! Die Beute ist weg.", RED)
+		Bases.BigText(thief, "ERWISCHT!", RED, "Swoosh")
 	elseif reason == "full" then
-		Bases.Notify(thief, "Deine Base ist voll, die Beute ist zurückgelaufen.", RED)
+		Bases.Notify(thief, "Deine Base ist voll, die Beute ist weg.", RED)
 	elseif reason == "died" then
 		Bases.Notify(thief, "Beute verloren!", RED)
 	end
@@ -172,31 +219,38 @@ function Steal.Deliver(thief: Player)
 	if not info or not tState then
 		return
 	end
-	local oState = Bases.GetState(info.Owner)
-	local key = tostring(info.Slot)
-	if not oState or oState.Data.Slots[key] ~= info.Id then
-		-- Besitzer weg oder Kreatur verkauft: Beute verfällt
-		cleanup(thief, info)
-		return
-	end
-	local freeSlot = Bases.FreeSlot(tState)
-	if not freeSlot then
+	if not Bases.FreeSlot(tState) then
 		Steal.Return(thief, "full")
 		return
 	end
+	local entry = info.Entry
 
-	cleanup(thief, info)
-	oState.Data.Slots[key] = nil
-	info.Plot.Stolen[info.Slot] = nil
-	Bases.RenderSlot(oState, info.Slot)
-	Bases.PlaceCreature(tState, freeSlot, info.Id)
-
-	local def = Config.CreatureById[info.Id]
-	Bases.Notify(thief, `Geschafft! {def.Name} gehört jetzt dir!`, GREEN)
-	Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {def.Name} geklaut!`, RED)
+	if info.Source == "base" then
+		local oState = Bases.GetState(info.Owner)
+		local key = tostring(info.Slot)
+		if not oState or oState.Data.Slots[key] ~= entry then
+			cleanup(thief, info) -- Besitzer weg oder Kreatur verkauft: Beute verfällt
+			return
+		end
+		cleanup(thief, info)
+		oState.Data.Slots[key] = nil
+		info.Plot.Stolen[info.Slot] = nil
+		Bases.RenderSlot(oState, info.Slot)
+		Bases.GiveCreature(tState, entry)
+		Bases.BigText(thief, "GEKLAUT!", GREEN, "Reveal")
+		Bases.Notify(thief, `{Config.EntryName(entry)} gehört jetzt dir!`, GREEN)
+		Bases.BigText(info.Owner, "DU WURDEST BEKLAUT!", RED, "Stolen", true)
+		Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {Config.EntryName(entry)} geklaut!`, RED)
+		Bases.AnnounceIfRare(thief, entry, "geklaut")
+	else
+		cleanup(thief, info)
+		Bases.GiveCreature(tState, entry)
+		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Reveal")
+		Bases.AnnounceIfRare(thief, entry, "den Meteor geschnappt")
+	end
 end
 
--- Läuft ständig: Ist ein Dieb zu Hause angekommen oder gestorben?
+-- Läuft ständig: Ist ein Träger zu Hause angekommen oder gestorben?
 function Steal.Update()
 	for thief, info in carrying do
 		local hum, root, char = getHumanoid(thief)
@@ -211,7 +265,7 @@ function Steal.Update()
 	end
 end
 
--- Schlag mit der Klatsche: Diebe in der Nähe verlieren ihre Beute
+-- Schlag mit der Klatsche: Träger in der Nähe verlieren ihre Beute
 function Steal.Hit(hitter: Player): boolean
 	local now = os.clock()
 	if lastHit[hitter] and now - lastHit[hitter] < Config.Steal.HitCooldown then
@@ -229,8 +283,7 @@ function Steal.Hit(hitter: Player): boolean
 			if hum and (root.Position - myRoot.Position).Magnitude <= Config.Steal.HitRange then
 				Steal.Return(thief, "hit")
 				hitSomeone = true
-				-- Kurz betäubt + kleiner Schubs
-				local speed = hum.WalkSpeed
+				-- Kurz betäubt + Schubs
 				hum.WalkSpeed = 0
 				local push = (root.Position - myRoot.Position) * Vector3.new(1, 0, 1)
 				if push.Magnitude > 0 then
@@ -238,7 +291,7 @@ function Steal.Hit(hitter: Player): boolean
 				end
 				task.delay(Config.Steal.StunTime, function()
 					if hum.Parent and hum.WalkSpeed == 0 then
-						hum.WalkSpeed = speed
+						hum.WalkSpeed = if carrying[thief] then Steal.CarrySpeed else Steal.WalkSpeed
 					end
 				end)
 			end
@@ -253,7 +306,7 @@ function Steal.OnPlayerLeaving(player: Player)
 		Steal.Return(player, "left")
 	end
 	for thief, info in carrying do
-		if info.Owner == player then
+		if info.Source == "base" and info.Owner == player then
 			cleanup(thief, info)
 			info.Plot.Stolen[info.Slot] = nil
 			Bases.Notify(thief, "Der Besitzer ist weg, die Beute hat sich in Luft aufgelöst.", YELLOW)

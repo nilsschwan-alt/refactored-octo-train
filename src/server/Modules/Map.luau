@@ -1,4 +1,4 @@
--- Baut die komplette Map per Skript: Boden, Shop in der Mitte und 8 Bases im Kreis.
+-- Baut die komplette Map per Skript: Straße mit Laufband, Pack-Shop und 2 Reihen mit je 4 Bases.
 -- BuildDecor() baut die Optik einer Base je nach Stufe neu (Holz -> Stein -> Lichter -> Neon -> Kristall).
 
 local CollectionService = game:GetService("CollectionService")
@@ -281,6 +281,21 @@ function Map.IsInside(plot, position: Vector3): boolean
 	return math.abs(localPos.X) <= S / 2 and math.abs(localPos.Z) <= S / 2 and localPos.Y < 40
 end
 
+local BELT_HALF = 150 -- Laufband geht von x = -150 bis +150
+Map.BeltStart = Vector3.new(-BELT_HALF, FLOOR_Y + 0.5, 0)
+Map.BeltEnd = Vector3.new(BELT_HALF, FLOOR_Y + 0.5, 0)
+Map.PackShopPosition = Vector3.new(BELT_HALF + 30, FLOOR_Y, 0)
+
+-- Zufälliger Punkt auf der Straße (für den Meteor)
+function Map.RandomStreetPoint(): Vector3
+	local half = Config.Map.StreetWidth / 2 - 4
+	local z = math.random() * (half - 5) + 5
+	if math.random() < 0.5 then
+		z = -z
+	end
+	return Vector3.new(math.random(-BELT_HALF + 10, BELT_HALF - 10), FLOOR_Y, z)
+end
+
 function Map.Build()
 	local old = workspace:FindFirstChild("KreaturenMap")
 	if old then
@@ -290,31 +305,101 @@ function Map.Build()
 	root.Name = "KreaturenMap"
 	root.Parent = workspace
 
+	local street = Config.Map.StreetWidth
+
 	-- Wiese
 	part({
 		Name = "Wiese",
-		Size = Vector3.new(380, 1, 380),
+		Size = Vector3.new(460, 1, 300),
 		CFrame = CFrame.new(0, 0.5, 0),
 		Color = Color3.fromRGB(90, 170, 70),
 		Material = Enum.Material.Grass,
 		Parent = root,
 	})
 
-	-- Platz in der Mitte mit Shop
-	local r = Config.Map.ShopRadius
+	-- Straße
 	part({
-		Name = "Marktplatz",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(1, r * 2, r * 2),
-		CFrame = CFrame.new(0, 1.5, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(230, 220, 200),
-		Material = Enum.Material.Pebble,
+		Name = "Strasse",
+		Size = Vector3.new(BELT_HALF * 2 + 80, 1, street),
+		CFrame = CFrame.new(25, 1.5, 0),
+		Color = Color3.fromRGB(60, 60, 68),
+		Material = Enum.Material.Asphalt,
 		Parent = root,
 	})
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Bordstein",
+			Size = Vector3.new(BELT_HALF * 2 + 80, 0.4, 1),
+			CFrame = CFrame.new(25, 2.2, side * (street / 2 - 0.5)),
+			Color = Color3.fromRGB(200, 200, 200),
+			Material = Enum.Material.Concrete,
+			Parent = root,
+		})
+	end
+
+	-- Laufband
+	local belt = part({
+		Name = "Laufband",
+		Size = Vector3.new(BELT_HALF * 2, 0.5, 7),
+		CFrame = CFrame.new(0, FLOOR_Y + 0.25, 0),
+		Color = Color3.fromRGB(35, 35, 40),
+		Material = Enum.Material.DiamondPlate,
+		Parent = root,
+	})
+	local _ = belt
+	for x = -BELT_HALF + 5, BELT_HALF - 5, 10 do
+		part({
+			Name = "Pfeil",
+			Size = Vector3.new(1, 0.05, 4),
+			CFrame = CFrame.new(x, FLOOR_Y + 0.52, 0),
+			Color = Color3.fromRGB(255, 200, 0),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = root,
+		})
+	end
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Gelaender",
+			Size = Vector3.new(BELT_HALF * 2, 1, 0.6),
+			CFrame = CFrame.new(0, FLOOR_Y + 1, side * 3.8),
+			Color = Color3.fromRGB(255, 200, 0),
+			Parent = root,
+		})
+	end
+	-- Maschine am Anfang, Röhre am Ende
+	local machine = part({
+		Name = "KreaturenMaschine",
+		Size = Vector3.new(12, 14, 14),
+		CFrame = CFrame.new(-BELT_HALF - 6, FLOOR_Y + 7, 0),
+		Color = Color3.fromRGB(120, 60, 200),
+		Parent = root,
+	})
+	part({
+		Name = "MaschinenLicht",
+		Size = Vector3.new(12.2, 2, 14.2),
+		CFrame = CFrame.new(-BELT_HALF - 6, FLOOR_Y + 12, 0),
+		Color = Color3.fromRGB(0, 255, 255),
+		Material = Enum.Material.Neon,
+		Parent = root,
+	})
+	local _, machineLabels = billboard(machine, UDim2.fromOffset(300, 60), Vector3.new(0, 10, 0), 1, 400)
+	machineLabels[1].Text = "KREATUREN-LAUFBAND"
+	machineLabels[1].TextColor3 = Color3.fromRGB(0, 255, 255)
+	part({
+		Name = "Endroehre",
+		Size = Vector3.new(6, 12, 12),
+		CFrame = CFrame.new(BELT_HALF + 3, FLOOR_Y + 6, 0),
+		Color = Color3.fromRGB(60, 60, 70),
+		Parent = root,
+	})
+
+	-- Pack-Shop am Ende der Straße
+	local shopPos = Map.PackShopPosition
 	local counter = part({
-		Name = "ShopTheke",
+		Name = "PackTheke",
 		Size = Vector3.new(14, 4, 14),
-		CFrame = CFrame.new(0, 4, 0),
+		CFrame = CFrame.new(shopPos + Vector3.new(0, 2, 0)),
 		Color = Color3.fromRGB(255, 170, 40),
 		Parent = root,
 	})
@@ -322,7 +407,7 @@ function Map.Build()
 		part({
 			Name = "ShopSaeule",
 			Size = Vector3.new(1.5, 10, 1.5),
-			CFrame = CFrame.new(c[1] * 9, 7, c[2] * 9),
+			CFrame = CFrame.new(shopPos + Vector3.new(c[1] * 9, 5, c[2] * 9)),
 			Color = Color3.new(1, 1, 1),
 			Parent = root,
 		})
@@ -331,29 +416,42 @@ function Map.Build()
 		part({
 			Name = "ShopDach",
 			Size = Vector3.new(22, 1, 5.5),
-			CFrame = CFrame.new(0, 12.5, -8.25 + i * 5.5),
+			CFrame = CFrame.new(shopPos + Vector3.new(0, 10.5, -8.25 + i * 5.5)),
 			Color = if i % 2 == 0 then Color3.fromRGB(255, 80, 80) else Color3.new(1, 1, 1),
 			Parent = root,
 		})
 	end
-	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 14, 0), 2, 400)
-	shopLabels[1].Text = "KREATUREN-SHOP"
+	for i, pack in Config.Packs do
+		part({
+			Name = pack.Id .. "Pack",
+			Size = Vector3.new(2.5, 3, 2.5),
+			CFrame = CFrame.new(shopPos + Vector3.new(0, 5.5, (i - 2) * 4)) * CFrame.Angles(0, math.rad(20), 0),
+			Color = pack.Color,
+			Material = Enum.Material.Neon,
+			Parent = root,
+		})
+	end
+	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 12, 0), 2, 400)
+	shopLabels[1].Text = "PACK-SHOP"
 	shopLabels[1].TextColor3 = Color3.fromRGB(255, 220, 60)
-	shopLabels[2].Text = "Hier Kreaturen kaufen!"
-	prompt(counter, "Shop", "Shop öffnen", "Kreaturen-Shop", 0, 14)
+	shopLabels[2].Text = "Packs öffnen, Glück haben!"
+	prompt(counter, "Packs", "Packs ansehen", "Pack-Shop", 0, 14)
+	workspace:SetAttribute("PackShopPosition", shopPos)
 
-	-- Bases
+	-- Bases: 4 oben, 4 unten, Eingang zur Straße
 	local basesFolder = Instance.new("Folder")
 	basesFolder.Name = "Bases"
 	basesFolder.Parent = root
 
 	local plots = {}
-	local count = Config.Map.BaseCount
-	local radius = Config.Map.BaseRadius
-	for i = 1, count do
-		local angle = (i - 1) / count * math.pi * 2
-		local pos = Vector3.new(math.cos(angle) * radius, FLOOR_Y, math.sin(angle) * radius)
-		local cf = CFrame.lookAt(pos, Vector3.new(0, FLOOR_Y, 0))
+	local perRow = math.ceil(Config.Map.BaseCount / 2)
+	for i = 1, Config.Map.BaseCount do
+		local row = if i <= perRow then 1 else -1
+		local col = (i - 1) % perRow + 1
+		local x = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
+		local z = row * (street / 2 + S / 2 + 2)
+		local pos = Vector3.new(x, FLOOR_Y, z)
+		local cf = CFrame.lookAt(pos, Vector3.new(x, FLOOR_Y, 0))
 
 		local model = Instance.new("Model")
 		model.Name = "Base_" .. i
@@ -365,19 +463,6 @@ function Map.Build()
 			Name = "Boden",
 			Size = Vector3.new(S, 1, S),
 			CFrame = cf * CFrame.new(0, -0.5, 0),
-			Parent = model,
-		})
-
-		-- Weg zur Mitte
-		local inner, outer = Config.Map.ShopRadius - 1, radius - S / 2
-		local len = outer - inner
-		local mid = Vector3.new(math.cos(angle), 0, math.sin(angle)) * (inner + len / 2)
-		part({
-			Name = "Weg",
-			Size = Vector3.new(12, 0.2, len),
-			CFrame = CFrame.lookAt(mid + Vector3.new(0, 1.05, 0), Vector3.new(0, 1.05, 0)),
-			Color = Color3.fromRGB(150, 140, 130),
-			Material = Enum.Material.Slate,
 			Parent = model,
 		})
 
@@ -415,18 +500,18 @@ function Map.Build()
 		})
 
 		-- Knöpfe: Schloss (links) und Upgrade (rechts)
-		local function pedestal(x: number, color: Color3, title: string)
+		local function pedestal(px: number, color: Color3, title: string)
 			part({
 				Name = "Sockel",
 				Size = Vector3.new(3, 3, 3),
-				CFrame = cf * CFrame.new(x, 1.5, -20),
+				CFrame = cf * CFrame.new(px, 1.5, -20),
 				Color = Color3.fromRGB(70, 70, 80),
 				Parent = model,
 			})
 			local button = part({
 				Name = "Knopf",
 				Size = Vector3.new(2.4, 0.6, 2.4),
-				CFrame = cf * CFrame.new(x, 3.3, -20),
+				CFrame = cf * CFrame.new(px, 3.3, -20),
 				Color = color,
 				Material = Enum.Material.Neon,
 				Parent = model,
@@ -440,6 +525,21 @@ function Map.Build()
 		local upgradeButton = pedestal(14, Color3.fromRGB(80, 255, 120), "Upgrade")
 		local lockPrompt = prompt(lockButton, "Lock", "Abschließen", "Base-Schloss", 0.3, 8)
 		local upgradePrompt = prompt(upgradeButton, "Upgrade", "Upgrade", "Base", 0.5, 8)
+
+		-- Kasse: hier sammelt sich das Geld, drüberlaufen zum Einsammeln
+		local cashPad = part({
+			Name = "Kasse",
+			Size = Vector3.new(6, 0.4, 6),
+			CFrame = cf * CFrame.new(-22, 0.2, -22),
+			Color = Color3.fromRGB(60, 255, 100),
+			Material = Enum.Material.Neon,
+			Transparency = 0.2,
+			Parent = model,
+		})
+		local _, cashLabels = billboard(cashPad, UDim2.fromOffset(160, 50), Vector3.new(0, 4, 0), 2, 120)
+		cashLabels[1].Text = "Kasse"
+		cashLabels[1].TextColor3 = Color3.fromRGB(120, 255, 140)
+		cashLabels[2].TextColor3 = Color3.fromRGB(255, 220, 60)
 
 		local decor = Instance.new("Folder")
 		decor.Name = "Deko"
@@ -459,6 +559,8 @@ function Map.Build()
 			SignLabels = signLabels,
 			LockPrompt = lockPrompt,
 			UpgradePrompt = upgradePrompt,
+			CashPad = cashPad,
+			CashLabel = cashLabels[2],
 			SpawnCFrame = cf * CFrame.new(0, 4, -12),
 			Owner = nil,
 			SlotModels = {},

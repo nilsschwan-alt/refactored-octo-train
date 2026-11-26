@@ -1,6 +1,8 @@
--- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld, Kaufen,
+-- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld und Kasse,
 -- Verkaufen, Upgrades und das Base-Schloss.
+-- Kreaturen stehen im Spielstand als Eintrag: "Blubbo" oder "Blubbo|Gold".
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -11,19 +13,59 @@ local Bases = {}
 
 Bases.Plots = {}
 Bases.States = {} -- [player] = state
+Bases.IncomeMultiplier = 1 -- wird vom Goldrausch-Event verändert
+Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
 local remotes
+
+local RED = Color3.fromRGB(255, 90, 90)
+
+-- Nachrichten an Spieler ---------------------------------------------------------
+function Bases.Notify(player: Player, text: string, color: Color3?)
+	if player and player.Parent then
+		remotes.Notify:FireClient(player, text, color or Color3.new(1, 1, 1))
+	end
+end
+
+-- Großer Text in der Bildschirmmitte (z.B. "GEKLAUT!")
+function Bases.BigText(player: Player, text: string, color: Color3, sound: string?, flash: boolean?)
+	if player and player.Parent then
+		remotes.BigText:FireClient(player, text, color, sound, flash)
+	end
+end
+
+-- Ansage für den ganzen Server (mit Konfetti)
+function Bases.Announce(text: string, color: Color3)
+	remotes.Announce:FireAllClients(text, color)
+end
+
+-- Seltener Fund? Dann großer Reveal für alle
+function Bases.AnnounceIfRare(player: Player, entry: string, how: string)
+	local def, mutation = Config.ParseEntry(entry)
+	if not def then
+		return
+	end
+	local rank = Config.RarityRank(def.Rarity)
+	if rank >= Config.RarityRank("Legendary") or mutation == "Regenbogen" then
+		local rarity = Config.Rarities[def.Rarity]
+		Bases.Announce(
+			`{player.DisplayName} hat {how}: {string.upper(rarity.Name)} {Config.EntryName(entry)}!`,
+			rarity.Color
+		)
+	end
+end
 
 function Bases.Init(plots, remoteFolder)
 	Bases.Plots = plots
 	remotes = remoteFolder
 	for _, plot in plots do
 		Bases.RefreshPlot(plot)
-	end
-end
-
-function Bases.Notify(player: Player, text: string, color: Color3?)
-	if player and player.Parent then
-		remotes.Notify:FireClient(player, text, color or Color3.new(1, 1, 1))
+		-- Kasse einsammeln durch Drüberlaufen
+		plot.CashPad.Touched:Connect(function(hit)
+			local player = Players:GetPlayerFromCharacter(hit.Parent)
+			if player and plot.Owner == player then
+				Bases.CollectCash(Bases.States[player])
+			end
+		end)
 	end
 end
 
@@ -35,7 +77,7 @@ function Bases.Level(state)
 	return Config.BaseLevels[state.Data.BaseLevel]
 end
 
--- Geld --------------------------------------------------------------------
+-- Geld ---------------------------------------------------------------------------
 function Bases.AddMoney(state, amount: number)
 	state.Data.Money = math.max(0, state.Data.Money + amount)
 	state.Player:SetAttribute("Money", math.floor(state.Data.Money))
@@ -44,17 +86,35 @@ function Bases.AddMoney(state, amount: number)
 	end
 end
 
-function Bases.Income(state): number
-	local total = 0
-	for slotKey, id in state.Data.Slots do
-		if not state.Plot.Stolen[tonumber(slotKey)] then
-			total += Config.CreatureById[id].Income
-		end
+function Bases.CollectCash(state)
+	if not state then
+		return
 	end
-	return total * Bases.Level(state).IncomeBonus
+	local amount = math.floor(state.Data.Cash)
+	if amount < 1 then
+		return
+	end
+	state.Data.Cash -= amount
+	Bases.AddMoney(state, amount)
+	remotes.MoneyPopup:FireClient(state.Player, amount)
+	Bases.RefreshCash(state)
 end
 
--- Plätze ------------------------------------------------------------------
+function Bases.RefreshCash(state)
+	state.Plot.CashLabel.Text = `{Config.FormatNumber(state.Data.Cash)} $`
+end
+
+function Bases.Income(state): number
+	local total = 0
+	for slotKey, entry in state.Data.Slots do
+		if not state.Plot.Stolen[tonumber(slotKey)] then
+			total += Config.EntryIncome(entry)
+		end
+	end
+	return total * Bases.Level(state).IncomeBonus * Bases.IncomeMultiplier
+end
+
+-- Plätze ---------------------------------------------------------------------------
 function Bases.FreeSlot(state): number?
 	for slot = 1, Bases.Level(state).Slots do
 		if state.Data.Slots[tostring(slot)] == nil then
@@ -79,19 +139,22 @@ function Bases.RenderSlot(state, slot: number)
 		old:Destroy()
 		plot.SlotModels[slot] = nil
 	end
-	local id = state.Data.Slots[tostring(slot)]
-	if not id or plot.Stolen[slot] then
+	local entry = state.Data.Slots[tostring(slot)]
+	if not entry or plot.Stolen[slot] then
 		return
 	end
-	local def = Config.CreatureById[id]
-	local model = CreatureModels.Build(def, { Label = true })
+	local def, mutation = Config.ParseEntry(entry)
+	if not def then
+		return
+	end
+	local model = CreatureModels.Build(def, { Label = true, Mutation = mutation })
 	model:PivotTo(Map.SlotCFrame(plot, slot))
-	model:SetAttribute("Slot", slot)
 	local body = model.PrimaryPart
 	local rarity = Config.Rarities[def.Rarity]
-	addPrompt(body, "Steal", "Klauen", def.Name, rarity.StealTime, plot, slot)
-	local sellPrice = math.floor(def.Price * Config.SellFactor)
-	addPrompt(body, "Sell", `Verkaufen ({Config.FormatNumber(sellPrice)} $)`, def.Name, 0.6, plot, slot)
+	local name = Config.EntryName(entry)
+	addPrompt(body, "Steal", "Klauen", name, rarity.StealTime, plot, slot)
+	local sellPrice = math.floor(Config.EntryValue(entry) * Config.SellFactor)
+	addPrompt(body, "Sell", `Verkaufen ({Config.FormatNumber(sellPrice)} $)`, name, 0.6, plot, slot)
 	model.Parent = plot.Creatures
 	plot.SlotModels[slot] = model
 end
@@ -102,9 +165,15 @@ function Bases.RenderAll(state)
 	end
 end
 
-function Bases.PlaceCreature(state, slot: number, id: string)
-	state.Data.Slots[tostring(slot)] = id
+-- Neue Kreatur in die Base stellen. Gibt den Platz zurück oder nil, wenn voll.
+function Bases.GiveCreature(state, entry: string): number?
+	local slot = Bases.FreeSlot(state)
+	if not slot then
+		return nil
+	end
+	state.Data.Slots[tostring(slot)] = entry
 	Bases.RenderSlot(state, slot)
+	return slot
 end
 
 -- Schild, Schloss-Anzeige, Upgrade-Knopf aktualisieren
@@ -116,6 +185,7 @@ function Bases.RefreshPlot(plot)
 		labels[1].Text = "Freie Base"
 		labels[2].Text = ""
 		labels[3].Text = ""
+		plot.CashLabel.Text = ""
 		plot.Laser.Transparency = 1
 		plot.LockPrompt:SetAttribute("Active", false)
 		plot.UpgradePrompt:SetAttribute("Active", false)
@@ -133,12 +203,12 @@ function Bases.RefreshPlot(plot)
 	if state.Locked then
 		local left = math.ceil(state.LockEnd - now)
 		labels[3].Text = `🔒 Abgeschlossen ({left}s)`
-		labels[3].TextColor3 = Color3.fromRGB(255, 90, 90)
+		labels[3].TextColor3 = RED
 		plot.Laser.Transparency = 0.45
 		plot.LockPrompt.ActionText = `Zu ({left}s)`
 	else
-		labels[3].Text = "Offen"
-		labels[3].TextColor3 = Color3.fromRGB(150, 255, 150)
+		labels[3].Text = if Bases.LocksDisabled then "Diebes-Nacht: kein Schloss!" else "Offen"
+		labels[3].TextColor3 = if Bases.LocksDisabled then RED else Color3.fromRGB(150, 255, 150)
 		plot.Laser.Transparency = 1
 		local wait = math.ceil(state.LockReadyAt - now)
 		plot.LockPrompt.ActionText = if wait > 0 then `Bereit in {wait}s` else `Abschließen ({levelInfo.LockTime}s)`
@@ -155,9 +225,10 @@ function Bases.RefreshPlot(plot)
 		plot.UpgradePrompt.ActionText = "Max. Stufe"
 		plot.UpgradePrompt:SetAttribute("Active", false)
 	end
+	Bases.RefreshCash(state)
 end
 
--- Spieler kommt / geht -----------------------------------------------------
+-- Spieler kommt / geht -------------------------------------------------------------
 function Bases.AddPlayer(player: Player, data, saveable: boolean)
 	local plot
 	for _, p in Bases.Plots do
@@ -199,6 +270,7 @@ function Bases.AddPlayer(player: Player, data, saveable: boolean)
 
 	Bases.AddMoney(state, 0)
 	player:SetAttribute("BaseLevel", data.BaseLevel)
+	player:SetAttribute("Pity", data.Pity)
 	Map.BuildDecor(plot, data.BaseLevel)
 	Bases.RenderAll(state)
 	Bases.RefreshPlot(plot)
@@ -224,42 +296,35 @@ function Bases.RemovePlayer(player: Player)
 	return state
 end
 
--- Aktionen -------------------------------------------------------------------
-function Bases.Buy(player: Player, creatureId: string)
-	local state = Bases.States[player]
-	local def = Config.CreatureById[creatureId]
-	if not state or not def then
+-- Tagesbonus beim Joinen
+function Bases.CheckDailyBonus(state)
+	local today = math.floor(os.time() / 86400)
+	if state.Data.LastDaily >= today then
 		return
 	end
-	if state.Data.Money < def.Price then
-		Bases.Notify(player, "Nicht genug Geld!", Color3.fromRGB(255, 90, 90))
-		return
-	end
-	local slot = Bases.FreeSlot(state)
-	if not slot then
-		Bases.Notify(player, "Deine Base ist voll! Upgraden oder etwas verkaufen.", Color3.fromRGB(255, 90, 90))
-		return
-	end
-	Bases.AddMoney(state, -def.Price)
-	Bases.PlaceCreature(state, slot, def.Id)
-	Bases.Notify(player, `{def.Name} gekauft!`, Config.Rarities[def.Rarity].Color)
+	state.Data.LastDaily = today
+	local bonus = Config.DailyBonus[state.Data.BaseLevel] or Config.DailyBonus[1]
+	Bases.AddMoney(state, bonus)
+	Bases.BigText(state.Player, `TAGESBONUS +{Config.FormatNumber(bonus)} $`, Color3.fromRGB(255, 220, 60), "Reveal")
+	remotes.MoneyPopup:FireClient(state.Player, bonus)
 end
 
+-- Aktionen -------------------------------------------------------------------------
 function Bases.Sell(player: Player, plotIndex: number, slot: number)
 	local state = Bases.States[player]
 	if not state or state.Plot.Index ~= plotIndex or state.Plot.Stolen[slot] then
 		return
 	end
-	local id = state.Data.Slots[tostring(slot)]
-	if not id then
+	local entry = state.Data.Slots[tostring(slot)]
+	if not entry then
 		return
 	end
-	local def = Config.CreatureById[id]
 	state.Data.Slots[tostring(slot)] = nil
 	Bases.RenderSlot(state, slot)
-	local price = math.floor(def.Price * Config.SellFactor)
+	local price = math.floor(Config.EntryValue(entry) * Config.SellFactor)
 	Bases.AddMoney(state, price)
-	Bases.Notify(player, `{def.Name} für {Config.FormatNumber(price)} $ verkauft.`)
+	remotes.MoneyPopup:FireClient(player, price)
+	Bases.Notify(player, `{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
 end
 
 function Bases.Upgrade(player: Player, plotIndex: number)
@@ -272,7 +337,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 		return
 	end
 	if state.Data.Money < nextLevel.Cost then
-		Bases.Notify(player, `Du brauchst {Config.FormatNumber(nextLevel.Cost)} $ für das Upgrade.`, Color3.fromRGB(255, 90, 90))
+		Bases.Notify(player, `Du brauchst {Config.FormatNumber(nextLevel.Cost)} $ für das Upgrade.`, RED)
 		return
 	end
 	Bases.AddMoney(state, -nextLevel.Cost)
@@ -281,12 +346,20 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	player:SetAttribute("BaseLevel", state.Data.BaseLevel)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
 	Bases.RefreshPlot(state.Plot)
-	Bases.Notify(player, `Base verbessert: {nextLevel.Name}! Jetzt {nextLevel.Slots} Plätze.`, Color3.fromRGB(80, 255, 120))
+	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Reveal")
+	Bases.Notify(player, `Jetzt {nextLevel.Slots} Plätze und x{nextLevel.IncomeBonus} Einkommen.`, Color3.fromRGB(80, 255, 120))
+	if state.Data.BaseLevel >= 4 then
+		Bases.Announce(`{player.DisplayName} hat jetzt einen {nextLevel.Name}!`, Color3.fromRGB(80, 255, 120))
+	end
 end
 
 function Bases.Lock(player: Player, plotIndex: number)
 	local state = Bases.States[player]
 	if not state or state.Plot.Index ~= plotIndex or state.Locked then
+		return
+	end
+	if Bases.LocksDisabled then
+		Bases.Notify(player, "Diebes-Nacht! Schlösser gehen gerade nicht.", RED)
 		return
 	end
 	local now = os.clock()
@@ -302,12 +375,20 @@ function Bases.Lock(player: Player, plotIndex: number)
 	Bases.Notify(player, `Base für {lockTime} Sekunden abgeschlossen!`, Color3.fromRGB(255, 120, 120))
 end
 
--- Läuft jede Sekunde: Einkommen auszahlen, Schloss-Timer, Schilder
+-- Alle Schlösser öffnen (Diebes-Nacht)
+function Bases.UnlockAll()
+	for _, state in Bases.States do
+		state.Locked = false
+		Bases.RefreshPlot(state.Plot)
+	end
+end
+
+-- Läuft jede Sekunde: Geld in die Kasse, Schloss-Timer, Schilder
 function Bases.Tick(dt: number)
 	local now = os.clock()
 	for player, state in Bases.States do
 		local income = Bases.Income(state)
-		Bases.AddMoney(state, income * dt)
+		state.Data.Cash += income * dt
 		player:SetAttribute("Income", income)
 		if state.Locked and now >= state.LockEnd then
 			state.Locked = false
@@ -321,7 +402,6 @@ function Bases.IsInsideOwnBase(state, position: Vector3): boolean
 	return Map.IsInside(state.Plot, position)
 end
 
--- Beim Spawnen in die eigene Base setzen
 function Bases.SpawnCFrame(state): CFrame
 	return state.Plot.SpawnCFrame
 end

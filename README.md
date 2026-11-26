@@ -50,16 +50,18 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 
 ## Das Spiel: Kreaturen-Klau
 
-- **8 Bases** im Kreis, in der Mitte der **Shop**. Jeder Spieler bekommt beim Joinen eine freie Base.
-- **Kreaturen kaufen:** zur Theke in der Mitte laufen, E drücken, im Shop kaufen. Kreaturen stehen in deiner Base und bringen Geld pro Sekunde.
-- **Klauen:** In einer fremden Base E an einer Kreatur gedrückt halten. Seltene Kreaturen brauchen länger. Wer etwas trägt, ist langsamer, kann nicht springen und leuchtet gelb. Erst wenn du in deiner eigenen Base ankommst, gehört die Kreatur dir.
-- **Diebe hauen:** Mit der **Klatsche** (Taste 1) einen Dieb treffen, dann geht die Beute zurück.
-- **Schloss:** Roter Knopf in deiner Base. Danach kann eine Weile keiner klauen, dann lädt es wieder auf.
-- **Upgrade:** Grüner Knopf. 5 Stufen: Holz-Hütte, Stein-Burg, Lichter-Villa, Neon-Palast, Kristall-Festung. Mehr Plätze, längeres Schloss, mehr Einkommen und coolere Optik.
-- **Verkaufen:** E an einer eigenen Kreatur, gibt die Hälfte vom Preis zurück.
-- Wer offline ist, hat eine leere Base und kann nicht beklaut werden.
+- **Map:** Zwei Reihen mit je 4 Bases, dazwischen eine Straße mit dem **Laufband**. Am Ende der Straße steht der **Pack-Shop**.
+- **Laufband:** Alle paar Sekunden kommt eine zufällige Kreatur. E halten zum Kaufen, wer zuerst kommt, gewinnt. Seltene werden im ganzen Server angesagt.
+- **Packs:** Im Pack-Shop gibt es 3 Packs mit angezeigten Chancen. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
+- **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.
+- **Kasse:** Deine Kreaturen füllen die grüne Kasse in deiner Base. Drüberlaufen = einsammeln.
+- **Events** alle 3 bis 5 Minuten (das erste schon nach 45 Sekunden): Meteor (seltene Kreatur auf der Straße, wer sie heimträgt, behält sie), Goldrausch (doppeltes Geld), Diebes-Nacht (dunkel, keine Schlösser, alle schneller).
+- **Klauen:** In einer fremden Base E an einer Kreatur halten. Beim Tragen bist du langsam, kannst nicht springen und leuchtest. Erst in deiner Base gehört sie dir.
+- **Klatsche** (Taste 1): Träger hauen, dann ist die Beute weg.
+- **Schloss** (roter Knopf) und **Upgrade** (grüner Knopf, 5 Stufen) in deiner Base. **Verkaufen:** E an einer eigenen Kreatur.
+- **Tagesbonus** beim ersten Joinen am Tag.
 
-**Balancen:** Alle Zahlen (Preise, Einkommen, Schloss-Zeit, Tempo beim Tragen ...) stehen in `src/shared/Config.luau`.
+**Balancen:** Alle Zahlen und **alle Drop-Raten** (Laufband, Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.
 
 ### Klauen testen (mit 2 Spielern)
 
