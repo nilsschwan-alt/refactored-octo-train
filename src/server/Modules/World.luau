@@ -83,7 +83,23 @@ local LAKE_BLOBS = {
 	{ 18, 26, 28 },
 	{ -22, -24, 28 },
 }
-local LAKE_WATER_Y = -1 -- Wasseroberfläche (die Wiese liegt bei 0)
+-- Terrain-Füllungen landen in Roblox etwa einen halben Block (2 Studs) höher als angegeben.
+-- Darum füllen wir alles 2 Studs tiefer: Die Terrain-Oberkante liegt dann bei ca. 0, also
+-- unter der Spielwiese (0 bis 1) und den Base-Böden (Oberkante 2). Sonst liegen Terrain und
+-- Boden genau gleich hoch und flackern (Z-Fighting).
+local TERRAIN_DROP = 2
+local LAKE_WATER_Y = -1 - TERRAIN_DROP -- angegebene Wasser-Oberkante (echte wird gemessen)
+local lakeSurfaceY = -1 -- echte Wasseroberfläche, wird nach dem Füllen gemessen
+
+-- Misst, wo das Terrain an einer Stelle wirklich anfängt (von oben nach unten)
+local function terrainHeightAt(x: number, z: number, ignoreWater: boolean): number?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	params.IgnoreWater = ignoreWater
+	local hit = workspace:Raycast(Vector3.new(x, 60, z), Vector3.new(0, -120, 0), params)
+	return hit and hit.Position.Y
+end
 
 -- Liegt ein Punkt im See oder am Ufer? (für Bäume, Felsen, Seerosen)
 local function inLake(x: number, z: number, margin: number): boolean
@@ -100,36 +116,47 @@ end
 -- Landschaft mit Terrain: Hügel, Berge, See ---------------------------------------
 local function buildTerrain(info, rng: Random)
 	local terrain = workspace.Terrain
-	-- Kräftiges Blau, wenig Spiegelung: sonst spiegelt das Wasser nur den hellen Himmel und wirkt grau
-	terrain.WaterColor = Color3.fromRGB(25, 145, 215)
-	terrain.WaterTransparency = 0.35
+	-- Natürliches, etwas dunkleres Blau mit leichter Spiegelung (zu hell wirkt es wie Plastik)
+	terrain.WaterColor = Color3.fromRGB(30, 110, 165)
+	terrain.WaterTransparency = 0.55
 	terrain.WaterWaveSize = 0.2
 	terrain.WaterWaveSpeed = 8
-	terrain.WaterReflectance = 0.25
+	terrain.WaterReflectance = 0.4
 
 	-- Flache Wiese überall (Oberkante y = 0, unter dem Spielbereich)
-	terrain:FillBlock(CFrame.new(0, -3, 0), Vector3.new(1400, 6, 1100), Enum.Material.Grass)
+	terrain:FillBlock(CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(1400, 6, 1100), Enum.Material.Grass)
 
 	-- Unter Straße, Gehwegen, Bases und Plätzen kein Terrain-Gras: dessen Halme wachsen
 	-- sonst durch die Bauteile durch. "Ground" hat keine Halme und liegt unsichtbar darunter.
 	local hardX = info.StreetHalf + 76
 	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
-	terrain:FillBlock(CFrame.new(0, -3, 0), Vector3.new(hardX * 2, 6, hardZ * 2), Enum.Material.Ground)
+	terrain:FillBlock(CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(hardX * 2, 6, hardZ * 2), Enum.Material.Ground)
 
 	-- See: erst Sandufer, dann ausheben, Sandboden, Wasser rein
 	for _, blob in LAKE_BLOBS do
 		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
-		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3, 0)), 6, blob[3] + 9, Enum.Material.Sand)
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3 - TERRAIN_DROP, 0)), 6, blob[3] + 9, Enum.Material.Sand)
 	end
 	for _, blob in LAKE_BLOBS do
 		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
-		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -5, 0)), 10, blob[3], Enum.Material.Air)
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -5 - TERRAIN_DROP, 0)), 10, blob[3], Enum.Material.Air)
 	end
 	for _, blob in LAKE_BLOBS do
 		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
-		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -10, 0)), 4, blob[3], Enum.Material.Sand)
-		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, (LAKE_WATER_Y - 8) / 2, 0)), 8 + LAKE_WATER_Y, blob[3], Enum.Material.Water)
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -10 - TERRAIN_DROP, 0)), 4, blob[3], Enum.Material.Sand)
+		local bottom = -8 - TERRAIN_DROP
+		terrain:FillCylinder(
+			CFrame.new(center + Vector3.new(0, (LAKE_WATER_Y + bottom) / 2, 0)),
+			LAKE_WATER_Y - bottom,
+			blob[3],
+			Enum.Material.Water
+		)
 	end
+
+	-- Nachmessen: echte Wasseroberfläche (für Seerosen/Schilf) und Boden unter der Straße
+	lakeSurfaceY = terrainHeightAt(LAKE_CENTER.X, LAKE_CENTER.Z, false) or lakeSurfaceY
+	local groundY = terrainHeightAt(0, info.BaseZ, true)
+	print(`[World] Terrain-Oberkante unter den Bases: {groundY and string.format("%.2f", groundY) or "?"}, Wasser: {string.format("%.2f", lakeSurfaceY)}`)
 
 	-- Hügel im Kreis um die Map
 	for i = 0, 31 do
@@ -139,7 +166,7 @@ local function buildTerrain(info, rng: Random)
 		local nearLake = z < 0 and math.abs(x - 40) < 170
 		if not nearLake then
 			local r = rng:NextNumber(55, 95)
-			terrain:FillBall(Vector3.new(x, -r * 0.55, z), r, Enum.Material.Grass)
+			terrain:FillBall(Vector3.new(x, -r * 0.55 - TERRAIN_DROP, z), r, Enum.Material.Grass)
 		end
 	end
 	-- Berge ganz hinten
@@ -185,7 +212,7 @@ local function rock(pos: Vector3, rng: Random)
 	for i = 1, rng:NextInteger(1, 3) do
 		local r = rng:NextNumber(3, 5.5) / i
 		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
-		terrain:FillBall(pos + offset + Vector3.new(0, -r * 0.35, 0), math.max(r, 2.5), Enum.Material.Rock)
+		terrain:FillBall(pos + offset + Vector3.new(0, -r * 0.35 - TERRAIN_DROP, 0), math.max(r, 2.5), Enum.Material.Rock)
 	end
 end
 
@@ -206,7 +233,7 @@ local function lakeDecor(info, parent: Instance, rng: Random)
 				Name = "Seerose",
 				Shape = Enum.PartType.Cylinder,
 				Size = Vector3.new(0.2, size, size),
-				CFrame = CFrame.new(x, LAKE_WATER_Y + 0.1, z) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
+				CFrame = CFrame.new(x, lakeSurfaceY + 0.1, z) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
 				Color = padColors[rng:NextInteger(1, #padColors)],
 				CanCollide = false,
 				Parent = parent,
@@ -241,7 +268,7 @@ local function lakeDecor(info, parent: Instance, rng: Random)
 				part({
 					Name = "Schilf",
 					Size = Vector3.new(0.3, h, 0.3),
-					CFrame = CFrame.new(x + rng:NextNumber(-1, 1), LAKE_WATER_Y - 0.5 + h / 2, z + rng:NextNumber(-1, 1))
+					CFrame = CFrame.new(x + rng:NextNumber(-1, 1), lakeSurfaceY - 0.5 + h / 2, z + rng:NextNumber(-1, 1))
 						* CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15)),
 					Color = if i == 1 then Color3.fromRGB(150, 110, 60) else Color3.fromRGB(90, 150, 60),
 					CanCollide = false,
@@ -458,8 +485,9 @@ local function buildStreet(info, parent: Instance)
 		for _, side in { -1, 1 } do
 			part({
 				Name = "Eingangsweg",
-				Size = Vector3.new(16, 1, info.BaseZ - info.BaseSize / 2 - walkOuter + 1),
-				CFrame = CFrame.new(x, y - 0.5, side * (walkOuter + (info.BaseZ - info.BaseSize / 2 - walkOuter) / 2)),
+				-- endet genau an der Base-Kante und liegt minimal tiefer, damit nichts flackert
+				Size = Vector3.new(16, 1, info.BaseZ - info.BaseSize / 2 - walkOuter),
+				CFrame = CFrame.new(x, y - 0.55, side * (walkOuter + (info.BaseZ - info.BaseSize / 2 - walkOuter) / 2)),
 				Color = Color3.fromRGB(160, 150, 140),
 				Material = Enum.Material.Slate,
 				Parent = parent,
