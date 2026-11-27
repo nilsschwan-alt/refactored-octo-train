@@ -277,19 +277,29 @@ local function buildIsland(info, rng: Random)
 	-- Am Inselrand (runde Füllungen) liegt das Gras zwei Studs höher als in der Mitte und würde
 	-- die Böden überdecken. Darum dort erst alles ab -4 wegnehmen und die Schicht neu einfüllen:
 	-- so liegt die Oberkante überall bei ca. 0.
-	local function flatten(cx: number, cz: number, sizeX: number, sizeZ: number)
+	-- (Am Rand so einer Fläche steigt das Terrain über etwa 4 Studs wieder an.)
+	local function flatten(cx: number, cz: number, sizeX: number, sizeZ: number, material: Enum.Material)
 		terrain:FillBlock(CFrame.new(cx, 4, cz), Vector3.new(sizeX, 16, sizeZ), Enum.Material.Air)
-		terrain:FillBlock(CFrame.new(cx, -3 - TERRAIN_DROP, cz), Vector3.new(sizeX, 6, sizeZ), Enum.Material.Ground)
+		terrain:FillBlock(CFrame.new(cx, -3 - TERRAIN_DROP, cz), Vector3.new(sizeX, 6, sizeZ), material)
 	end
 	local hardX = info.StreetHalf + 76
 	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
-	flatten(0, 0, hardX * 2, hardZ * 2)
-	-- dasselbe hinter jeder Base, wo die Villa steht
+	-- die ganze Spielwiese, und hinter jeder Base der Streifen für die Villa (außen herum Gras)
+	flatten(0, 0, WIESE_HALF_X * 2 + 2, WIESE_HALF_Z * 2 + 2, Enum.Material.Grass)
 	local perRow = math.ceil(Config.Map.BaseCount / 2)
+	local stripLen = VILLA_STRIP_DEPTH + 1
 	for col = 1, perRow do
 		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
 		for _, side in { -1, 1 } do
-			flatten(baseX, side * (hardZ + VILLA_STRIP_DEPTH / 2), VILLA_STRIP_HALF * 2, VILLA_STRIP_DEPTH)
+			flatten(baseX, side * (hardZ + stripLen / 2), VILLA_STRIP_HALF * 2 + 2, stripLen, Enum.Material.Grass)
+		end
+	end
+	-- innen "Ground" ohne Halme: unter Weg, Bases, Plätzen und den Villen
+	flatten(0, 0, hardX * 2, hardZ * 2, Enum.Material.Ground)
+	for col = 1, perRow do
+		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
+		for _, side in { -1, 1 } do
+			flatten(baseX, side * (hardZ + (VILLA_STRIP_DEPTH - 3) / 2), VILLA_STRIP_HALF * 2 - 4, VILLA_STRIP_DEPTH - 3, Enum.Material.Ground)
 		end
 	end
 
@@ -1242,8 +1252,8 @@ function World.Build(root: Instance, info)
 		for _, side in { -1, 1 } do
 			info.Part({
 				Name = "VillaWiese",
-				Size = Vector3.new(VILLA_STRIP_HALF * 2 - 2, 1, stripEnd - WIESE_HALF_Z - 1),
-				CFrame = CFrame.new(baseX, info.FloorY - 1.5, side * (WIESE_HALF_Z + stripEnd - 1) / 2),
+				Size = Vector3.new(VILLA_STRIP_HALF * 2, 1, stripEnd - WIESE_HALF_Z),
+				CFrame = CFrame.new(baseX, info.FloorY - 1.5, side * (WIESE_HALF_Z + stripEnd) / 2),
 				Color = Color3.fromRGB(110, 205, 90),
 				Material = Enum.Material.Grass,
 				Parent = folder,
