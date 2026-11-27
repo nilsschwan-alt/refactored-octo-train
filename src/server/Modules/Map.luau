@@ -532,18 +532,18 @@ function Map.Build()
 	for i, pack in Config.Packs do
 		part({
 			Name = pack.Id .. "Pack",
-			Size = Vector3.new(2.5, 3, 2.5),
-			CFrame = CFrame.new(shopPos + Vector3.new(0, 5.5, (i - 2) * 4)) * CFrame.Angles(0, math.rad(20), 0),
+			Size = Vector3.new(2, 2.4, 2),
+			CFrame = CFrame.new(shopPos + Vector3.new(0, 5.2, (i - (#Config.Packs + 1) / 2) * 2.8)) * CFrame.Angles(0, math.rad(20), 0),
 			Color = pack.Color,
 			Material = Enum.Material.Neon,
 			Parent = root,
 		})
 	end
 	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 12, 0), 2, 500)
-	shopLabels[1].Text = "PACK-SHOP"
+	shopLabels[1].Text = "KISTEN-SHOP"
 	shopLabels[1].TextColor3 = Color3.fromRGB(255, 220, 60)
-	shopLabels[2].Text = "Packs öffnen, Glück haben!"
-	prompt(counter, "Packs", "Packs ansehen", "Pack-Shop", 0, 14)
+	shopLabels[2].Text = "Kisten öffnen, Glück haben!"
+	prompt(counter, "Packs", "Kisten ansehen", "Kisten-Shop", 0, 14)
 	workspace:SetAttribute("PackShopPosition", shopPos)
 
 	-- Bases: 4 oben, 4 unten, Eingang zur Straße

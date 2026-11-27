@@ -630,10 +630,113 @@ local function packFace(parent: Instance, title: string, bigText: string, packCo
 	return bg
 end
 
--- Pack-Shop ---------------------------------------------------------------------
+-- Kreatur für die Karte: 3D-KI-Modell im ViewportFrame, das wippt und sich hin und her dreht.
+-- Gibt es kein Modell, gibt es wie früher ein Farbfeld mit Augen.
+-- Gibt das Bild zurück (mit UIScale zum Aufploppen).
+local function creatureIcon(parent: GuiObject, def, mutationId: string, size: number, y: number): (GuiObject, UIScale)
+	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
+	local rarity = Config.Rarities[def.Rarity]
+
+	-- Leuchtkreis hinter der Kreatur
+	local glow = Instance.new("Frame")
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.Position = UDim2.new(0.5, 0, 0, y + size / 2)
+	glow.Size = UDim2.fromOffset(size * 0.92, size * 0.92)
+	glow.BackgroundColor3 = mutation.Color or rarity.Color
+	glow.BackgroundTransparency = 0.72
+	glow.BorderSizePixel = 0
+	glow.Parent = parent
+	corner(glow, size)
+	if mutationId == "Regenbogen" then
+		CollectionService:AddTag(glow, "RainbowGui")
+	end
+
+	local iconScale = Instance.new("UIScale")
+	iconScale.Scale = 0
+
+	local folder = ReplicatedStorage:FindFirstChild("KreaturenModelle")
+	local template = folder and folder:FindFirstChild(def.Id)
+	if template and template:IsA("Model") then
+		local vp = Instance.new("ViewportFrame")
+		vp.AnchorPoint = Vector2.new(0.5, 0)
+		vp.Position = UDim2.new(0.5, 0, 0, y)
+		vp.Size = UDim2.fromOffset(size, size)
+		vp.BackgroundTransparency = 1
+		vp.Ambient = Color3.fromRGB(165, 165, 180)
+		vp.LightColor = Color3.new(1, 1, 1)
+		vp.LightDirection = Vector3.new(-0.3, -0.8, 1) -- Licht von vorne oben
+		if mutation.Color then
+			vp.ImageColor3 = Color3.new(1, 1, 1):Lerp(mutation.Color, 0.35)
+		end
+		local model = template:Clone()
+		model:PivotTo(CFrame.new())
+		model.Parent = vp
+		local camera = Instance.new("Camera")
+		camera.FieldOfView = 30
+		camera.Parent = vp
+		vp.CurrentCamera = camera
+		local boxCF, boxSize = model:GetBoundingBox()
+		local center = boxCF.Position
+		local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.62
+		local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
+		-- Kamera vor der Kreatur (die schaut nach -Z)
+		camera.CFrame = CFrame.lookAt(center + Vector3.new(0, boxSize.Y * 0.12, -dist), center)
+		iconScale.Parent = vp
+		vp.Parent = parent
+		task.spawn(function()
+			local start = os.clock()
+			while vp.Parent do
+				local t = os.clock() - start
+				local hop = math.abs(math.sin(t * 3)) * boxSize.Y * 0.06
+				model:PivotTo(CFrame.new(0, hop, 0) * CFrame.Angles(0, math.sin(t * 1.3) * 0.6, 0))
+				RunService.RenderStepped:Wait()
+			end
+		end)
+		return vp, iconScale
+	end
+
+	local swatchSize = math.floor(size * 0.75)
+	local swatch = Instance.new("Frame")
+	swatch.AnchorPoint = Vector2.new(0.5, 0.5)
+	swatch.Position = UDim2.new(0.5, 0, 0, y + size / 2)
+	swatch.Size = UDim2.fromOffset(swatchSize, swatchSize)
+	swatch.BackgroundColor3 = mutation.Color or def.Color
+	swatch.Parent = parent
+	corner(swatch, math.floor(swatchSize * 0.22))
+	stroke(swatch, def.Accent, 4)
+	iconScale.Parent = swatch
+	if mutationId == "Regenbogen" then
+		CollectionService:AddTag(swatch, "RainbowGui")
+	end
+	local eyeSize = math.floor(swatchSize * 0.22)
+	for _, x in { 0.3, 0.7 } do
+		local eye = Instance.new("Frame")
+		eye.AnchorPoint = Vector2.new(0.5, 0.5)
+		eye.Position = UDim2.fromScale(x, 0.42)
+		eye.Size = UDim2.fromOffset(eyeSize, eyeSize)
+		eye.BackgroundColor3 = Color3.new(1, 1, 1)
+		eye.Parent = swatch
+		corner(eye, eyeSize)
+		local pupil = Instance.new("Frame")
+		pupil.AnchorPoint = Vector2.new(0.5, 0.5)
+		pupil.Position = UDim2.fromScale(0.5, 0.55)
+		pupil.Size = UDim2.fromOffset(math.ceil(eyeSize * 0.45), math.ceil(eyeSize * 0.55))
+		pupil.BackgroundColor3 = Color3.new(0, 0, 0)
+		pupil.Parent = eye
+		corner(pupil, eyeSize)
+	end
+	return swatch, iconScale
+end
+
+-- Kisten-Shop ---------------------------------------------------------------------
+-- Links die Liste aller Kisten (gesperrte mit Schloss), rechts die gewählte Kiste groß in
+-- 3D, die Kreaturen, die drinstecken, und die Kauf-Knöpfe.
+local SHOP_W, SHOP_H = 900, 560
+local SHOP_DARK = Color3.fromRGB(26, 22, 52)
+local SHOP_GREEN = Color3.fromRGB(60, 200, 90)
 local shop = Instance.new("Frame")
 shop.AnchorPoint = Vector2.new(0.5, 0.5)
-shop.Size = UDim2.fromOffset(840, 500)
+shop.Size = UDim2.fromOffset(SHOP_W, SHOP_H)
 shop.Position = UDim2.fromScale(0.5, 0.5)
 shop.BackgroundColor3 = WHITE
 shop.Visible = false
@@ -641,7 +744,7 @@ shop.Parent = gui
 corner(shop, 22)
 stroke(shop, WHITE, 4)
 local shopGradient = Instance.new("UIGradient")
-shopGradient.Color = ColorSequence.new(Color3.fromRGB(72, 54, 140), Color3.fromRGB(26, 22, 52))
+shopGradient.Color = ColorSequence.new(Color3.fromRGB(72, 54, 140), SHOP_DARK)
 shopGradient.Rotation = 90
 shopGradient.Parent = shop
 local shopScale = Instance.new("UIScale")
@@ -654,14 +757,14 @@ label({
 	TextColor3 = Color3.fromRGB(255, 225, 80),
 	TextStrokeTransparency = 0.3,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "✨ PACK-SHOP",
+	Text = "✨ KISTEN-SHOP",
 	Parent = shop,
 })
 
--- Glücks-Garantie als Balken: füllt sich mit jedem Pack ohne Legendär
+-- Glücks-Garantie als Balken: füllt sich mit jeder Kiste ohne Legendär
 local pityBar = Instance.new("Frame")
-pityBar.Size = UDim2.fromOffset(400, 30)
-pityBar.Position = UDim2.new(1, -470, 0, 19)
+pityBar.Size = UDim2.fromOffset(430, 30)
+pityBar.Position = UDim2.new(1, -500, 0, 19)
 pityBar.BackgroundColor3 = Color3.fromRGB(20, 16, 40)
 pityBar.Parent = shop
 corner(pityBar, 15)
@@ -701,8 +804,38 @@ closeButton.Activated:Connect(function()
 	shop.Visible = false
 end)
 
--- Vorschau eines Packs: das 3D-Modell dreht sich langsam. Gibt es (noch) kein Modell,
--- sieht man eine schräge Pack-Tafel, die wippt.
+-- 3D-Modell einer Kiste (aus ReplicatedStorage.PackModelle), falls es eins gibt
+local function packTemplate(pack): Model?
+	local folder = ReplicatedStorage:FindFirstChild("PackModelle")
+	local template = folder and folder:FindFirstChild(pack.Id)
+	return if template and template:IsA("Model") then template else nil
+end
+
+-- ViewportFrame mit der Kiste drin. Gibt das Fenster, das Modell und dessen Höhe zurück.
+local function packViewport(template: Model, size: number): (ViewportFrame, Model, number)
+	local vp = Instance.new("ViewportFrame")
+	vp.Size = UDim2.fromOffset(size, size)
+	vp.BackgroundTransparency = 1
+	vp.Ambient = Color3.fromRGB(170, 170, 185)
+	vp.LightColor = WHITE
+	vp.LightDirection = Vector3.new(-0.3, -0.8, 1)
+	local model = template:Clone()
+	model:PivotTo(CFrame.new())
+	model.Parent = vp
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = vp
+	vp.CurrentCamera = camera
+	local boxCF, boxSize = model:GetBoundingBox()
+	local center = boxCF.Position
+	local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.68
+	local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
+	camera.CFrame = CFrame.lookAt(center + Vector3.new(0, boxSize.Y * 0.35, -dist), center)
+	return vp, model, boxSize.Y
+end
+
+-- Große Vorschau einer Kiste: das 3D-Modell dreht sich langsam. Gibt es (noch) kein Modell,
+-- sieht man eine schräge Tafel, die wippt.
 local function packPreview(parent: GuiObject, pack, size: number, centerY: number)
 	local glow = Instance.new("Frame")
 	glow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -722,35 +855,17 @@ local function packPreview(parent: GuiObject, pack, size: number, centerY: numbe
 		end
 	end
 
-	local folder = ReplicatedStorage:FindFirstChild("PackModelle")
-	local template = folder and folder:FindFirstChild(pack.Id)
-	if template and template:IsA("Model") then
-		local vp = Instance.new("ViewportFrame")
+	local template = packTemplate(pack)
+	if template then
+		local vp, model, height = packViewport(template, size)
 		vp.AnchorPoint = Vector2.new(0.5, 0.5)
 		vp.Position = UDim2.new(0.5, 0, 0, centerY)
-		vp.Size = UDim2.fromOffset(size, size)
-		vp.BackgroundTransparency = 1
-		vp.Ambient = Color3.fromRGB(170, 170, 185)
-		vp.LightColor = WHITE
-		vp.LightDirection = Vector3.new(-0.3, -0.8, 1)
-		local model = template:Clone()
-		model:PivotTo(CFrame.new())
-		model.Parent = vp
-		local camera = Instance.new("Camera")
-		camera.FieldOfView = 30
-		camera.Parent = vp
-		vp.CurrentCamera = camera
-		local boxCF, boxSize = model:GetBoundingBox()
-		local center = boxCF.Position
-		local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.68
-		local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
-		camera.CFrame = CFrame.lookAt(center + Vector3.new(0, boxSize.Y * 0.35, -dist), center)
 		vp.Parent = parent
 		task.spawn(function()
 			while vp.Parent do
 				if shop.Visible then
 					local t = os.clock()
-					model:PivotTo(CFrame.new(0, math.sin(t * 2) * boxSize.Y * 0.04, 0) * CFrame.Angles(0, t * 0.9, 0))
+					model:PivotTo(CFrame.new(0, math.sin(t * 2) * height * 0.04, 0) * CFrame.Angles(0, t * 0.9, 0))
 				end
 				RunService.RenderStepped:Wait()
 			end
@@ -780,177 +895,395 @@ local function packPreview(parent: GuiObject, pack, size: number, centerY: numbe
 	end)
 end
 
-local packButtons = {}
-local SHOP_CARD_W, SHOP_CARD_H, SHOP_GAP = 258, 410, 14
-for index, pack in Config.Packs do
-	local card = Instance.new("Frame")
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
-	card.Size = UDim2.fromOffset(SHOP_CARD_W, SHOP_CARD_H)
-	card.Position = UDim2.new(0.5, (index - (#Config.Packs + 1) / 2) * (SHOP_CARD_W + SHOP_GAP), 0, 72 + SHOP_CARD_H / 2)
-	card.BackgroundColor3 = WHITE
-	card.Parent = shop
-	corner(card, 16)
-	local cardStroke = stroke(card, pack.Color, 3)
-	local cardGradient = Instance.new("UIGradient")
-	cardGradient.Color = ColorSequence.new(pack.Color:Lerp(Color3.fromRGB(30, 26, 60), 0.45), Color3.fromRGB(30, 26, 60))
-	cardGradient.Rotation = 90
-	cardGradient.Parent = card
-	local cardScale = Instance.new("UIScale")
-	cardScale.Parent = card
-	-- Karte wird etwas größer, wenn die Maus drüber ist
-	card.MouseEnter:Connect(function()
-		tween(cardScale, 0.15, { Scale = 1.04 })
-		cardStroke.Thickness = 5
-	end)
-	card.MouseLeave:Connect(function()
-		tween(cardScale, 0.15, { Scale = 1 })
-		cardStroke.Thickness = 3
-	end)
-
-	packPreview(card, pack, 132, 74)
-
-	label({
-		Size = UDim2.new(1, -16, 0, 32),
-		Position = UDim2.fromOffset(8, 142),
-		Font = Enum.Font.FredokaOne,
-		TextColor3 = WHITE,
-		TextStrokeTransparency = 0.2,
-		TextStrokeColor3 = pack.Color:Lerp(BLACK, 0.6),
-		Text = pack.Name,
-		ZIndex = 2,
-		Parent = card,
-	})
-
-	-- Chancen: Farbpunkt, Name, Prozent (werden mit Glück aus dem Rebirth-Shop aktualisiert)
-	local chanceBox = Instance.new("Frame")
-	chanceBox.Size = UDim2.new(1, -20, 0, 142)
-	chanceBox.Position = UDim2.fromOffset(10, 180)
-	chanceBox.BackgroundColor3 = Color3.fromRGB(18, 15, 36)
-	chanceBox.BackgroundTransparency = 0.25
-	chanceBox.Parent = card
-	corner(chanceBox, 10)
-	local y = 7
-	local chanceLabels = {}
-	for _, rarityKey in Config.RarityOrder do
-		if (pack.Weights[rarityKey] or 0) > 0 then
-			local rarity = Config.Rarities[rarityKey]
-			local dot = Instance.new("Frame")
-			dot.Size = UDim2.fromOffset(12, 12)
-			dot.Position = UDim2.fromOffset(10, y + 4)
-			dot.BackgroundColor3 = rarity.Color
-			dot.Parent = chanceBox
-			corner(dot, 6)
-			label({
-				Size = UDim2.new(1, -96, 0, 20),
-				Position = UDim2.fromOffset(30, y),
-				Font = Enum.Font.GothamBold,
-				TextColor3 = rarity.Color,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = rarity.Name,
-				Parent = chanceBox,
-			})
-			chanceLabels[rarityKey] = label({
-				Size = UDim2.fromOffset(64, 20),
-				Position = UDim2.new(1, -72, 0, y),
-				Font = Enum.Font.GothamBold,
-				TextXAlignment = Enum.TextXAlignment.Right,
-				Text = "",
-				Parent = chanceBox,
-			})
-			y += 22
-		end
-	end
-
-	-- 1x / 3x / 10x
-	local buttonRow = Instance.new("Frame")
-	buttonRow.Size = UDim2.new(1, -20, 0, 62)
-	buttonRow.Position = UDim2.new(0, 10, 1, -74)
-	buttonRow.BackgroundTransparency = 1
-	buttonRow.Parent = card
-	local buttonLayout = Instance.new("UIListLayout")
-	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
-	buttonLayout.Padding = UDim.new(0, 6)
-	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	buttonLayout.Parent = buttonRow
-	local buttons = {}
-	for _, option in Config.PackCounts do
-		local cost = Config.PackCost(pack, option.Count)
-		local buy = Instance.new("TextButton")
-		buy.Size = UDim2.new(1 / #Config.PackCounts, -4, 1, 0)
-		buy.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
-		buy.TextColor3 = WHITE
-		buy.Font = Enum.Font.FredokaOne
-		buy.TextScaled = true
-		buy.TextStrokeTransparency = 0.4
-		buy.Text = `{option.Count}x\n{Config.FormatNumber(cost)} $`
-		buy.Parent = buttonRow
-		corner(buy, 12)
-		stroke(buy, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		local buyGradient = Instance.new("UIGradient")
-		buyGradient.Color = ColorSequence.new(WHITE, Color3.fromRGB(190, 190, 190))
-		buyGradient.Rotation = 90
-		buyGradient.Parent = buy
-		local pad = Instance.new("UIPadding")
-		pad.PaddingTop = UDim.new(0, 5)
-		pad.PaddingBottom = UDim.new(0, 5)
-		pad.PaddingLeft = UDim.new(0, 4)
-		pad.PaddingRight = UDim.new(0, 4)
-		pad.Parent = buy
-		if option.Discount < 1 then
-			local tag = label({
-				Size = UDim2.fromOffset(50, 20),
-				Position = UDim2.new(1, -42, 0, -14),
-				BackgroundTransparency = 0,
-				BackgroundColor3 = Color3.fromRGB(255, 60, 90),
-				Font = Enum.Font.FredokaOne,
-				Text = `-{math.floor((1 - option.Discount) * 100 + 0.5)} %`,
-				ZIndex = 3,
-				Parent = buy,
-			})
-			tag.Rotation = 12
-			corner(tag, 6)
-		end
-		buy.Activated:Connect(function()
-			playSound("Click")
-			Remotes.BuyPack:FireServer(pack.Id, option.Count)
-		end)
-		table.insert(buttons, { Button = buy, Price = cost })
-	end
-	packButtons[pack.Id] = { Buttons = buttons, Pack = pack, Chances = chanceLabels }
-end
-
 local function percentText(percent: number): string
 	return if percent < 1 then string.format("%.1f %%", percent) else string.format("%d %%", math.floor(percent + 0.5))
 end
 
-local function updateShop()
+-- Liste links ---------------------------------------------------------------------
+local SHOP_ROW_H = 76
+local shopList = Instance.new("ScrollingFrame")
+shopList.Size = UDim2.fromOffset(240, SHOP_H - 84)
+shopList.Position = UDim2.fromOffset(16, 68)
+shopList.BackgroundColor3 = Color3.fromRGB(18, 15, 36)
+shopList.BackgroundTransparency = 0.35
+shopList.BorderSizePixel = 0
+shopList.ScrollBarThickness = 6
+shopList.ScrollingDirection = Enum.ScrollingDirection.Y
+shopList.CanvasSize = UDim2.fromOffset(0, #Config.Packs * SHOP_ROW_H + 8)
+shopList.Parent = shop
+corner(shopList, 14)
+
+-- Rechte Seite: die gewählte Kiste
+local shopDetail = Instance.new("Frame")
+shopDetail.Size = UDim2.fromOffset(SHOP_W - 284, SHOP_H - 84)
+shopDetail.Position = UDim2.fromOffset(268, 68)
+shopDetail.BackgroundColor3 = WHITE
+shopDetail.Parent = shop
+corner(shopDetail, 16)
+local detailStroke = stroke(shopDetail, WHITE, 3)
+local detailGradient = Instance.new("UIGradient")
+detailGradient.Rotation = 90
+detailGradient.Parent = shopDetail
+
+local selectedPack = Config.Packs[1]
+local shopBuilt = false -- Liste und rechte Seite werden beim ersten Öffnen gebaut
+local shopRows = {}
+local detailContent: Frame? = nil
+local detailButtons = {} -- { Button, Price }
+local detailChances = {} -- { Label, Rarity, Share }
+local updateShop -- kommt weiter unten
+
+-- Rechte Seite für eine Kiste neu aufbauen
+local function buildDetail(pack)
+	if detailContent then
+		detailContent:Destroy()
+	end
+	detailButtons, detailChances = {}, {}
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	local unlocked = Config.PackUnlocked(pack, rebirths)
+	local width = shopDetail.Size.X.Offset
+	detailStroke.Color = pack.Color
+	detailGradient.Color = ColorSequence.new(pack.Color:Lerp(SHOP_DARK, 0.5), SHOP_DARK)
+
+	local content = Instance.new("Frame")
+	content.Size = UDim2.fromScale(1, 1)
+	content.BackgroundTransparency = 1
+	content.Parent = shopDetail
+	detailContent = content
+
+	-- große Kiste links oben
+	local stage = Instance.new("Frame")
+	stage.Size = UDim2.fromOffset(230, 212)
+	stage.Position = UDim2.fromOffset(8, 4)
+	stage.BackgroundTransparency = 1
+	stage.Parent = content
+	packPreview(stage, pack, 200, 108)
+
+	local nameLabel = label({
+		Size = UDim2.fromOffset(width - 262, 46),
+		Position = UDim2.fromOffset(248, 14),
+		Font = Enum.Font.FredokaOne,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = pack.Name,
+		ZIndex = 2,
+		Parent = content,
+	})
+	stroke(nameLabel, pack.Color:Lerp(BLACK, 0.65), 3)
+	label({
+		Size = UDim2.fromOffset(width - 262, 22),
+		Position = UDim2.fromOffset(248, 62),
+		Font = Enum.Font.GothamBold,
+		TextColor3 = Color3.fromRGB(215, 210, 240),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = `{#pack.Creatures} eigene Kreaturen  ·  {Config.FormatNumber(pack.Price)} $ pro Kiste`,
+		ZIndex = 2,
+		Parent = content,
+	})
+
+	if unlocked then
+		-- 1x / 3x / 10x
+		local buttonRow = Instance.new("Frame")
+		buttonRow.Size = UDim2.fromOffset(width - 262, 76)
+		buttonRow.Position = UDim2.fromOffset(248, 100)
+		buttonRow.BackgroundTransparency = 1
+		buttonRow.Parent = content
+		local buttonLayout = Instance.new("UIListLayout")
+		buttonLayout.FillDirection = Enum.FillDirection.Horizontal
+		buttonLayout.Padding = UDim.new(0, 8)
+		buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		buttonLayout.Parent = buttonRow
+		for _, option in Config.PackCounts do
+			local cost = Config.PackCost(pack, option.Count)
+			local buy = Instance.new("TextButton")
+			buy.Size = UDim2.new(1 / #Config.PackCounts, -6, 1, 0)
+			buy.BackgroundColor3 = SHOP_GREEN
+			buy.TextColor3 = WHITE
+			buy.Font = Enum.Font.FredokaOne
+			buy.TextScaled = true
+			buy.TextStrokeTransparency = 0.4
+			buy.Text = `{option.Count}x\n{Config.FormatNumber(cost)} $`
+			buy.Parent = buttonRow
+			corner(buy, 14)
+			stroke(buy, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			local buyGradient = Instance.new("UIGradient")
+			buyGradient.Color = ColorSequence.new(WHITE, Color3.fromRGB(190, 190, 190))
+			buyGradient.Rotation = 90
+			buyGradient.Parent = buy
+			local pad = Instance.new("UIPadding")
+			pad.PaddingTop = UDim.new(0, 7)
+			pad.PaddingBottom = UDim.new(0, 7)
+			pad.PaddingLeft = UDim.new(0, 6)
+			pad.PaddingRight = UDim.new(0, 6)
+			pad.Parent = buy
+			if option.Discount < 1 then
+				local tag = label({
+					Size = UDim2.fromOffset(54, 22),
+					Position = UDim2.new(1, -44, 0, -14),
+					BackgroundTransparency = 0,
+					BackgroundColor3 = Color3.fromRGB(255, 60, 90),
+					Font = Enum.Font.FredokaOne,
+					Text = `-{math.floor((1 - option.Discount) * 100 + 0.5)} %`,
+					ZIndex = 3,
+					Parent = buy,
+				})
+				tag.Rotation = 12
+				corner(tag, 6)
+			end
+			buy.Activated:Connect(function()
+				playSound("Click")
+				Remotes.BuyPack:FireServer(pack.Id, option.Count)
+			end)
+			table.insert(detailButtons, { Button = buy, Price = cost })
+		end
+		label({
+			Size = UDim2.fromOffset(width - 262, 18),
+			Position = UDim2.fromOffset(248, 184),
+			Font = Enum.Font.Gotham,
+			TextColor3 = Color3.fromRGB(185, 180, 215),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = "Base voll? Dann bleiben die besten, der Rest wird verkauft.",
+			Parent = content,
+		})
+	else
+		-- gesperrt: zeigen, was man dafür tun muss
+		local lock = Instance.new("Frame")
+		lock.Size = UDim2.fromOffset(width - 262, 100)
+		lock.Position = UDim2.fromOffset(248, 100)
+		lock.BackgroundColor3 = Color3.fromRGB(60, 30, 95)
+		lock.Parent = content
+		corner(lock, 14)
+		stroke(lock, Color3.fromRGB(200, 120, 255), 2)
+		label({
+			Size = UDim2.new(1, -20, 0, 40),
+			Position = UDim2.fromOffset(10, 10),
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0.4,
+			Text = `🔒 Ab Wiedergeburt {pack.Rebirths}`,
+			Parent = lock,
+		})
+		local missing = pack.Rebirths - rebirths
+		label({
+			Size = UDim2.new(1, -20, 0, 34),
+			Position = UDim2.fromOffset(10, 56),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = Color3.fromRGB(225, 200, 255),
+			TextWrapped = true,
+			Text = if missing == 1
+				then "Noch 1 Wiedergeburt. Die machst du mit dem Rebirth-Knopf oder Taste R."
+				else `Noch {missing} Wiedergeburten. Die machst du mit dem Rebirth-Knopf oder Taste R.`,
+			Parent = lock,
+		})
+	end
+
+	-- Kreaturen dieser Kiste, die schwächste links, die seltenste rechts
+	label({
+		Size = UDim2.fromOffset(300, 22),
+		Position = UDim2.fromOffset(16, 216),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(255, 225, 80),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "Das steckt drin:",
+		Parent = content,
+	})
+	local creatures = table.clone(pack.Creatures)
+	table.sort(creatures, function(a, b)
+		if a.Rarity ~= b.Rarity then
+			return Config.RarityRank(a.Rarity) < Config.RarityRank(b.Rarity)
+		end
+		return a.Income < b.Income
+	end)
+	local share = {}
+	for _, def in creatures do
+		share[def.Rarity] = (share[def.Rarity] or 0) + 1
+	end
+	local count = math.max(1, #creatures)
+	local gap = 8
+	local tileW = math.min(112, math.floor((width - 28 - (count - 1) * gap) / count))
+	local startX = math.floor((width - (count * tileW + (count - 1) * gap)) / 2)
+	for i, def in creatures do
+		local rarity = Config.Rarities[def.Rarity]
+		local tile = Instance.new("Frame")
+		tile.Size = UDim2.fromOffset(tileW, 224)
+		tile.Position = UDim2.fromOffset(startX + (i - 1) * (tileW + gap), 242)
+		tile.BackgroundColor3 = Color3.fromRGB(18, 15, 36)
+		tile.BackgroundTransparency = 0.2
+		tile.Parent = content
+		corner(tile, 12)
+		stroke(tile, rarity.Color, 2)
+		local iconSize = math.min(tileW - 10, 88)
+		local _, iconScale = creatureIcon(tile, def, "Normal", iconSize, 6)
+		task.delay(i * 0.04, function()
+			tween(iconScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+		label({
+			Size = UDim2.new(1, -8, 0, 34),
+			Position = UDim2.fromOffset(4, 98),
+			Font = Enum.Font.FredokaOne,
+			TextWrapped = true,
+			Text = def.Name,
+			Parent = tile,
+		})
+		label({
+			Size = UDim2.new(1, -8, 0, 16),
+			Position = UDim2.fromOffset(4, 136),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = rarity.Color,
+			Text = rarity.Name,
+			Parent = tile,
+		})
+		local chance = label({
+			Size = UDim2.new(1, -8, 0, 24),
+			Position = UDim2.fromOffset(4, 156),
+			Font = Enum.Font.FredokaOne,
+			Text = "",
+			Parent = tile,
+		})
+		table.insert(detailChances, { Label = chance, Rarity = def.Rarity, Share = share[def.Rarity] })
+		label({
+			Size = UDim2.new(1, -8, 0, 22),
+			Position = UDim2.fromOffset(4, 190),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = Color3.fromRGB(120, 255, 140),
+			Text = `+{Config.FormatNumber(def.Income)} $/s`,
+			Parent = tile,
+		})
+	end
+end
+
+local function selectPack(pack)
+	selectedPack = pack
+	if shopBuilt then
+		buildDetail(pack)
+		updateShop()
+	end
+end
+
+-- Liste links aufbauen (einmal, beim ersten Öffnen)
+local function buildShopList()
+	for index, pack in Config.Packs do
+		local row = Instance.new("TextButton")
+		row.Size = UDim2.new(1, -22, 0, SHOP_ROW_H - 8)
+		row.Position = UDim2.fromOffset(8, 8 + (index - 1) * SHOP_ROW_H)
+		row.BackgroundColor3 = WHITE
+		row.AutoButtonColor = false
+		row.Text = ""
+		row.Parent = shopList
+		corner(row, 12)
+		local rowStroke = stroke(row, pack.Color, 2)
+		rowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		local rowGradient = Instance.new("UIGradient")
+		rowGradient.Color = ColorSequence.new(pack.Color:Lerp(SHOP_DARK, 0.35), SHOP_DARK)
+		rowGradient.Parent = row
+
+		-- kleines Bild der Kiste
+		local thumb = Instance.new("Frame")
+		thumb.Size = UDim2.fromOffset(56, 56)
+		thumb.Position = UDim2.fromOffset(6, 6)
+		thumb.BackgroundColor3 = pack.Color
+		thumb.BackgroundTransparency = 0.55
+		thumb.Parent = row
+		corner(thumb, 12)
+		local template = packTemplate(pack)
+		if template then
+			local vp, model = packViewport(template, 56)
+			model:PivotTo(CFrame.Angles(0, math.rad(25), 0))
+			vp.Parent = thumb
+		else
+			label({ Size = UDim2.fromScale(1, 1), Text = "📦", Parent = thumb })
+		end
+		local lockIcon = label({
+			Size = UDim2.fromOffset(26, 26),
+			Position = UDim2.fromOffset(36, 36),
+			Text = "🔒",
+			ZIndex = 3,
+			Parent = row,
+		})
+
+		label({
+			Size = UDim2.new(1, -78, 0, 26),
+			Position = UDim2.fromOffset(70, 8),
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0.5,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = pack.Name,
+			Parent = row,
+		})
+		local sub = label({
+			Size = UDim2.new(1, -78, 0, 20),
+			Position = UDim2.fromOffset(70, 38),
+			Font = Enum.Font.GothamBold,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = "",
+			Parent = row,
+		})
+		row.Activated:Connect(function()
+			playSound("Click")
+			selectPack(pack)
+		end)
+		shopRows[pack.Id] = { Row = row, Stroke = rowStroke, Sub = sub, Lock = lockIcon, Thumb = thumb, Pack = pack }
+	end
+end
+
+function updateShop()
+	if not shopBuilt then
+		return
+	end
 	local money = player:GetAttribute("Money") or 0
 	local luck = player:GetAttribute("Up_Luck") or 0
-	for _, entry in packButtons do
-		for _, b in entry.Buttons do
-			b.Button.BackgroundColor3 = if money >= b.Price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(105, 100, 125)
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	for _, r in shopRows do
+		local pack = r.Pack
+		local unlocked = Config.PackUnlocked(pack, rebirths)
+		local selected = pack == selectedPack
+		r.Lock.Visible = not unlocked
+		r.Row.BackgroundTransparency = if unlocked then 0 else 0.5
+		r.Thumb.BackgroundTransparency = if unlocked then 0.55 else 0.8
+		if unlocked then
+			r.Sub.Text = `{Config.FormatNumber(pack.Price)} $`
+			r.Sub.TextColor3 = if money >= pack.Price then Color3.fromRGB(120, 255, 140) else Color3.fromRGB(200, 195, 225)
+		else
+			r.Sub.Text = `Ab Wiedergeburt {pack.Rebirths}`
+			r.Sub.TextColor3 = Color3.fromRGB(225, 170, 255)
 		end
-		local weights = Config.PackWeights(entry.Pack, luck)
-		for rarityKey, l in entry.Chances do
-			l.Text = percentText(Config.Percent(weights, rarityKey))
-		end
+		r.Stroke.Thickness = if selected then 4 else 2
+		r.Stroke.Color = if selected then WHITE else pack.Color
+	end
+	for _, b in detailButtons do
+		b.Button.BackgroundColor3 = if money >= b.Price then SHOP_GREEN else Color3.fromRGB(105, 100, 125)
+	end
+	local weights = Config.PackWeights(selectedPack, luck)
+	for _, c in detailChances do
+		c.Label.Text = percentText(Config.Percent(weights, c.Rarity) / c.Share)
 	end
 	local pity = player:GetAttribute("Pity") or 0
 	local left = math.max(1, Config.PityThreshold - pity)
-	pityLabel.Text = `Garantie: Legendär oder besser in spätestens {left} Packs`
+	pityLabel.Text = `Garantie: Legendär oder besser in spätestens {left} Kisten`
 	pityFill.Size = UDim2.fromScale(math.clamp(pity / Config.PityThreshold, 0.08, 1), 1)
 end
 player:GetAttributeChangedSignal("Money"):Connect(updateShop)
 player:GetAttributeChangedSignal("Pity"):Connect(updateShop)
 player:GetAttributeChangedSignal("Up_Luck"):Connect(updateShop)
-updateShop()
+
+-- Nach einer Wiedergeburt: Schlösser neu prüfen und gleich die neue Kiste zeigen
+local shopRebirths = player:GetAttribute("Rebirths") or 0
+player:GetAttributeChangedSignal("Rebirths"):Connect(function()
+	local now = player:GetAttribute("Rebirths") or 0
+	if now > shopRebirths then
+		selectedPack = Config.BestPack(now)
+	end
+	shopRebirths = now
+	if shopBuilt then
+		buildDetail(selectedPack)
+		updateShop()
+	end
+end)
 
 local function fitShop(): number
 	local camera = workspace.CurrentCamera
 	local scale = 1
 	if camera then
 		local size = camera.ViewportSize
-		scale = math.min(1, size.X / 880, size.Y / 540)
+		scale = math.min(1, size.X / (SHOP_W + 40), size.Y / (SHOP_H + 40))
 	end
 	shopScale.Scale = scale
 	return scale
@@ -958,6 +1291,19 @@ end
 
 -- Shop aufmachen: ploppt kurz auf
 local function showShop()
+	if not shopBuilt then
+		shopBuilt = true
+		-- beim ersten Öffnen: die beste Kiste zeigen, die man sich gerade leisten kann
+		local money = player:GetAttribute("Money") or 0
+		local rebirths = player:GetAttribute("Rebirths") or 0
+		for _, pack in Config.Packs do
+			if Config.PackUnlocked(pack, rebirths) and (money >= pack.Price or pack.Index == 1) then
+				selectedPack = pack
+			end
+		end
+		buildShopList()
+		buildDetail(selectedPack)
+	end
 	updateShop()
 	local scale = fitShop()
 	if not shop.Visible then
@@ -1088,103 +1434,6 @@ local function stopSound(sound: Sound?, fade: number)
 	end)
 end
 
--- Kreatur für die Karte: 3D-KI-Modell im ViewportFrame, das wippt und sich hin und her dreht.
--- Gibt es kein Modell, gibt es wie früher ein Farbfeld mit Augen.
--- Gibt das Bild zurück (mit UIScale zum Aufploppen).
-local function creatureIcon(parent: GuiObject, def, mutationId: string, size: number, y: number): (GuiObject, UIScale)
-	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
-	local rarity = Config.Rarities[def.Rarity]
-
-	-- Leuchtkreis hinter der Kreatur
-	local glow = Instance.new("Frame")
-	glow.AnchorPoint = Vector2.new(0.5, 0.5)
-	glow.Position = UDim2.new(0.5, 0, 0, y + size / 2)
-	glow.Size = UDim2.fromOffset(size * 0.92, size * 0.92)
-	glow.BackgroundColor3 = mutation.Color or rarity.Color
-	glow.BackgroundTransparency = 0.72
-	glow.BorderSizePixel = 0
-	glow.Parent = parent
-	corner(glow, size)
-	if mutationId == "Regenbogen" then
-		CollectionService:AddTag(glow, "RainbowGui")
-	end
-
-	local iconScale = Instance.new("UIScale")
-	iconScale.Scale = 0
-
-	local folder = ReplicatedStorage:FindFirstChild("KreaturenModelle")
-	local template = folder and folder:FindFirstChild(def.Id)
-	if template and template:IsA("Model") then
-		local vp = Instance.new("ViewportFrame")
-		vp.AnchorPoint = Vector2.new(0.5, 0)
-		vp.Position = UDim2.new(0.5, 0, 0, y)
-		vp.Size = UDim2.fromOffset(size, size)
-		vp.BackgroundTransparency = 1
-		vp.Ambient = Color3.fromRGB(165, 165, 180)
-		vp.LightColor = Color3.new(1, 1, 1)
-		vp.LightDirection = Vector3.new(-0.3, -0.8, 1) -- Licht von vorne oben
-		if mutation.Color then
-			vp.ImageColor3 = Color3.new(1, 1, 1):Lerp(mutation.Color, 0.35)
-		end
-		local model = template:Clone()
-		model:PivotTo(CFrame.new())
-		model.Parent = vp
-		local camera = Instance.new("Camera")
-		camera.FieldOfView = 30
-		camera.Parent = vp
-		vp.CurrentCamera = camera
-		local boxCF, boxSize = model:GetBoundingBox()
-		local center = boxCF.Position
-		local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.62
-		local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
-		-- Kamera vor der Kreatur (die schaut nach -Z)
-		camera.CFrame = CFrame.lookAt(center + Vector3.new(0, boxSize.Y * 0.12, -dist), center)
-		iconScale.Parent = vp
-		vp.Parent = parent
-		task.spawn(function()
-			local start = os.clock()
-			while vp.Parent do
-				local t = os.clock() - start
-				local hop = math.abs(math.sin(t * 3)) * boxSize.Y * 0.06
-				model:PivotTo(CFrame.new(0, hop, 0) * CFrame.Angles(0, math.sin(t * 1.3) * 0.6, 0))
-				RunService.RenderStepped:Wait()
-			end
-		end)
-		return vp, iconScale
-	end
-
-	local swatchSize = math.floor(size * 0.75)
-	local swatch = Instance.new("Frame")
-	swatch.AnchorPoint = Vector2.new(0.5, 0.5)
-	swatch.Position = UDim2.new(0.5, 0, 0, y + size / 2)
-	swatch.Size = UDim2.fromOffset(swatchSize, swatchSize)
-	swatch.BackgroundColor3 = mutation.Color or def.Color
-	swatch.Parent = parent
-	corner(swatch, math.floor(swatchSize * 0.22))
-	stroke(swatch, def.Accent, 4)
-	iconScale.Parent = swatch
-	if mutationId == "Regenbogen" then
-		CollectionService:AddTag(swatch, "RainbowGui")
-	end
-	local eyeSize = math.floor(swatchSize * 0.22)
-	for _, x in { 0.3, 0.7 } do
-		local eye = Instance.new("Frame")
-		eye.AnchorPoint = Vector2.new(0.5, 0.5)
-		eye.Position = UDim2.fromScale(x, 0.42)
-		eye.Size = UDim2.fromOffset(eyeSize, eyeSize)
-		eye.BackgroundColor3 = Color3.new(1, 1, 1)
-		eye.Parent = swatch
-		corner(eye, eyeSize)
-		local pupil = Instance.new("Frame")
-		pupil.AnchorPoint = Vector2.new(0.5, 0.5)
-		pupil.Position = UDim2.fromScale(0.5, 0.55)
-		pupil.Size = UDim2.fromOffset(math.ceil(eyeSize * 0.45), math.ceil(eyeSize * 0.55))
-		pupil.BackgroundColor3 = Color3.new(0, 0, 0)
-		pupil.Parent = eye
-		corner(pupil, eyeSize)
-	end
-	return swatch, iconScale
-end
 
 -- Rand, über den ein Glanz in der Seltenheits-Farbe läuft (ab Legendär)
 local function animatedBorder(holder: GuiObject, color: Color3, thickness: number)
@@ -3202,15 +3451,15 @@ local rebirthInfo = label({
 	Text = "",
 	Parent = rebirthPanel,
 })
-label({
-	Size = UDim2.new(1, -32, 0, 36),
+local rebirthDesc = label({
+	Size = UDim2.new(1, -32, 0, 38),
 	Position = UDim2.fromOffset(16, 82),
 	TextXAlignment = Enum.TextXAlignment.Left,
 	TextYAlignment = Enum.TextYAlignment.Top,
 	TextColor3 = Color3.fromRGB(200, 200, 215),
 	TextWrapped = true,
 	Font = Enum.Font.Gotham,
-	Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`,
+	Text = "",
 	Parent = rebirthPanel,
 })
 local costBar = Instance.new("Frame")
@@ -3315,6 +3564,15 @@ local function updateRebirth()
 	local tokens = player:GetAttribute("Tokens") or 0
 	local cost = Config.RebirthCost(rebirths)
 	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
+	local unlock = Config.RebirthUnlock(rebirths)
+	local keep = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`
+	if unlock then
+		rebirthDesc.Text = `🎁 Schaltet die {unlock.Name} frei, mit neuen, viel stärkeren Kreaturen! {keep}`
+		rebirthDesc.TextColor3 = Color3.fromRGB(255, 225, 120)
+	else
+		rebirthDesc.Text = keep
+		rebirthDesc.TextColor3 = Color3.fromRGB(200, 200, 215)
+	end
 	costFill.Size = UDim2.fromScale(math.clamp(money / cost, 0, 1), 1)
 	costText.Text = `{Config.FormatNumber(money)} / {Config.FormatNumber(cost)} $`
 	doRebirth.BackgroundColor3 = if money >= cost then PURPLE else Color3.fromRGB(90, 90, 100)

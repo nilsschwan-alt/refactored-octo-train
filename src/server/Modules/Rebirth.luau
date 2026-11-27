@@ -44,6 +44,7 @@ function Rebirth.Do(player: Player)
 		data.Slots[tostring(i)] = entries[i]
 	end
 
+	local unlocked = Config.RebirthUnlock(data.Rebirths) -- neue Kiste durch diese Wiedergeburt?
 	data.Rebirths += 1
 	data.Tokens += R.TokensPerRebirth
 	data.Money = 0
@@ -59,6 +60,15 @@ function Rebirth.Do(player: Player)
 	Bases.BigText(player, `WIEDERGEBURT #{data.Rebirths}!`, PURPLE, "Rebirth", false)
 	Bases.Notify(player, `Jetzt x{mult} Einkommen für immer und +{R.TokensPerRebirth} Tokens!`, PURPLE)
 	Bases.Announce(`{player.DisplayName} ist wiedergeboren! (#{data.Rebirths})`, PURPLE)
+	if unlocked then
+		-- kurz nach dem großen Schriftzug: die neue Kiste ankündigen
+		task.delay(2.6, function()
+			if player.Parent then
+				Bases.BigText(player, `NEU: {string.upper(unlocked.Name)}!`, unlocked.Color, "Upgrade", false)
+				Bases.Notify(player, `Die {unlocked.Name} ist jetzt im Shop, mit neuen, viel stärkeren Kreaturen!`, unlocked.Color)
+			end
+		end)
+	end
 	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)
 	FX.Ring(center, PURPLE, 60)
 	for _, model in state.Plot.SlotModels do
