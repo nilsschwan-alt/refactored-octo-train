@@ -3,6 +3,7 @@
 --   EventTitle (Text), EventPhase ("warn" / "active" / nil), EventEndsAt (Serverzeit)
 
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -134,8 +135,17 @@ local function runMeteor()
 	boom.BlastRadius = 15
 	boom.Parent = workspace
 
-	local rarity = Config.RollWeighted(cfg.Weights)
-	local def = Config.RandomCreatureOfRarity(rarity)
+	-- Die Kreatur kommt aus der besten Kiste, die alle Spieler auf dem Server schon kaufen dürfen
+	local lowest = math.huge
+	for _, player in Players:GetPlayers() do
+		local state = Bases.GetState(player)
+		if state then
+			lowest = math.min(lowest, state.Data.Rebirths)
+		end
+	end
+	local pack = Config.BestPack(if lowest == math.huge then 0 else lowest)
+	local def = Config.RandomCreatureOfRarity(Config.RollWeighted(cfg.Weights), pack)
+	local rarity = def.Rarity
 	local entry = Config.MakeEntry(def.Id, Config.RollWeighted(cfg.MutationWeights))
 	placeWild(entry, target, cfg.Duration)
 	Bases.Announce(`☄️ Meteor gelandet: {string.upper(Config.Rarities[rarity].Name)} {Config.EntryName(entry)}! Schnell hin!`,

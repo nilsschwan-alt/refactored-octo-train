@@ -1,5 +1,7 @@
--- Packs: Mit Ingame-Geld ein Pack kaufen (von überall über den Packs-Knopf), eine zufällige Kreatur kommt raus.
--- 1x, 3x oder 10x auf einmal. Teurere Packs = bessere Chancen. Pity: nach X Packs ohne Legendär+ ist das nächste garantiert Legendär+.
+-- Kisten (Packs): Mit Ingame-Geld eine Kiste kaufen (von überall über den Shop-Knopf), eine zufällige Kreatur kommt raus.
+-- 1x, 3x oder 10x auf einmal. Jede Kiste hat ihre eigenen Kreaturen, teurere Kisten haben viel stärkere.
+-- Neue Kisten werden mit Wiedergeburten freigeschaltet (pack.Rebirths).
+-- Pity: nach X Kisten ohne Legendär+ ist die nächste garantiert Legendär+.
 -- Die Chancen stehen in Config.Packs und werden im Shop angezeigt.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,10 +12,7 @@ local Bases = require(script.Parent.Bases)
 local Packs = {}
 
 local remotes
-local packById = {}
-for _, pack in Config.Packs do
-	packById[pack.Id] = pack
-end
+local packById = Config.PackById
 
 local LEGENDARY = Config.RarityRank("Legendary")
 
@@ -37,7 +36,7 @@ local function roll(state, pack)
 		weights = if total > 0 then filtered else { Legendary = 1 }
 	end
 	local rarity = Config.RollWeighted(weights)
-	local def = Config.RandomCreatureOfRarity(rarity)
+	local def = Config.RandomCreatureOfRarity(rarity, pack)
 	local mutation = Config.RollWeighted(Config.MutationWeights)
 	if Config.RarityRank(rarity) >= LEGENDARY then
 		state.Data.Pity = 0
@@ -68,6 +67,10 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	local pack = packById[packId]
 	count = count or 1
 	if not state or not pack then
+		return
+	end
+	if not Config.PackUnlocked(pack, state.Data.Rebirths) then
+		Bases.Notify(player, `Die {pack.Name} gibt es erst ab Wiedergeburt {pack.Rebirths}.`, Color3.fromRGB(255, 90, 90))
 		return
 	end
 	local cost = Config.PackCost(pack, count)
@@ -125,7 +128,7 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	task.delay(if count > 1 then 5 else 3.5, function()
 		if player.Parent then
 			for _, entry in entries do
-				Bases.AnnounceIfRare(player, entry, "aus einem Pack gezogen")
+				Bases.AnnounceIfRare(player, entry, "aus einer Kiste gezogen")
 			end
 		end
 	end)

@@ -4,10 +4,10 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.7.3"
+Config.Version = "0.8.0"
 
 -- Geld & Speichern ---------------------------------------------------------
-Config.StartMoney = 300 -- reicht für das erste Holz-Pack
+Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
 Config.StarterCreature = "Blubbo" -- jeder Neue bekommt diese Kreatur geschenkt
 Config.IncomeInterval = 1 -- alle X Sekunden gibt's Geld
 Config.AutoSaveInterval = 120 -- Sekunden zwischen automatischen Speicherungen
@@ -56,32 +56,87 @@ Config.Rarities = {
 }
 
 -- Kreaturen ----------------------------------------------------------------
--- Price = Kaufpreis, Income = Geld pro Sekunde
--- Extra = Form-Zusatz: "Ohren", "Hoerner", "Panzer", "Fuehler", "Hut", "Krone", "Stacheln", "Tentakel"
+-- Jede Kreatur gehört zu genau einer Kiste (Pack = Id der Kiste). Jede Kiste hat ihre
+-- eigenen Kreaturen, und die werden von Kiste zu Kiste viel stärker.
+-- Price = Wert (beim Verkaufen gibt es die Hälfte), Income = Geld pro Sekunde
+-- Faustregel fürs Balancing: Einkommen innerhalb einer Kiste 1 : 2,5 : 6 : 18 : 60 (: 250),
+-- und die nächste Kiste bringt etwa das 8-Fache.
+-- Color, Accent, Extra = Aussehen der Klotz-Version, falls es kein 3D-Modell gibt.
+-- Extra: "Ohren", "Hoerner", "Panzer", "Fuehler", "Hut", "Krone", "Stacheln", "Tentakel"
 Config.Creatures = {
-	{ Id = "Blubbo", Name = "Blubbo", Rarity = "Common", Price = 50, Income = 1,
+	-- Holz-Kiste
+	{ Id = "Blubbo", Name = "Blubbo", Pack = "Holz", Rarity = "Common", Price = 30, Income = 1,
 		Color = Color3.fromRGB(120, 220, 100), Accent = Color3.fromRGB(70, 160, 60), Extra = nil },
-	{ Id = "Kruemelkrabbe", Name = "Krümelkrabbe", Rarity = "Common", Price = 120, Income = 2,
+	{ Id = "Kruemelkrabbe", Name = "Krümelkrabbe", Pack = "Holz", Rarity = "Uncommon", Price = 75, Income = 3,
 		Color = Color3.fromRGB(240, 120, 80), Accent = Color3.fromRGB(200, 70, 40), Extra = "Fuehler" },
-	{ Id = "PupsiPilz", Name = "Pupsi-Pilz", Rarity = "Uncommon", Price = 400, Income = 5,
+	{ Id = "PupsiPilz", Name = "Pupsi-Pilz", Pack = "Holz", Rarity = "Rare", Price = 180, Income = 6,
 		Color = Color3.fromRGB(245, 235, 210), Accent = Color3.fromRGB(220, 50, 50), Extra = "Hut" },
-	{ Id = "Zappelfrosch", Name = "Zappelfrosch", Rarity = "Uncommon", Price = 900, Income = 10,
+	{ Id = "Zappelfrosch", Name = "Zappelfrosch", Pack = "Holz", Rarity = "Epic", Price = 450, Income = 18,
 		Color = Color3.fromRGB(60, 200, 160), Accent = Color3.fromRGB(250, 230, 60), Extra = "Ohren" },
-	{ Id = "Wolkenwurm", Name = "Wolkenwurm", Rarity = "Rare", Price = 2500, Income = 22,
-		Color = Color3.fromRGB(220, 235, 255), Accent = Color3.fromRGB(130, 180, 255), Extra = "Fuehler" },
-	{ Id = "Funkelfuchs", Name = "Funkelfuchs", Rarity = "Rare", Price = 6000, Income = 45,
+	{ Id = "Funkelfuchs", Name = "Funkelfuchs", Pack = "Holz", Rarity = "Legendary", Price = 1200, Income = 60,
 		Color = Color3.fromRGB(255, 140, 40), Accent = Color3.fromRGB(255, 255, 255), Extra = "Ohren" },
-	{ Id = "LavaLurch", Name = "Lava-Lurch", Rarity = "Epic", Price = 15000, Income = 100,
-		Color = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 90, 20), Extra = "Stacheln" },
-	{ Id = "Donnerdachs", Name = "Donnerdachs", Rarity = "Epic", Price = 40000, Income = 230,
+	-- Gold-Kiste
+	{ Id = "Muenzmaus", Name = "Münzmaus", Pack = "Gold", Rarity = "Common", Price = 750, Income = 8,
+		Color = Color3.fromRGB(250, 205, 70), Accent = Color3.fromRGB(255, 240, 170), Extra = "Ohren" },
+	{ Id = "Wolkenwurm", Name = "Wolkenwurm", Pack = "Gold", Rarity = "Uncommon", Price = 1900, Income = 20,
+		Color = Color3.fromRGB(220, 235, 255), Accent = Color3.fromRGB(130, 180, 255), Extra = "Fuehler" },
+	{ Id = "Donnerdachs", Name = "Donnerdachs", Pack = "Gold", Rarity = "Rare", Price = 4500, Income = 50,
 		Color = Color3.fromRGB(80, 80, 110), Accent = Color3.fromRGB(255, 240, 60), Extra = "Hoerner" },
-	{ Id = "EisIgel", Name = "Eiskristall-Igel", Rarity = "Legendary", Price = 120000, Income = 600,
-		Color = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(240, 255, 255), Extra = "Stacheln" },
-	{ Id = "Sternenschnecke", Name = "Sternenschnecke", Rarity = "Legendary", Price = 350000, Income = 1500,
-		Color = Color3.fromRGB(40, 30, 90), Accent = Color3.fromRGB(255, 220, 90), Extra = "Panzer" },
-	{ Id = "RegenbogenRex", Name = "Regenbogen-Rex", Rarity = "Mythic", Price = 1000000, Income = 4000,
+	{ Id = "Glitzergans", Name = "Glitzergans", Pack = "Gold", Rarity = "Epic", Price = 11000, Income = 150,
+		Color = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 200, 60), Extra = "Hut" },
+	{ Id = "Kronenloewe", Name = "Kronenlöwe", Pack = "Gold", Rarity = "Legendary", Price = 30000, Income = 500,
+		Color = Color3.fromRGB(240, 170, 50), Accent = Color3.fromRGB(255, 235, 120), Extra = "Krone" },
+	-- Kristall-Kiste
+	{ Id = "Splitterspatz", Name = "Splitterspatz", Pack = "Kristall", Rarity = "Common", Price = 15000, Income = 60,
+		Color = Color3.fromRGB(190, 150, 255), Accent = Color3.fromRGB(120, 240, 255), Extra = "Fuehler" },
+	{ Id = "QuarzQualle", Name = "Quarz-Qualle", Pack = "Kristall", Rarity = "Uncommon", Price = 38000, Income = 150,
+		Color = Color3.fromRGB(255, 170, 230), Accent = Color3.fromRGB(200, 240, 255), Extra = "Tentakel" },
+	{ Id = "PrismaPanda", Name = "Prisma-Panda", Pack = "Kristall", Rarity = "Rare", Price = 90000, Income = 360,
+		Color = Color3.fromRGB(245, 245, 255), Accent = Color3.fromRGB(150, 90, 255), Extra = "Ohren" },
+	{ Id = "JuwelenJaguar", Name = "Juwelen-Jaguar", Pack = "Kristall", Rarity = "Epic", Price = 220000, Income = 1100,
+		Color = Color3.fromRGB(90, 60, 170), Accent = Color3.fromRGB(80, 255, 200), Extra = "Ohren" },
+	{ Id = "KristallDrache", Name = "Kristall-Drache", Pack = "Kristall", Rarity = "Legendary", Price = 600000, Income = 3600,
+		Color = Color3.fromRGB(150, 100, 255), Accent = Color3.fromRGB(140, 250, 255), Extra = "Stacheln" },
+	{ Id = "RegenbogenRex", Name = "Regenbogen-Rex", Pack = "Kristall", Rarity = "Mythic", Price = 2200000, Income = 15000,
 		Color = Color3.fromRGB(255, 80, 200), Accent = Color3.fromRGB(80, 255, 230), Extra = "Krone" },
-	{ Id = "KosmoKrake", Name = "Kosmo-Krake", Rarity = "Mythic", Price = 3000000, Income = 10000,
+	-- Lava-Kiste
+	{ Id = "Glutkaefer", Name = "Glutkäfer", Pack = "Lava", Rarity = "Common", Price = 350000, Income = 500,
+		Color = Color3.fromRGB(70, 40, 35), Accent = Color3.fromRGB(255, 120, 30), Extra = "Fuehler" },
+	{ Id = "LavaLurch", Name = "Lava-Lurch", Pack = "Lava", Rarity = "Uncommon", Price = 880000, Income = 1250,
+		Color = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 90, 20), Extra = "Stacheln" },
+	{ Id = "AscheAffe", Name = "Asche-Affe", Pack = "Lava", Rarity = "Rare", Price = 2100000, Income = 3000,
+		Color = Color3.fromRGB(95, 90, 95), Accent = Color3.fromRGB(255, 150, 40), Extra = "Ohren" },
+	{ Id = "VulkanWidder", Name = "Vulkan-Widder", Pack = "Lava", Rarity = "Epic", Price = 5200000, Income = 9000,
+		Color = Color3.fromRGB(110, 55, 40), Accent = Color3.fromRGB(255, 200, 60), Extra = "Hoerner" },
+	{ Id = "MagmaMammut", Name = "Magma-Mammut", Pack = "Lava", Rarity = "Legendary", Price = 14000000, Income = 30000,
+		Color = Color3.fromRGB(55, 35, 35), Accent = Color3.fromRGB(255, 80, 20), Extra = "Hoerner" },
+	{ Id = "FeuerPhoenix", Name = "Feuer-Phönix", Pack = "Lava", Rarity = "Mythic", Price = 52000000, Income = 125000,
+		Color = Color3.fromRGB(255, 110, 30), Accent = Color3.fromRGB(255, 230, 90), Extra = "Krone" },
+	-- Eis-Kiste
+	{ Id = "Schneehase", Name = "Schneehase", Pack = "Eis", Rarity = "Common", Price = 8000000, Income = 4000,
+		Color = Color3.fromRGB(245, 250, 255), Accent = Color3.fromRGB(170, 220, 255), Extra = "Ohren" },
+	{ Id = "EisIgel", Name = "Eiskristall-Igel", Pack = "Eis", Rarity = "Uncommon", Price = 20000000, Income = 10000,
+		Color = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(240, 255, 255), Extra = "Stacheln" },
+	{ Id = "FrostRobbe", Name = "Frost-Robbe", Pack = "Eis", Rarity = "Rare", Price = 48000000, Income = 24000,
+		Color = Color3.fromRGB(200, 225, 245), Accent = Color3.fromRGB(90, 150, 220), Extra = nil },
+	{ Id = "GletscherBaer", Name = "Gletscher-Bär", Pack = "Eis", Rarity = "Epic", Price = 120000000, Income = 72000,
+		Color = Color3.fromRGB(235, 245, 255), Accent = Color3.fromRGB(110, 190, 255), Extra = "Ohren" },
+	{ Id = "SturmWolf", Name = "Schneesturm-Wolf", Pack = "Eis", Rarity = "Legendary", Price = 320000000, Income = 240000,
+		Color = Color3.fromRGB(150, 180, 220), Accent = Color3.fromRGB(240, 250, 255), Extra = "Ohren" },
+	{ Id = "EisTitan", Name = "Eis-Titan", Pack = "Eis", Rarity = "Mythic", Price = 1200000000, Income = 1000000,
+		Color = Color3.fromRGB(110, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Extra = "Krone" },
+	-- Galaxie-Kiste
+	{ Id = "MondMotte", Name = "Mond-Motte", Pack = "Galaxie", Rarity = "Common", Price = 160000000, Income = 32000,
+		Color = Color3.fromRGB(210, 210, 235), Accent = Color3.fromRGB(120, 110, 200), Extra = "Fuehler" },
+	{ Id = "KometenKater", Name = "Kometen-Kater", Pack = "Galaxie", Rarity = "Uncommon", Price = 400000000, Income = 80000,
+		Color = Color3.fromRGB(60, 50, 120), Accent = Color3.fromRGB(120, 220, 255), Extra = "Ohren" },
+	{ Id = "NebelNarwal", Name = "Nebel-Narwal", Pack = "Galaxie", Rarity = "Rare", Price = 960000000, Income = 190000,
+		Color = Color3.fromRGB(150, 80, 220), Accent = Color3.fromRGB(255, 150, 230), Extra = "Hoerner" },
+	{ Id = "SaturnSchildkroete", Name = "Saturn-Schildkröte", Pack = "Galaxie", Rarity = "Epic", Price = 2400000000, Income = 580000,
+		Color = Color3.fromRGB(70, 90, 170), Accent = Color3.fromRGB(255, 200, 110), Extra = "Panzer" },
+	{ Id = "Sternenschnecke", Name = "Sternenschnecke", Pack = "Galaxie", Rarity = "Legendary", Price = 6400000000, Income = 1900000,
+		Color = Color3.fromRGB(40, 30, 90), Accent = Color3.fromRGB(255, 220, 90), Extra = "Panzer" },
+	{ Id = "KosmoKrake", Name = "Kosmo-Krake", Pack = "Galaxie", Rarity = "Mythic", Price = 24000000000, Income = 8000000,
 		Color = Color3.fromRGB(110, 40, 200), Accent = Color3.fromRGB(0, 255, 255), Extra = "Tentakel" },
 }
 
@@ -136,32 +191,94 @@ Config.MutationWeights = {
 	Regenbogen = 1,
 }
 
--- Packs ----------------------------------------------------------------------
--- Pity: Nach so vielen Packs ohne Legendär oder besser ist das nächste garantiert Legendär+.
+-- Kisten (im Code heißen sie Packs) -----------------------------------------------
+-- Jede Kiste hat ihre eigenen Kreaturen (siehe oben, Feld Pack).
+-- Rebirths = so viele Wiedergeburten braucht man, um die Kiste kaufen zu dürfen.
+-- Weights = Chancen pro Seltenheit. Mythisch gibt es erst ab der Kristall-Kiste.
+-- Faustregel: Jede Kiste kostet etwa das 20- bis 25-Fache der vorigen.
+-- Pity: Nach so vielen Kisten ohne Legendär oder besser ist die nächste garantiert Legendär+.
 Config.PityThreshold = 20
 Config.Packs = {
 	{
 		Id = "Holz",
-		Name = "Holz-Pack",
+		Name = "Holz-Kiste",
 		Price = 300,
+		Rebirths = 0,
 		Color = Color3.fromRGB(170, 120, 70),
-		Weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 1.8, Legendary = 0.2, Mythic = 0 },
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1 },
 	},
 	{
 		Id = "Gold",
-		Name = "Gold-Pack",
-		Price = 6000,
+		Name = "Gold-Kiste",
+		Price = 7500,
+		Rebirths = 0,
 		Color = Color3.fromRGB(255, 200, 40),
-		Weights = { Common = 20, Uncommon = 35, Rare = 30, Epic = 12, Legendary = 2.7, Mythic = 0.3 },
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1 },
 	},
 	{
 		Id = "Kristall",
-		Name = "Kristall-Pack",
-		Price = 120000,
+		Name = "Kristall-Kiste",
+		Price = 150000,
+		Rebirths = 1,
 		Color = Color3.fromRGB(180, 100, 255),
-		Weights = { Common = 0, Uncommon = 10, Rare = 35, Epic = 38, Legendary = 14, Mythic = 3 },
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
+	},
+	{
+		Id = "Lava",
+		Name = "Lava-Kiste",
+		Price = 3500000,
+		Rebirths = 2,
+		Color = Color3.fromRGB(255, 95, 35),
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
+	},
+	{
+		Id = "Eis",
+		Name = "Eis-Kiste",
+		Price = 80000000,
+		Rebirths = 3,
+		Color = Color3.fromRGB(130, 215, 255),
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
+	},
+	{
+		Id = "Galaxie",
+		Name = "Galaxie-Kiste",
+		Price = 1600000000,
+		Rebirths = 4,
+		Color = Color3.fromRGB(85, 95, 255),
+		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
 	},
 }
+
+-- Schnellzugriff (wird automatisch gefüllt): Config.PackById.Holz, und jede Kiste kennt
+-- ihre Kreaturen (pack.Creatures) und ihren Platz in der Liste (pack.Index).
+Config.PackById = {}
+for index, pack in Config.Packs do
+	pack.Index = index
+	pack.Creatures = {}
+	Config.PackById[pack.Id] = pack
+end
+for _, creature in Config.Creatures do
+	local pack = Config.PackById[creature.Pack]
+	if pack then
+		table.insert(pack.Creatures, creature)
+	end
+end
+
+-- Darf man die Kiste mit so vielen Wiedergeburten schon kaufen?
+function Config.PackUnlocked(pack, rebirths: number?): boolean
+	return (rebirths or 0) >= (pack.Rebirths or 0)
+end
+
+-- Die beste Kiste, die man mit so vielen Wiedergeburten kaufen darf
+function Config.BestPack(rebirths: number?)
+	local best = Config.Packs[1]
+	for _, pack in Config.Packs do
+		if Config.PackUnlocked(pack, rebirths) then
+			best = pack
+		end
+	end
+	return best
+end
 
 -- Mehrfach-Öffnen: 1x, 3x oder 10x auf einmal. Discount = Rabatt (0.9 = 10 % billiger)
 -- Ist die Base voll, bleiben die besten Kreaturen, der Rest wird automatisch verkauft.
@@ -179,12 +296,19 @@ function Config.PackCost(pack, count: number): number
 	return math.huge
 end
 
--- Glück (aus dem Rebirth-Shop) macht Selten und besser wahrscheinlicher
+-- Glück (aus dem Rebirth-Shop) macht Selten und besser wahrscheinlicher.
+-- Seltenheiten, für die die Kiste keine Kreatur hat, fallen raus.
 function Config.PackWeights(pack, luckLevel: number?)
 	local bonus = 1 + (luckLevel or 0) * Config.Rebirth.Upgrades.Luck.PerLevel
+	local has = {}
+	for _, creature in pack.Creatures do
+		has[creature.Rarity] = true
+	end
 	local weights = {}
 	for rarity, w in pack.Weights do
-		weights[rarity] = if Config.RarityRank(rarity) >= Config.RarityRank("Rare") then w * bonus else w
+		if has[rarity] then
+			weights[rarity] = if Config.RarityRank(rarity) >= Config.RarityRank("Rare") then w * bonus else w
+		end
 	end
 	return weights
 end
@@ -218,7 +342,7 @@ Config.Quests = {
 	RewardSeconds = 150,
 	MinReward = 300,
 	Types = {
-		OpenPacks = { Text = "Öffne {n} Packs", Min = 3, Max = 8, Factor = 1.2 },
+		OpenPacks = { Text = "Öffne {n} Kisten", Min = 3, Max = 8, Factor = 1.2 },
 		Steal = { Text = "Klau {n} Kreatur(en) aus fremden Bases", Min = 1, Max = 2, Factor = 2 },
 		Coins = { Text = "Sammle {n} Münzen auf der Straße", Min = 15, Max = 35, Factor = 1 },
 		Clicks = { Text = "Klick {n}x auf deine Kreaturen", Min = 60, Max = 150, Factor = 0.8 },
@@ -237,20 +361,35 @@ Config.Leaderboard = {
 -- Kostet Geld, setzt Geld und Base-Stufe zurück, die besten Kreaturen bleiben.
 -- Dafür: dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop.
 Config.Rebirth = {
-	BaseCost = 15000, -- erste Wiedergeburt
-	CostGrowth = 3, -- jede weitere kostet 3x so viel
+	-- Kosten der 1., 2., 3. ... Wiedergeburt. Faustregel: etwa 20 Kisten der besten Sorte,
+	-- die man gerade kaufen darf. Jede der ersten vier schaltet eine neue Kiste frei.
+	Costs = { 150000, 3000000, 60000000, 1500000000, 30000000000 },
+	CostGrowth = 5, -- danach kostet jede weitere 5x so viel
 	IncomePerRebirth = 0.5, -- +50 % Einkommen pro Wiedergeburt
 	KeepCreatures = 4, -- so viele der besten Kreaturen bleiben
 	TokensPerRebirth = 2,
 	Upgrades = {
-		Luck = { Name = "Glück", Icon = "🍀", Desc = "Selten+ in Packs wahrscheinlicher", Max = 5, PerLevel = 0.2, Costs = { 1, 2, 3, 4, 5 } },
+		Luck = { Name = "Glück", Icon = "🍀", Desc = "Selten+ in Kisten wahrscheinlicher", Max = 5, PerLevel = 0.2, Costs = { 1, 2, 3, 4, 5 } },
 		Magnet = { Name = "Münz-Magnet", Icon = "🧲", Desc = "Münzen von weiter weg einsammeln", Max = 5, PerLevel = 3, Costs = { 1, 1, 2, 2, 3 } },
 		ClickPower = { Name = "Klick-Kraft", Icon = "👆", Desc = "Mehr Geld pro Klick", Max = 5, PerLevel = 1, Costs = { 1, 2, 2, 3, 4 } },
 	},
 	UpgradeOrder = { "Luck", "Magnet", "ClickPower" },
 }
 function Config.RebirthCost(rebirths: number): number
-	return math.floor(Config.Rebirth.BaseCost * Config.Rebirth.CostGrowth ^ rebirths)
+	local costs = Config.Rebirth.Costs
+	if rebirths < #costs then
+		return costs[rebirths + 1]
+	end
+	return math.floor(costs[#costs] * Config.Rebirth.CostGrowth ^ (rebirths - #costs + 1))
+end
+-- Welche Kiste schaltet die nächste Wiedergeburt frei? (nil = keine neue)
+function Config.RebirthUnlock(rebirths: number)
+	for _, pack in Config.Packs do
+		if pack.Rebirths == rebirths + 1 then
+			return pack
+		end
+	end
+	return nil
 end
 function Config.RebirthMultiplier(rebirths: number): number
 	return 1 + rebirths * Config.Rebirth.IncomePerRebirth
@@ -267,6 +406,8 @@ Config.Events = {
 	Meteor = {
 		Duration = 90, -- so lange liegt die Kreatur herum, bis sie verschwindet
 		GrabTime = 1.5,
+		-- Die Kreatur kommt aus der besten Kiste, die ALLE Spieler auf dem Server schon
+		-- kaufen dürfen (sonst bekämen Neue sofort Monster vom Ende des Spiels).
 		Weights = { Epic = 55, Legendary = 37, Mythic = 8 },
 		-- Mutationen beim Meteor sind wahrscheinlicher
 		MutationWeights = { Normal = 55, Gold = 25, Diamant = 14, Regenbogen = 6 },
@@ -449,15 +590,24 @@ function Config.RollWeighted(weights, rng: Random?): string
 	return keys[1]
 end
 
--- Zufällige Kreatur einer Seltenheit
-function Config.RandomCreatureOfRarity(rarity: string)
-	local list = {}
-	for _, def in Config.Creatures do
-		if def.Rarity == rarity then
-			table.insert(list, def)
+-- Zufällige Kreatur einer Seltenheit aus einer Kiste. Hat die Kiste keine Kreatur dieser
+-- Seltenheit, gibt es die nächstbeste darunter.
+function Config.RandomCreatureOfRarity(rarity: string, pack)
+	local pool = if pack then pack.Creatures else Config.Creatures
+	local rank = Config.RarityRank(rarity)
+	while rank >= 1 do
+		local list = {}
+		for _, def in pool do
+			if def.Rarity == Config.RarityOrder[rank] then
+				table.insert(list, def)
+			end
 		end
+		if #list > 0 then
+			return list[math.random(1, #list)]
+		end
+		rank -= 1
 	end
-	return list[math.random(1, #list)]
+	return pool[1]
 end
 
 -- Chance in Prozent (für die Anzeige)
@@ -472,7 +622,7 @@ end
 -- Zahlen hübsch anzeigen: 1500 -> "1.5K", 2300000 -> "2.3M"
 function Config.FormatNumber(n: number): string
 	n = math.floor(n)
-	local units = { { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } }
+	local units = { { 1e15, "Qa" }, { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } }
 	for _, unit in units do
 		if n >= unit[1] then
 			local value = n / unit[1]
