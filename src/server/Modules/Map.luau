@@ -445,7 +445,9 @@ function Map.Build()
 				Material = Enum.Material.Neon,
 				Parent = model,
 			})
-			local _, labels = billboard(button, UDim2.fromOffset(140, 30), Vector3.new(0, 2.5, 0), 1, 60)
+			-- Schild etwas höher und immer obenauf, damit die Torpfosten es nicht verdecken
+			local sign, labels = billboard(button, UDim2.fromOffset(140, 30), Vector3.new(0, 3.5, 0), 1, 60)
+			sign.AlwaysOnTop = true
 			labels[1].Text = title
 			labels[1].TextColor3 = color
 			return button
@@ -454,21 +456,6 @@ function Map.Build()
 		local upgradeButton = pedestal(14, Color3.fromRGB(80, 255, 120), "Upgrade")
 		local lockPrompt = prompt(lockButton, "Lock", "Abschließen", "Base-Schloss", 0.3, 8)
 		local upgradePrompt = prompt(upgradeButton, "Upgrade", "Upgrade", "Base", 0.5, 8)
-
-		-- Kasse: hier sammelt sich das Geld, drüberlaufen zum Einsammeln
-		local cashPad = part({
-			Name = "Kasse",
-			Size = Vector3.new(6, 0.4, 6),
-			CFrame = cf * CFrame.new(-22, 0.2, -22),
-			Color = Color3.fromRGB(60, 255, 100),
-			Material = Enum.Material.Neon,
-			Transparency = 0.2,
-			Parent = model,
-		})
-		local _, cashLabels = billboard(cashPad, UDim2.fromOffset(160, 50), Vector3.new(0, 4, 0), 2, 120)
-		cashLabels[1].Text = "Kasse"
-		cashLabels[1].TextColor3 = Color3.fromRGB(120, 255, 140)
-		cashLabels[2].TextColor3 = Color3.fromRGB(255, 220, 60)
 
 		local decor = Instance.new("Folder")
 		decor.Name = "Deko"
@@ -488,8 +475,6 @@ function Map.Build()
 			SignLabels = signLabels,
 			LockPrompt = lockPrompt,
 			UpgradePrompt = upgradePrompt,
-			CashPad = cashPad,
-			CashLabel = cashLabels[2],
 			SpawnCFrame = cf * CFrame.new(0, 4, -12),
 			Owner = nil,
 			SlotModels = {},

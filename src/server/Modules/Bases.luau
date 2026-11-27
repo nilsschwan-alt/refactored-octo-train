@@ -1,8 +1,7 @@
--- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld und Kasse,
+-- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld (kommt automatisch),
 -- Verkaufen, Upgrades und das Base-Schloss.
 -- Kreaturen stehen im Spielstand als Eintrag: "Blubbo" oder "Blubbo|Gold".
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -63,13 +62,6 @@ function Bases.Init(plots, remoteFolder)
 	remotes = remoteFolder
 	for _, plot in plots do
 		Bases.RefreshPlot(plot)
-		-- Kasse einsammeln durch Drüberlaufen
-		plot.CashPad.Touched:Connect(function(hit)
-			local player = Players:GetPlayerFromCharacter(hit.Parent)
-			if player and plot.Owner == player then
-				Bases.CollectCash(Bases.States[player])
-			end
-		end)
 	end
 end
 
@@ -95,25 +87,6 @@ function Bases.AddMoney(state, amount: number, source: string?)
 	if state.MoneyValue then
 		state.MoneyValue.Value = math.floor(state.Data.Money)
 	end
-end
-
-function Bases.CollectCash(state)
-	if not state then
-		return
-	end
-	local amount = math.floor(state.Data.Cash)
-	if amount < 1 then
-		return
-	end
-	state.Data.Cash -= amount
-	Bases.AddMoney(state, amount)
-	remotes.MoneyPopup:FireClient(state.Player, amount)
-	Bases.RefreshCash(state)
-	FX.Burst(state.Plot.CashPad.Position + Vector3.new(0, 1, 0), Color3.fromRGB(255, 215, 50), 25)
-end
-
-function Bases.RefreshCash(state)
-	state.Plot.CashLabel.Text = `{Config.FormatNumber(state.Data.Cash)} $`
 end
 
 function Bases.Income(state): number
@@ -268,7 +241,6 @@ function Bases.RefreshPlot(plot)
 		labels[1].Text = "Freie Base"
 		labels[2].Text = ""
 		labels[3].Text = ""
-		plot.CashLabel.Text = ""
 		plot.Laser.Transparency = 1
 		plot.LockPrompt:SetAttribute("Active", false)
 		plot.UpgradePrompt:SetAttribute("Active", false)
@@ -279,7 +251,7 @@ function Bases.RefreshPlot(plot)
 	local level = state.Data.BaseLevel
 	local levelInfo = Config.BaseLevels[level]
 	labels[1].Text = `Base von {owner.DisplayName}`
-	labels[2].Text = `Stufe {level}: {levelInfo.Name}`
+	labels[2].Text = `Stufe {level}: {levelInfo.Name} · +{Config.FormatNumber(Bases.Income(state))} $/s`
 	labels[2].TextColor3 = Color3.fromRGB(255, 220, 90)
 
 	local now = os.clock()
@@ -308,7 +280,6 @@ function Bases.RefreshPlot(plot)
 		plot.UpgradePrompt.ActionText = "Max. Stufe"
 		plot.UpgradePrompt:SetAttribute("Active", false)
 	end
-	Bases.RefreshCash(state)
 end
 
 -- Spieler kommt / geht -------------------------------------------------------------
@@ -356,6 +327,12 @@ function Bases.AddPlayer(player: Player, data, saveable: boolean)
 	state.LevelValue = levelValue
 	state.RebirthValue = rebirthValue
 
+	-- Früher gab es eine Kasse zum Einsammeln. Was dort aus alten Spielständen noch liegt,
+	-- kommt jetzt direkt aufs Konto.
+	if data.Cash and data.Cash >= 1 then
+		data.Money += math.floor(data.Cash)
+	end
+	data.Cash = 0
 	Bases.AddMoney(state, 0)
 	Bases.RefreshStats(state)
 	player:SetAttribute("Pity", data.Pity)
@@ -476,12 +453,14 @@ function Bases.UnlockAll()
 	end
 end
 
--- Läuft jede Sekunde: Geld in die Kasse, Schloss-Timer, Schilder
+-- Läuft jede Sekunde: Geld direkt aufs Konto, Schloss-Timer, Schilder
 function Bases.Tick(dt: number)
 	local now = os.clock()
 	for player, state in Bases.States do
 		local income = Bases.Income(state)
-		state.Data.Cash += income * dt
+		if income > 0 then
+			Bases.AddMoney(state, income * dt)
+		end
 		player:SetAttribute("Income", income)
 		if state.Locked and now >= state.LockEnd then
 			state.Locked = false

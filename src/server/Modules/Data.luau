@@ -31,7 +31,7 @@ function Data.Default()
 		Money = Config.StartMoney,
 		BaseLevel = 1,
 		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", ...
-		Cash = 0, -- Geld in der Kasse der Base, noch nicht eingesammelt
+		Cash = 0, -- alt: frühere Kasse. Reste werden beim Join aufs Konto gebucht
 		Pity = 0, -- Packs seit dem letzten Legendär+
 		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
 		Rebirths = 0, -- Wiedergeburten
