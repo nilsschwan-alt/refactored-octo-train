@@ -60,6 +60,24 @@ local function stroke(parent: Instance, color: Color3, thickness: number?)
 	return s
 end
 
+-- Von jedem Geräusch liegt ein fertig geladenes Exemplar bereit. Ohne das lädt Roblox den Ton
+-- bei jedem Abspielen neu, und er kommt etwa eine Drittelsekunde zu spät.
+local soundBank = Instance.new("Folder")
+soundBank.Name = "SoundVorrat"
+soundBank.Parent = SoundService
+local soundTemplates: { [string]: Sound } = {}
+for name, id in Config.SoundSamples do
+	local template = Instance.new("Sound")
+	template.Name = name
+	template.SoundId = id
+	template.Parent = soundBank
+	soundTemplates[name] = template
+end
+local function newSound(sample: string): Sound?
+	local template = soundTemplates[sample]
+	return if template then template:Clone() else nil
+end
+
 -- Spielt eine kleine Melodie aus Config.Sounds (pitch = zusätzliche Tonhöhe)
 local function playSound(key: string?, pitch: number?)
 	local melody = key and Config.Sounds[key]
@@ -67,11 +85,9 @@ local function playSound(key: string?, pitch: number?)
 		return
 	end
 	for _, note in melody do
-		local id = Config.SoundSamples[note[1]]
-		if id then
+		if soundTemplates[note[1]] then
 			task.delay(note[4] or 0, function()
-				local sound = Instance.new("Sound")
-				sound.SoundId = id
+				local sound = newSound(note[1]) :: Sound
 				sound.PlaybackSpeed = (note[2] or 1) * (pitch or 1)
 				sound.Volume = note[3] or 0.5
 				sound.Parent = SoundService
@@ -668,6 +684,7 @@ local pityLabel = label({
 	ZIndex = 2,
 	Parent = pityBar,
 })
+stroke(pityLabel, BLACK, 2)
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.fromOffset(42, 42)
@@ -1026,10 +1043,8 @@ local StarterGui = game:GetService("StarterGui")
 -- Sounds vorladen, damit beim ersten Pack nichts verzögert kommt
 task.spawn(function()
 	local list = {}
-	for _, id in Config.SoundSamples do
-		local sound = Instance.new("Sound")
-		sound.SoundId = id
-		table.insert(list, sound)
+	for _, template in soundTemplates do
+		table.insert(list, template)
 	end
 	pcall(function()
 		ContentProvider:PreloadAsync(list)
@@ -1047,12 +1062,10 @@ end
 
 -- Sound starten, den man später wieder stoppen kann (Trommelwirbel beim Aufladen)
 local function startSound(sample: string, volume: number, pitch: number?): Sound?
-	local id = Config.SoundSamples[sample]
-	if not id then
+	local sound = newSound(sample)
+	if not sound then
 		return nil
 	end
-	local sound = Instance.new("Sound")
-	sound.SoundId = id
 	sound.Volume = volume
 	sound.PlaybackSpeed = pitch or 1
 	sound.Parent = SoundService
@@ -1326,7 +1339,7 @@ local function glowEmitter(parent: Instance, size: number): ParticleEmitter
 	e.Rate = 0
 	e.Rotation = NumberRange.new(0, 360)
 	e.RotSpeed = NumberRange.new(-40, 40)
-	e.ZOffset = -1.5
+	e.ZOffset = -4 -- hinter das Pack schieben, sonst bleicht das Glühen es aus
 	e.Parent = parent
 	return e
 end
@@ -1405,7 +1418,7 @@ end
 -- Leuchtende Scheibe, die sich auf dem Podest schnell ausbreitet und verblasst
 local function stageRing(show, color: Color3, diameter: number, time: number)
 	local ring = stageDisc(show.Folder, PEDESTAL_TOP + 0.04, 2, 0.06, color, Enum.Material.Neon)
-	ring.Transparency = 0.35
+	ring.Transparency = 0.6
 	tween(ring, time, { Size = Vector3.new(0.06, diameter, diameter), Transparency = 1 })
 	task.delay(time + 0.05, function()
 		ring:Destroy()
@@ -1434,7 +1447,11 @@ local function setShowColor(show, p, color: Color3)
 	end
 	if p then
 		for _, seg in p.Cracks do
-			seg.Color = color
+			if seg:IsA("Beam") then
+				seg.Color = ColorSequence.new(color)
+			else
+				seg.Color = color
+			end
 		end
 		p.Glow.Color = ColorSequence.new(color)
 		p.Light.Color = color
@@ -1629,24 +1646,27 @@ local function setupShow(show)
 	table.insert(show.Trash, dof)
 
 	-- Dunst aus, Leuchten etwas stärker (wird am Ende zurückgestellt)
-	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	local atmosphere = Lighting:FindFirstChild("SpielDunst") or Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
 		show.Atmosphere = atmosphere
 		show.SavedDensity = atmosphere.Density
 		atmosphere.Density = 0
 	end
-	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
+	local bloom = Lighting:FindFirstChild("SpielLeuchten") or Lighting:FindFirstChildOfClass("BloomEffect")
 	if bloom then
 		show.Bloom = bloom
 		show.SavedBloom = { bloom.Intensity, bloom.Size, bloom.Threshold }
-		bloom.Intensity = 0.7
+		bloom.Intensity = 0.6
 		bloom.Size = 24
-		bloom.Threshold = 1.05
+		bloom.Threshold = 1.2
 	end
 
 	-- Eigene Anzeige und die Roblox-Leisten ausblenden, damit es wie im Kino aussieht
 	gui.Enabled = false
 	show.CoreGui = {}
+	pcall(function()
+		StarterGui:SetCore("TopbarEnabled", false)
+	end)
 	pcall(function()
 		for _, kind in { Enum.CoreGuiType.PlayerList, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.Chat, Enum.CoreGuiType.EmotesMenu } do
 			show.CoreGui[kind] = StarterGui:GetCoreGuiEnabled(kind)
@@ -1691,6 +1711,9 @@ local function teardownShow(show, savedType: Enum.CameraType, savedFov: number)
 	camera.CameraType = if savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else savedType
 	camera.FieldOfView = savedFov
 	gui.Enabled = true
+	pcall(function()
+		StarterGui:SetCore("TopbarEnabled", true)
+	end)
 	for kind, enabled in show.CoreGui or {} do
 		pcall(function()
 			StarterGui:SetCoreGuiEnabled(kind, enabled)
@@ -1842,7 +1865,7 @@ local function buildPack(show, pack, bigText: string)
 		Parent = model,
 	})
 	local light = Instance.new("PointLight")
-	light.Range = 18
+	light.Range = 14
 	light.Brightness = 0
 	light.Parent = core
 
@@ -1882,18 +1905,41 @@ local function addCrack(p, seed: number, color: Color3)
 	local rng = Random.new(seed)
 	local body = p.Body
 	if not body then
+		-- 3D-Truhe: ein Lichtstrahl, der hinter der Truhe hervorbricht und nach außen breiter
+		-- und blasser wird
 		local k = p.Model:GetScale() / p.BaseScale -- aktuelle Größe des Packs
-		local len = rng:NextNumber(3.4, 5.2) * k
-		local ray = stagePart({
-			Name = "Riss",
-			Size = Vector3.new(len, 0.09 * k, 0.09 * k),
-			CFrame = p.Core.CFrame * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi * 2)) * CFrame.new(len / 2, 0, 0),
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.25,
+		local len = rng:NextNumber(4.6, 6.6) * k
+		local host = stagePart({
+			Name = "Strahl",
+			Size = Vector3.new(0.2, 0.2, 0.2),
+			CFrame = p.Core.CFrame * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi * 2)),
+			Transparency = 1,
 			Parent = p.Model,
 		})
-		table.insert(p.Cracks, ray)
+		local from = Instance.new("Attachment")
+		from.Parent = host
+		local to = Instance.new("Attachment")
+		to.Position = Vector3.new(len, 0, 0)
+		to.Parent = host
+		local beam = Instance.new("Beam")
+		beam.Attachment0 = from
+		beam.Attachment1 = to
+		beam.FaceCamera = true
+		beam.Segments = 1
+		beam.LightEmission = 1
+		beam.LightInfluence = 0
+		beam.Brightness = 1.6
+		beam.Color = ColorSequence.new(color)
+		beam.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.25),
+			NumberSequenceKeypoint.new(0.6, 0.6),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		beam.Width0 = 0
+		beam.Width1 = 0
+		beam.Parent = host
+		tween(beam, 0.16, { Width0 = 0.35 * k, Width1 = 1.5 * k }, Enum.EasingStyle.Back)
+		table.insert(p.Cracks, beam)
 		return
 	end
 	local k = body.Size.X / 2.8 -- aktuelle Größe des Packs
@@ -1985,8 +2031,8 @@ local function chargePack(show, p, hits: number, rank: number): boolean
 		tween(p.Pos, gap * 0.6, { Value = Vector3.new(0, p.RestY, 0) }, Enum.EasingStyle.Bounce)
 		addCrack(p, i * 17 + hits, WHITE)
 		p.Sparks:Emit(6 + i * 4)
-		p.Light.Brightness = t * 3
-		p.Glow.Rate = t * 14
+		p.Light.Brightness = t * 2.6
+		p.Glow.Rate = t * 12
 		shake(0.6 + t * 1.6, 0.18)
 		tween(show.CamPos, gap, { Value = Vector3.new(0, 3.9 - t * 0.4, 14 - t * 3) })
 		tween(show.CamFov, gap, { Value = 55 - t * 7 })
@@ -2022,7 +2068,7 @@ local function tellRarity(show, p, rank: number): boolean
 		p.Size.Value = 1.24
 		tween(p.Size, stepTime * 0.8, { Value = 1.08 + s * 0.02 }, Enum.EasingStyle.Back)
 		p.Sparks:Emit(14)
-		p.Light.Brightness = 3 + s
+		p.Light.Brightness = 2.2 + s * 0.35 -- mehr bleicht die Truhe aus
 		stageRing(show, color, 12 + s * 3, 0.45)
 		shake(1 + s * 0.5, stepTime * 0.6)
 		if beat(show, stepTime) then
@@ -2086,8 +2132,15 @@ local function burstPack(show, p, rank: number, color: Color3)
 			end)
 		end
 	end
+	for _, seg in p.Cracks do
+		if seg:IsA("Beam") then
+			-- Lichtstrahlen blitzen breit auf und sind weg
+			seg.Width1 *= 2.2
+			tween(seg, 0.22, { Width0 = 0, Width1 = 0 })
+		end
+	end
 	for _, part in p.Model:GetDescendants() do
-		if part:IsA("BasePart") and part ~= body and part.Name ~= "Kern" and part.Name ~= "Huelle" then
+		if part:IsA("BasePart") and part ~= body and part.Name ~= "Kern" and part.Name ~= "Huelle" and part.Name ~= "Strahl" then
 			if part.Name == "Riss" or part.Name == "Rand" then
 				-- Ränder, Risse und Lichtstrahlen fliegen als Scherben weg
 				local away = part.Position - center
@@ -2229,10 +2282,13 @@ local function addMutationShell(model: Model, mutationId: string, mutation)
 			shell:ClearAllChildren()
 			shell.Name = "MutationsGlanz"
 			shell.TextureID = ""
-			shell.Material = Enum.Material.ForceField
+			-- leuchtender Schleier in der Farbe der Mutation, knapp um die Kreatur herum
+			shell.Material = Enum.Material.Neon
 			shell.Color = mutation.Color
-			shell.Size = mesh.Size * 1.06
-			shell.CFrame = mesh.CFrame
+			shell.Transparency = 0.72
+			shell.CastShadow = false
+			shell.Size = mesh.Size * 1.04
+			shell.CFrame = mesh.CFrame + Vector3.new(0, mesh.Size.Y * 0.02, 0) -- sonst sinkt er ins Podest
 			if mutationId == "Regenbogen" then
 				CollectionService:AddTag(shell, "Rainbow")
 			end
@@ -2572,7 +2628,7 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 				front.BackgroundTransparency = 1
 				front.Visible = false
 				front.Parent = holder
-				label({
+				local header = label({
 					Size = UDim2.new(1, 0, 0, 24),
 					BackgroundTransparency = 0,
 					BackgroundColor3 = rarity.Color,
@@ -2581,6 +2637,12 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 					Text = upperDe(rarity.Name),
 					Parent = front,
 				})
+				local headerPad = Instance.new("UIPadding")
+				headerPad.PaddingLeft = UDim.new(0, 12)
+				headerPad.PaddingRight = UDim.new(0, 12)
+				headerPad.PaddingTop = UDim.new(0, 2)
+				headerPad.PaddingBottom = UDim.new(0, 2)
+				headerPad.Parent = header
 				local _, iconScale = creatureIcon(front, def, mutationId, 94, 24)
 				label({
 					Size = UDim2.new(1, -12, 0, 24),
