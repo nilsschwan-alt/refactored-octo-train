@@ -539,7 +539,7 @@ function Map.Build()
 			Parent = root,
 		})
 	end
-	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 12, 0), 2, 400)
+	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 12, 0), 2, 500)
 	shopLabels[1].Text = "PACK-SHOP"
 	shopLabels[1].TextColor3 = Color3.fromRGB(255, 220, 60)
 	shopLabels[2].Text = "Packs öffnen, Glück haben!"

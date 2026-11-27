@@ -29,7 +29,7 @@ local function makePart(model: Model, size: Vector3, cf: CFrame, color: Color3, 
 end
 
 local MODEL_FOLDER = "KreaturenModelle"
-local AI_HEIGHT_FACTOR = 1.05 -- KI-Modell ist so hoch wie Seltenheits-Größe x 1.05
+local AI_HEIGHT_FACTOR = 1.3 -- KI-Modell ist so hoch wie Seltenheits-Größe x 1.3
 
 -- KI-Modell aus ReplicatedStorage.KreaturenModelle (falls in Studio angelegt)
 local function findAiModel(id: string): Model?
@@ -253,7 +253,9 @@ function CreatureModels.Build(def, opts): Model
 	if opts.Label then
 		local gui = Instance.new("BillboardGui")
 		local lines = if opts.PriceText then 3 else 2
-		gui.Size = UDim2.fromOffset(190, 24 * lines)
+		-- Größe teils in Studs, teils in Pixeln: aus der Nähe gut lesbar, von weitem
+		-- schmal genug, dass sich die Schilder benachbarter Kreaturen nicht überlappen
+		gui.Size = UDim2.new(4, 70, 0.55 * lines, 12 * lines)
 		gui.StudsOffsetWorldSpace = Vector3.new(0, labelY, 0)
 		gui.MaxDistance = 70
 		gui.AlwaysOnTop = false

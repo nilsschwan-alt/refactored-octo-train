@@ -44,7 +44,7 @@ local CRYSTAL_COLORS = {
 	Color3.fromRGB(200, 110, 255),
 	Color3.fromRGB(255, 120, 220),
 }
-local TILE_COLORS = { Color3.fromRGB(255, 222, 240), Color3.fromRGB(215, 230, 255) } -- rosa / hellblau
+local TILE_COLORS = { Color3.fromRGB(255, 165, 210), Color3.fromRGB(150, 200, 255) } -- rosa / hellblau
 local UPRIGHT = CFrame.Angles(0, 0, math.rad(90)) -- dreht Zylinder so, dass sie stehen
 
 -- Insel-Maße -------------------------------------------------------------------------
@@ -56,6 +56,18 @@ local ISLAND_CORE_X, ISLAND_CORE_Z = 275, 125 -- Kern-Rechteck der Insel
 local ISLAND_ROUND = 60 -- so weit ragt der runde Rand über das Kern-Rechteck hinaus
 local BARRIER_X, BARRIER_Z = 310, 170 -- unsichtbare Wände, damit niemand runterfällt
 local WIESE_HALF_X, WIESE_HALF_Z = 290, 108 -- glatte Spielwiese (Part) rund um Bases und Weg
+-- Ausbuchtungen am Rand, damit die Insel von oben nicht wie ein Rechteck aussieht: X, Z, Radius
+local LOBES = {
+	{ -320, 120, 70 },
+	{ -345, -40, 75 },
+	{ -250, -175, 65 },
+	{ -60, -190, 70 },
+	{ 300, -150, 65 },
+	{ 345, 40, 70 },
+	{ 250, 175, 70 },
+	{ 40, 195, 75 },
+	{ -150, 200, 60 },
+}
 
 -- Teich hinter der unteren Reihe, ein Bach läuft zur Inselkante und fällt als Wasserfall runter.
 -- Je Eintrag: Versatz X, Versatz Z, Radius
@@ -66,7 +78,18 @@ local LAKE_BLOBS = {
 	{ 13, -4, 11 },
 }
 local LAKE_WATER_Y = -1 - TERRAIN_DROP -- angegebene Wasser-Oberkante
-local LAKE_SURFACE_Y = LAKE_WATER_Y + TERRAIN_DROP -- echte Wasseroberfläche (ca. -1)
+local EDGE_Z = -(ISLAND_CORE_Z + ISLAND_ROUND) -- Inselkante hinter dem Teich (dort ist der Wasserfall)
+
+-- Misst mit einem Strahl von oben, wo das Terrain an einer Stelle wirklich ist.
+-- Klappt erst kurz nach dem Füllen (die Kollision vom Terrain wird einen Moment später fertig).
+local function terrainY(x: number, z: number, ignoreWater: boolean): number?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	params.IgnoreWater = ignoreWater
+	local hit = workspace:Raycast(Vector3.new(x, 150, z), Vector3.new(0, -300, 0), params)
+	return hit and hit.Position.Y
+end
 
 -- Liegt ein Punkt im Teich oder am Ufer?
 local function inLake(x: number, z: number, margin: number): boolean
@@ -85,18 +108,19 @@ local function onStream(x: number, z: number): boolean
 	return math.abs(x - LAKE_CENTER.X) < 8 and z < LAKE_CENTER.Z - 8
 end
 
--- Bodenhöhe für Deko: auf der Spielwiese 1, draußen auf dem Terrain ca. 0
+-- Bodenhöhe für Deko: auf der Spielwiese 1, draußen gemessen auf dem Terrain
 local function groundY(x: number, z: number): number
 	if math.abs(x) <= WIESE_HALF_X and math.abs(z) <= WIESE_HALF_Z then
 		return 1
 	end
-	return -0.3 -- etwas einsinken lassen, damit nichts schwebt
+	local y = terrainY(x, z, true)
+	return if y then y - 0.25 else 1 -- etwas einsinken lassen, damit nichts schwebt
 end
 
 -- Licht & Stimmung: hell, bunt, sonnig ------------------------------------------------
 local function setupLighting()
 	Lighting.ClockTime = 13.5
-	Lighting.Brightness = 3
+	Lighting.Brightness = 2.6
 	Lighting.GlobalShadows = true
 	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 175)
 	Lighting.Ambient = Color3.fromRGB(80, 80, 105)
@@ -131,9 +155,9 @@ local function setupLighting()
 	rays.Spread = 0.5
 
 	local color = effect("ColorCorrectionEffect", "SpielFarben") :: ColorCorrectionEffect
-	color.Saturation = 0.25
-	color.Contrast = 0.08
-	color.Brightness = 0.03
+	color.Saturation = 0.3
+	color.Contrast = 0.1
+	color.Brightness = 0
 
 	local terrain = workspace.Terrain
 	local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
@@ -168,6 +192,9 @@ local function fillIslandLayer(yTop: number, height: number, inset: number, mate
 	aroundCore(40, function(x, z)
 		terrain:FillCylinder(CFrame.new(x, cy, z), height, ISLAND_ROUND - inset, material)
 	end)
+	for _, lobe in LOBES do
+		terrain:FillCylinder(CFrame.new(lobe[1], cy, lobe[2]), height, lobe[3] - inset, material)
+	end
 end
 
 local function buildIsland(info, rng: Random)
@@ -205,6 +232,18 @@ local function buildIsland(info, rng: Random)
 		end
 	end
 
+	-- Fels auch unter den Ausbuchtungen
+	for _, lobe in LOBES do
+		local r = lobe[3] * 0.8
+		local top = -22 - TERRAIN_DROP
+		terrain:FillBall(Vector3.new(lobe[1], top - r * 0.45, lobe[2]), r, Enum.Material.Rock)
+		terrain:FillBall(
+			Vector3.new(lobe[1] + rng:NextNumber(-10, 10), top - r * 1.3, lobe[2] + rng:NextNumber(-10, 10)),
+			r * 0.5,
+			Enum.Material.Rock
+		)
+	end
+
 	-- 2. Braune Erdschicht direkt unter dem Gras (sieht man an der Inselkante)
 	fillIslandLayer(-6, 18, 2, Enum.Material.Ground)
 	-- 3. Grasdecke oben
@@ -233,6 +272,24 @@ local function buildIsland(info, rng: Random)
 			CFrame.new(center + Vector3.new(0, (LAKE_WATER_Y + bottom) / 2, 0)),
 			LAKE_WATER_Y - bottom,
 			blob[3],
+			Enum.Material.Water
+		)
+	end
+
+	-- Bach vom Teich bis zur Inselkante: Rinne ausheben, Sandboden, Wasser auf Teich-Höhe
+	local streamFrom = LAKE_CENTER.Z - 10
+	local streamTo = EDGE_Z + 2
+	local streamLen = streamFrom - streamTo
+	local streamCF = CFrame.new(LAKE_CENTER.X, 0, (streamFrom + streamTo) / 2)
+	terrain:FillBlock(streamCF * CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(8, 18, streamLen + 4), Enum.Material.Air)
+	terrain:FillBlock(streamCF * CFrame.new(0, -10.5 - TERRAIN_DROP, 0), Vector3.new(8, 7, streamLen + 4), Enum.Material.Sand)
+	-- Wasser genauso wie im Teich füllen (mit Zylindern), damit es exakt gleich hoch steht
+	local bottom = -8 - TERRAIN_DROP
+	for z = streamFrom, streamTo, -3 do
+		terrain:FillCylinder(
+			CFrame.new(LAKE_CENTER.X, (LAKE_WATER_Y + bottom) / 2, z),
+			LAKE_WATER_Y - bottom,
+			4,
 			Enum.Material.Water
 		)
 	end
@@ -402,7 +459,7 @@ local function rock(pos: Vector3, rng: Random)
 	for i = 1, rng:NextInteger(1, 3) do
 		local r = rng:NextNumber(3, 5) / i
 		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-4, 4), 0, rng:NextNumber(-4, 4))
-		terrain:FillBall(Vector3.new(pos.X, 0, pos.Z) + offset + Vector3.new(0, -r * 0.35 - TERRAIN_DROP, 0), math.max(r, 2.5), Enum.Material.Rock)
+		terrain:FillBall(pos + offset + Vector3.new(0, -r * 0.35, 0), math.max(r, 2.5), Enum.Material.Rock)
 	end
 end
 
@@ -421,6 +478,7 @@ end
 -- Seerosen und Schilf am Teich, Bach und Wasserfall über die Inselkante
 local function lakeDecor(info, parent: Instance, rng: Random)
 	local part = info.Part
+	local LAKE_SURFACE_Y = terrainY(LAKE_CENTER.X, LAKE_CENTER.Z, false) or (LAKE_WATER_Y + TERRAIN_DROP)
 	local padColors = { Color3.fromRGB(80, 185, 80), Color3.fromRGB(110, 205, 90) }
 	local placed = 0
 	for _ = 1, 200 do
@@ -479,43 +537,86 @@ local function lakeDecor(info, parent: Instance, rng: Random)
 		end
 	end
 
-	-- Bach vom Teich zur Kante und Wasserfall in die Tiefe
-	-- ragt ein paar Studs über die Kante hinaus, damit der Wasserfall frei vor dem Felsen fällt
-	local edgeZ = -(ISLAND_CORE_Z + ISLAND_ROUND) - 5
-	local streamStart = LAKE_CENTER.Z - 12
-	local streamLength = streamStart - edgeZ
+end
+
+-- Wasserfall an der Inselkante: zwei schräge Wasserbahnen, fallende Tropfen, Gischt und eine Wolke unten
+local function buildWaterfall(info, parent: Instance)
+	local part = info.Part
+	local x = LAKE_CENTER.X
+	local topY = terrainY(x, EDGE_Z + 4, false) or (LAKE_WATER_Y + TERRAIN_DROP)
+	local bottomY = -120
+	local height = topY - bottomY
+	local drift = 16 -- unten so weit von der Kante weg (fällt im Bogen)
+	local mid = Vector3.new(x, (topY + bottomY) / 2, EDGE_Z - 1 - drift / 2)
+	local tilt = CFrame.Angles(math.atan(drift / height), 0, 0)
 	part({
-		Name = "Bach",
-		Size = Vector3.new(6, 0.4, streamLength),
-		CFrame = CFrame.new(LAKE_CENTER.X, 0.4, streamStart - streamLength / 2),
-		Color = Color3.fromRGB(70, 190, 240),
-		Material = Enum.Material.Glass,
-		Transparency = 0.3,
-		CanCollide = false,
-		Parent = parent,
-	})
-	local fall = part({
 		Name = "Wasserfall",
-		Size = Vector3.new(7, 140, 1.2),
-		CFrame = CFrame.new(LAKE_CENTER.X, -69.5, edgeZ - 0.6),
-		Color = Color3.fromRGB(150, 220, 255),
+		Size = Vector3.new(7, height, 1),
+		CFrame = CFrame.new(mid) * tilt,
+		Color = Color3.fromRGB(110, 205, 255),
 		Material = Enum.Material.Glass,
-		Transparency = 0.35,
+		Transparency = 0.45,
 		CanCollide = false,
 		CanQuery = false,
 		CastShadow = false,
 		Parent = parent,
 	})
+	part({
+		Name = "Wasserfallschaum",
+		Size = Vector3.new(4.5, height, 0.4),
+		CFrame = CFrame.new(mid) * tilt * CFrame.new(0, 0, -0.8),
+		Color = Color3.fromRGB(235, 250, 255),
+		Material = Enum.Material.Neon,
+		Transparency = 0.8,
+		CanCollide = false,
+		CanQuery = false,
+		CastShadow = false,
+		Parent = parent,
+	})
+	-- fallende Tropfen oben an der Kante
+	local source = part({
+		Name = "WasserfallQuelle",
+		Size = Vector3.new(7, 0.5, 0.5),
+		CFrame = CFrame.new(x, topY - 0.3, EDGE_Z - 1),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = parent,
+	})
+	local drops = Instance.new("ParticleEmitter")
+	drops.Color = ColorSequence.new(Color3.fromRGB(220, 245, 255))
+	drops.Size = NumberSequence.new(1.5, 5)
+	drops.Transparency = NumberSequence.new(0.3, 1)
+	drops.Lifetime = NumberRange.new(2.5, 3)
+	drops.Rate = 45
+	drops.Speed = NumberRange.new(4, 7)
+	drops.SpreadAngle = Vector2.new(10, 10)
+	drops.Acceleration = Vector3.new(0, -45, 0)
+	drops.EmissionDirection = Enum.NormalId.Front -- Front = -Z = von der Insel weg
+	drops.Parent = source
+	-- Gischt und Wolke unten
+	local mist = part({
+		Name = "Gischt",
+		Size = Vector3.new(10, 1, 10),
+		CFrame = CFrame.new(x, bottomY + 18, EDGE_Z - 1 - drift), -- knapp über der Wolke
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = parent,
+	})
 	local spray = Instance.new("ParticleEmitter")
-	spray.Color = ColorSequence.new(Color3.fromRGB(230, 245, 255))
-	spray.Size = NumberSequence.new(2, 6)
-	spray.Transparency = NumberSequence.new(0.4, 1)
-	spray.Lifetime = NumberRange.new(1.5, 2.5)
-	spray.Rate = 25
+	spray.Color = ColorSequence.new(Color3.fromRGB(240, 250, 255))
+	spray.Size = NumberSequence.new(8, 18)
+	spray.Transparency = NumberSequence.new(0.5, 1)
+	spray.Lifetime = NumberRange.new(2.5, 4)
+	spray.Rate = 12
 	spray.Speed = NumberRange.new(2, 5)
-	spray.SpreadAngle = Vector2.new(30, 30)
-	spray.EmissionDirection = Enum.NormalId.Front
-	spray.Parent = fall
+	spray.SpreadAngle = Vector2.new(60, 60)
+	spray.Parent = mist
+	local cloud = ball(info, parent, "Wolke", 110, Vector3.new(x, bottomY - 40, EDGE_Z - 1 - drift), Color3.fromRGB(250, 245, 255))
+	cloud.CanCollide = false
+	cloud.CanQuery = false
+	cloud.CastShadow = false
 end
 
 -- Kleine Schwebe-Inseln rund um die große Insel
@@ -529,20 +630,45 @@ local MINI_ISLANDS = {
 	Vector3.new(-570, 35, 0),
 	Vector3.new(570, 20, 30),
 }
-local function buildMiniIslands(info, parent: Instance, rng: Random)
+local miniRadius = {}
+local function buildMiniIslandTerrain(rng: Random)
 	local terrain = workspace.Terrain
 	for i, pos in MINI_ISLANDS do
 		local r = rng:NextNumber(20, 32)
+		miniRadius[i] = r
 		terrain:FillBall(pos + Vector3.new(0, -r * 0.7 - TERRAIN_DROP, 0), r * 0.85, Enum.Material.Rock)
 		terrain:FillBall(pos + Vector3.new(rng:NextNumber(-5, 5), -r * 1.5 - TERRAIN_DROP, rng:NextNumber(-5, 5)), r * 0.45, Enum.Material.Rock)
 		terrain:FillCylinder(CFrame.new(pos + Vector3.new(0, -4 - TERRAIN_DROP, 0)), 4, r, Enum.Material.Ground)
 		terrain:FillCylinder(CFrame.new(pos + Vector3.new(0, -1.5 - TERRAIN_DROP, 0)), 3, r, Enum.Material.Grass)
-		local ground = pos + Vector3.new(0, -0.3, 0)
+	end
+end
+
+local function decorateMiniIslands(info, parent: Instance, rng: Random)
+	local function on(x: number, z: number, fallback: number): Vector3
+		local y = terrainY(x, z, true)
+		return Vector3.new(x, if y then y - 0.25 else fallback, z)
+	end
+	for i, pos in MINI_ISLANDS do
+		local r = miniRadius[i] or 20
 		if i % 3 == 0 then
-			crystalCluster(info, parent, ground, rng, 2)
+			crystalCluster(info, parent, on(pos.X, pos.Z, pos.Y), rng, 2)
 		else
-			anyTree(info, parent, ground, rng:NextNumber(1.3, 1.8), rng)
-			bush(info, parent, ground + Vector3.new(r * 0.5, 0, rng:NextNumber(-4, 4)), rng)
+			anyTree(info, parent, on(pos.X, pos.Z, pos.Y), rng:NextNumber(1.3, 1.8), rng)
+			local bx, bz = pos.X + r * 0.5, pos.Z + rng:NextNumber(-4, 4)
+			bush(info, parent, on(bx, bz, pos.Y), rng)
+		end
+	end
+	-- Bäume und Kristalle auf den Ausbuchtungen der großen Insel
+	for _, lobe in LOBES do
+		for _ = 1, 3 do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local d = rng:NextNumber(0, lobe[3] * 0.55)
+			local x, z = lobe[1] + math.cos(a) * d, lobe[2] + math.sin(a) * d
+			if rng:NextNumber() < 0.75 then
+				anyTree(info, parent, on(x, z, 1), rng:NextNumber(1.2, 1.8), rng)
+			else
+				crystalCluster(info, parent, on(x, z, 1), rng, rng:NextNumber(1.2, 1.8))
+			end
 		end
 	end
 end
@@ -640,21 +766,24 @@ end
 -- Kristall-Brunnen in der Mitte, oben schwebt ein drehender Kristall
 local function fountain(info, parent: Instance)
 	local y = info.FloorY
-	local marble = Color3.fromRGB(255, 225, 245)
-	cylinderUp(info, parent, "Brunnenrand", 13, 2.4, Vector3.new(0, y + 0.2, 0), marble, Enum.Material.Marble)
-	cylinderUp(info, parent, "Wasser", 11.5, 0.4, Vector3.new(0, y + 1.1, 0), Color3.fromRGB(60, 200, 240), Enum.Material.Glass, {
-		Transparency = 0.25,
+	local rim = Color3.fromRGB(255, 150, 210)
+	cylinderUp(info, parent, "Brunnenrand", 15, 2.6, Vector3.new(0, y + 0.3, 0), rim, Enum.Material.SmoothPlastic)
+	cylinderUp(info, parent, "Brunnenleuchte", 15.3, 0.4, Vector3.new(0, y + 1.5, 0), Color3.fromRGB(0, 230, 255), Enum.Material.Neon, {
 		CanCollide = false,
 	})
-	cylinderUp(info, parent, "Brunnensaeule", 1.8, 7, Vector3.new(0, y + 4, 0), marble, Enum.Material.Marble)
-	local top = cylinderUp(info, parent, "Brunnenschale", 4.5, 1, Vector3.new(0, y + 7.8, 0), marble, Enum.Material.Marble)
+	cylinderUp(info, parent, "Wasser", 13.5, 0.4, Vector3.new(0, y + 1.3, 0), Color3.fromRGB(40, 200, 255), Enum.Material.Glass, {
+		Transparency = 0.2,
+		CanCollide = false,
+	})
+	cylinderUp(info, parent, "Brunnensaeule", 2, 8, Vector3.new(0, y + 4.5, 0), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic)
+	local top = cylinderUp(info, parent, "Brunnenschale", 5.5, 1.2, Vector3.new(0, y + 8.8, 0), rim, Enum.Material.SmoothPlastic)
 	local spray = Instance.new("ParticleEmitter")
 	spray.Color = ColorSequence.new(Color3.fromRGB(180, 235, 255))
-	spray.Size = NumberSequence.new(0.6, 0.2)
+	spray.Size = NumberSequence.new(0.7, 0.2)
 	spray.Transparency = NumberSequence.new(0.2, 1)
 	spray.Lifetime = NumberRange.new(1.2, 1.6)
-	spray.Rate = 60
-	spray.Speed = NumberRange.new(10, 14)
+	spray.Rate = 70
+	spray.Speed = NumberRange.new(11, 15)
 	spray.SpreadAngle = Vector2.new(25, 25)
 	spray.Acceleration = Vector3.new(0, -25, 0)
 	spray.EmissionDirection = Enum.NormalId.Right -- beim gedrehten Zylinder ist "Right" oben
@@ -663,26 +792,26 @@ local function fountain(info, parent: Instance)
 	local tilt = CFrame.Angles(0, 0, math.rad(45)) * CFrame.Angles(math.rad(45), 0, 0)
 	local crystal = info.Part({
 		Name = "Brunnenkristall",
-		Size = Vector3.new(4, 4, 4),
-		CFrame = CFrame.new(0, y + 14, 0) * tilt,
-		Color = Color3.fromRGB(200, 120, 255),
+		Size = Vector3.new(6, 6, 6),
+		CFrame = CFrame.new(0, y + 17, 0) * tilt,
+		Color = Color3.fromRGB(190, 90, 255),
 		Material = Enum.Material.Neon,
-		Transparency = 0.1,
+		Transparency = 0.05,
 		CanCollide = false,
 		Parent = parent,
 	})
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(210, 150, 255)
-	light.Range = 30
+	light.Range = 34
 	light.Brightness = 2
 	light.Parent = crystal
 	local sparkles = Instance.new("ParticleEmitter")
 	sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 	sparkles.Color = ColorSequence.new(Color3.fromRGB(230, 190, 255))
 	sparkles.LightEmission = 1
-	sparkles.Size = NumberSequence.new(0.8, 0)
+	sparkles.Size = NumberSequence.new(1, 0)
 	sparkles.Lifetime = NumberRange.new(1, 2)
-	sparkles.Rate = 15
+	sparkles.Rate = 20
 	sparkles.Speed = NumberRange.new(1, 3)
 	sparkles.SpreadAngle = Vector2.new(180, 180)
 	sparkles.Parent = crystal
@@ -690,7 +819,7 @@ local function fountain(info, parent: Instance)
 	TweenService:Create(
 		crystal,
 		TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ CFrame = CFrame.new(0, y + 16, 0) * CFrame.Angles(0, math.rad(180), 0) * tilt }
+		{ CFrame = CFrame.new(0, y + 19.5, 0) * CFrame.Angles(0, math.rad(180), 0) * tilt }
 	):Play()
 end
 
@@ -755,7 +884,7 @@ local function buildStreet(info, parent: Instance)
 			Name = "Promenade",
 			Size = Vector3.new(length, 1, walkWidth),
 			CFrame = CFrame.new(0, y - 0.3, side * (walkInner + walkWidth / 2)),
-			Color = Color3.fromRGB(255, 246, 228),
+			Color = Color3.fromRGB(255, 215, 150), -- warmes Sand-Orange, hebt sich vom Weg ab
 			Parent = parent,
 		})
 		part({
@@ -788,7 +917,7 @@ local function buildStreet(info, parent: Instance)
 				Name = "Eingangsweg",
 				Size = Vector3.new(16, 1, len),
 				CFrame = CFrame.new(x, y - 0.55, side * (walkOuter + len / 2)),
-				Color = Color3.fromRGB(255, 232, 200),
+				Color = Color3.fromRGB(255, 200, 135),
 				Parent = parent,
 			})
 		end
@@ -831,7 +960,7 @@ local function buildPackShopArea(info, parent: Instance)
 			Parent = parent,
 		})
 	end
-	local beam = part({
+	part({
 		Name = "Torbalken",
 		Size = Vector3.new(4, 4, 48),
 		CFrame = CFrame.new(archX, y + 24, 0),
@@ -846,9 +975,6 @@ local function buildPackShopArea(info, parent: Instance)
 		Material = Enum.Material.Neon,
 		Parent = parent,
 	})
-	local _, labels = info.Billboard(beam, UDim2.fromOffset(360, 70), Vector3.new(0, 6, 0), 1, 500)
-	labels[1].Text = "✨ PACK-SHOP ✨"
-	labels[1].TextColor3 = Color3.fromRGB(255, 220, 60)
 
 	-- Fahnen rund um den Platz
 	for i = 0, 7 do
@@ -1044,17 +1170,27 @@ function World.Build(root: Instance, info)
 	buildStreet(info, folder)
 	buildPackShopArea(info, folder)
 	buildStatue(info, folder)
-
-	local nature = Instance.new("Folder")
-	nature.Name = "Natur"
-	nature.Parent = folder
-	buildNature(info, nature, rng)
-	buildMiniIslands(info, nature, rng)
+	buildMiniIslandTerrain(rng)
 
 	local sky = Instance.new("Folder")
 	sky.Name = "Himmel"
 	sky.Parent = folder
 	buildCloudSea(info, sky, rng)
+
+	-- Natur kommt einen Moment später: Erst dann kann man die echte Terrain-Höhe messen,
+	-- damit Bäume, Blumen und Wasserfall genau auf dem Boden stehen statt drin oder drüber.
+	local nature = Instance.new("Folder")
+	nature.Name = "Natur"
+	nature.Parent = folder
+	task.spawn(function()
+		local start = os.clock()
+		repeat
+			task.wait(0.25)
+		until terrainY(0, 150, true) ~= nil or os.clock() - start > 6
+		buildNature(info, nature, rng)
+		decorateMiniIslands(info, nature, rng)
+		buildWaterfall(info, nature)
+	end)
 end
 
 return World
