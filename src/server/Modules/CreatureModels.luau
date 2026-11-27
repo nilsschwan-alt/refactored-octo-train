@@ -1,4 +1,6 @@
--- Baut eine Kreatur aus einfachen Blöcken.
+-- Baut eine Kreatur. Wenn in Studio unter ReplicatedStorage > KreaturenModelle ein Modell
+-- mit dem Namen der Kreatur (Id) liegt, wird das genommen (KI-Modelle). Sonst wird die
+-- Kreatur wie früher aus einfachen Blöcken gebaut. So läuft das Spiel auch ohne die Modelle.
 -- Vorne ist -Z (dahin schaut die Kreatur). Der Pivot liegt unten in der Mitte,
 -- damit model:PivotTo(cf) die Kreatur genau auf den Boden bei cf stellt.
 
@@ -26,19 +28,89 @@ local function makePart(model: Model, size: Vector3, cf: CFrame, color: Color3, 
 	return p
 end
 
--- opts = { Scale = number?, Anchored = boolean?, Label = boolean?, Mutation = string?, PriceText = string? }
-function CreatureModels.Build(def, opts): Model
-	opts = opts or {}
-	local rarity = Config.Rarities[def.Rarity]
-	local s = rarity.Size * (opts.Scale or 1)
+local MODEL_FOLDER = "KreaturenModelle"
+local AI_HEIGHT_FACTOR = 1.05 -- KI-Modell ist so hoch wie Seltenheits-Größe x 1.05
+
+-- KI-Modell aus ReplicatedStorage.KreaturenModelle (falls in Studio angelegt)
+local function findAiModel(id: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild(MODEL_FOLDER)
+	local template = folder and folder:FindFirstChild(id)
+	if template and template:IsA("Model") and template:FindFirstChildWhichIsA("BasePart", true) then
+		return template
+	end
+	return nil
+end
+
+-- KI-Modell klonen, auf die richtige Größe bringen und eine unsichtbare "Body"-Hülle drumlegen.
+-- Die Hülle ist das PrimaryPart: daran hängen Schilder, E-Knöpfe, Klicks und Effekte.
+local function buildFromAiModel(template: Model, def, s: number, mutationId: string, mutation): (Model, BasePart, number)
+	local model = template:Clone()
+	model.Name = def.Id
+	model.PrimaryPart = nil
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanTouch = false
+		elseif d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		end
+	end
+
+	local height = model:GetExtentsSize().Y
+	if height > 0.05 then
+		model:ScaleTo(model:GetScale() * (s * AI_HEIGHT_FACTOR) / height)
+	end
+
+	-- Mutation: leuchtende Hülle über dem Modell, die Textur (Gesicht usw.) bleibt sichtbar
+	if mutationId ~= "Normal" and mutation.Color then
+		for _, mesh in model:GetDescendants() do
+			if mesh:IsA("MeshPart") then
+				local shell = mesh:Clone()
+				shell:ClearAllChildren()
+				shell.Name = "MutationsGlanz"
+				shell.TextureID = ""
+				shell.Material = Enum.Material.ForceField
+				shell.Color = mutation.Color
+				shell.Size = mesh.Size * 1.06
+				shell.CFrame = mesh.CFrame
+				shell.CanCollide = false
+				shell.CanQuery = false
+				shell.CanTouch = false
+				shell.CastShadow = false
+				if mutationId == "Regenbogen" then
+					CollectionService:AddTag(shell, "Rainbow") -- Farbe wechselt beim Client
+				end
+				shell.Parent = mesh.Parent
+			end
+		end
+	end
+
+	local pivot = model:GetPivot()
+	local boxCF, boxSize = model:GetBoundingBox()
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Size = boxSize
+	body.CFrame = boxCF
+	body.Transparency = 1
+	body.Anchored = true
+	body.CanCollide = false
+	body.CanTouch = false
+	body.CastShadow = false
+	body.PivotOffset = boxCF:ToObjectSpace(pivot) -- Pivot bleibt unten in der Mitte
+	body.Parent = model
+	model.PrimaryPart = body
+	return model, body, boxSize.Y / 2 + 1.2
+end
+
+-- Kreatur aus einfachen Blöcken (Backup, wenn es kein KI-Modell gibt)
+local function buildFromBlocks(def, s: number, mutationId: string, mutation): (Model, BasePart, number)
 	local h = s * 0.8 -- Körperhöhe
 	local top = h -- Oberkante des Körpers
 
 	local model = Instance.new("Model")
 	model.Name = def.Id
 
-	local mutationId = opts.Mutation or "Normal"
-	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
 	local bodyColor = def.Color
 	local bodyMaterial = if def.Rarity == "Mythic" then Enum.Material.Glass else Enum.Material.SmoothPlastic
 	if mutationId == "Gold" then
@@ -131,6 +203,31 @@ function CreatureModels.Build(def, opts): Model
 		end
 	end
 
+	return model, body, h / 2 + s * 0.6 + 1.2
+end
+
+-- opts = { Scale = number?, Anchored = boolean?, Label = boolean?, Mutation = string?, PriceText = string? }
+function CreatureModels.Build(def, opts): Model
+	opts = opts or {}
+	local rarity = Config.Rarities[def.Rarity]
+	local s = rarity.Size * (opts.Scale or 1)
+	local mutationId = opts.Mutation or "Normal"
+	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
+
+	local model, body, labelY
+	local template = findAiModel(def.Id)
+	if template then
+		local ok, m, b, y = pcall(buildFromAiModel, template, def, s, mutationId, mutation)
+		if ok then
+			model, body, labelY = m, b, y
+		else
+			warn(`[Kreaturen] KI-Modell {def.Id} ging nicht, nehme Block-Version: {m}`)
+		end
+	end
+	if not model then
+		model, body, labelY = buildFromBlocks(def, s, mutationId, mutation)
+	end
+
 	-- Effekte nach Seltenheit
 	if rarity.Light then
 		local light = Instance.new("PointLight")
@@ -157,7 +254,7 @@ function CreatureModels.Build(def, opts): Model
 		local gui = Instance.new("BillboardGui")
 		local lines = if opts.PriceText then 3 else 2
 		gui.Size = UDim2.fromOffset(190, 24 * lines)
-		gui.StudsOffsetWorldSpace = Vector3.new(0, h / 2 + s * 0.6 + 1.2, 0)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, labelY, 0)
 		gui.MaxDistance = 70
 		gui.AlwaysOnTop = false
 		gui.Adornee = body

@@ -1,21 +1,31 @@
--- Die Welt um die Bases herum: Boden, Straße mit Gehwegen und Laternen, Brunnen,
--- Pack-Shop-Platz, Riesen-Statue, Bäume, Felsen, Blumen, Hügel, See und Licht.
+-- Die Welt um die Bases herum im Stil "Bunte Simulator-Insel":
+-- eine schwebende Insel im Himmel mit bunt gefliestem Leuchtweg, Promenaden mit Laternen
+-- und Bänken, Kristall-Brunnen, Pack-Shop-Platz, Riesen-Statue, bunten Bäumen, Teich mit
+-- Wasserfall, kleinen Schwebe-Inseln drumherum und einem Wolkenmeer darunter.
 -- Alles wird beim Start per Skript gebaut. Zufall mit festem Startwert,
 -- damit die Bäume jedes Mal an derselben Stelle stehen.
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local CreatureModels = require(script.Parent.CreatureModels)
 
 local World = {}
 
+-- Farben ---------------------------------------------------------------------------
 local LEAF_COLORS = {
-	Color3.fromRGB(70, 160, 60),
-	Color3.fromRGB(90, 180, 70),
-	Color3.fromRGB(50, 140, 70),
-	Color3.fromRGB(120, 190, 60),
+	Color3.fromRGB(90, 200, 80),
+	Color3.fromRGB(120, 220, 90),
+	Color3.fromRGB(60, 180, 100),
+	Color3.fromRGB(160, 225, 70),
+}
+local BLOSSOM_COLORS = {
+	Color3.fromRGB(255, 170, 210),
+	Color3.fromRGB(255, 130, 190),
+	Color3.fromRGB(230, 170, 255),
+	Color3.fromRGB(255, 200, 120),
 }
 local FLOWER_COLORS = {
 	Color3.fromRGB(255, 90, 120),
@@ -24,14 +34,72 @@ local FLOWER_COLORS = {
 	Color3.fromRGB(255, 255, 255),
 	Color3.fromRGB(90, 180, 255),
 }
+local LAMP_COLORS = {
+	Color3.fromRGB(0, 230, 255),
+	Color3.fromRGB(255, 90, 210),
+	Color3.fromRGB(255, 220, 80),
+}
+local CRYSTAL_COLORS = {
+	Color3.fromRGB(0, 240, 255),
+	Color3.fromRGB(200, 110, 255),
+	Color3.fromRGB(255, 120, 220),
+}
+local TILE_COLORS = { Color3.fromRGB(255, 222, 240), Color3.fromRGB(215, 230, 255) } -- rosa / hellblau
+local UPRIGHT = CFrame.Angles(0, 0, math.rad(90)) -- dreht Zylinder so, dass sie stehen
 
--- Licht & Stimmung ------------------------------------------------------------
+-- Insel-Maße -------------------------------------------------------------------------
+-- Terrain-Füllungen landen in Roblox etwa einen halben Block (2 Studs) höher als angegeben.
+-- Darum füllen wir alles 2 Studs tiefer: Die Terrain-Oberkante liegt dann bei ca. 0, also
+-- unter der Spielwiese (0 bis 1) und den Base-Böden (Oberkante 2). Sonst flackert es.
+local TERRAIN_DROP = 2
+local ISLAND_CORE_X, ISLAND_CORE_Z = 275, 125 -- Kern-Rechteck der Insel
+local ISLAND_ROUND = 60 -- so weit ragt der runde Rand über das Kern-Rechteck hinaus
+local BARRIER_X, BARRIER_Z = 310, 170 -- unsichtbare Wände, damit niemand runterfällt
+local WIESE_HALF_X, WIESE_HALF_Z = 290, 108 -- glatte Spielwiese (Part) rund um Bases und Weg
+
+-- Teich hinter der unteren Reihe, ein Bach läuft zur Inselkante und fällt als Wasserfall runter.
+-- Je Eintrag: Versatz X, Versatz Z, Radius
+local LAKE_CENTER = Vector3.new(150, 0, -140)
+local LAKE_BLOBS = {
+	{ 0, 0, 15 },
+	{ -13, 6, 10 },
+	{ 13, -4, 11 },
+}
+local LAKE_WATER_Y = -1 - TERRAIN_DROP -- angegebene Wasser-Oberkante
+local LAKE_SURFACE_Y = LAKE_WATER_Y + TERRAIN_DROP -- echte Wasseroberfläche (ca. -1)
+
+-- Liegt ein Punkt im Teich oder am Ufer?
+local function inLake(x: number, z: number, margin: number): boolean
+	for _, blob in LAKE_BLOBS do
+		local dx = x - (LAKE_CENTER.X + blob[1])
+		local dz = z - (LAKE_CENTER.Z + blob[2])
+		if dx * dx + dz * dz < (blob[3] + margin) ^ 2 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Liegt ein Punkt auf dem Bach zum Wasserfall?
+local function onStream(x: number, z: number): boolean
+	return math.abs(x - LAKE_CENTER.X) < 8 and z < LAKE_CENTER.Z - 8
+end
+
+-- Bodenhöhe für Deko: auf der Spielwiese 1, draußen auf dem Terrain ca. 0
+local function groundY(x: number, z: number): number
+	if math.abs(x) <= WIESE_HALF_X and math.abs(z) <= WIESE_HALF_Z then
+		return 1
+	end
+	return -0.3 -- etwas einsinken lassen, damit nichts schwebt
+end
+
+-- Licht & Stimmung: hell, bunt, sonnig ------------------------------------------------
 local function setupLighting()
-	Lighting.ClockTime = 14.5
-	Lighting.Brightness = 2.5
+	Lighting.ClockTime = 13.5
+	Lighting.Brightness = 3
 	Lighting.GlobalShadows = true
-	Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 160)
-	Lighting.Ambient = Color3.fromRGB(60, 60, 80)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 175)
+	Lighting.Ambient = Color3.fromRGB(80, 80, 105)
 
 	local function effect(className: string, name: string)
 		local old = Lighting:FindFirstChild(name)
@@ -45,97 +113,113 @@ local function setupLighting()
 	end
 
 	local atmosphere = effect("Atmosphere", "SpielDunst") :: Atmosphere
-	atmosphere.Density = 0.3
-	atmosphere.Offset = 0.2
-	atmosphere.Haze = 1.2
-	atmosphere.Glare = 0.4
-	atmosphere.Color = Color3.fromRGB(200, 220, 255)
-	atmosphere.Decay = Color3.fromRGB(110, 130, 180)
+	atmosphere.Density = 0.22
+	atmosphere.Offset = 0.1
+	atmosphere.Haze = 0.6
+	atmosphere.Glare = 0.3
+	atmosphere.Color = Color3.fromRGB(215, 230, 255)
+	atmosphere.Decay = Color3.fromRGB(160, 175, 230)
 
+	-- Leuchten etwas zurückgedreht: vorher waren Münzen riesige gelbe Flecken
 	local bloom = effect("BloomEffect", "SpielLeuchten") :: BloomEffect
-	bloom.Intensity = 0.7
-	bloom.Size = 28
-	bloom.Threshold = 1.1
+	bloom.Intensity = 0.4
+	bloom.Size = 18
+	bloom.Threshold = 1.3
 
 	local rays = effect("SunRaysEffect", "SpielSonnenstrahlen") :: SunRaysEffect
-	rays.Intensity = 0.08
-	rays.Spread = 0.6
+	rays.Intensity = 0.06
+	rays.Spread = 0.5
 
 	local color = effect("ColorCorrectionEffect", "SpielFarben") :: ColorCorrectionEffect
-	color.Saturation = 0.18
-	color.Contrast = 0.06
-	color.Brightness = 0.02
+	color.Saturation = 0.25
+	color.Contrast = 0.08
+	color.Brightness = 0.03
 
 	local terrain = workspace.Terrain
 	local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
-	clouds.Cover = 0.55
-	clouds.Density = 0.6
+	clouds.Cover = 0.5
+	clouds.Density = 0.55
+	clouds.Color = Color3.fromRGB(255, 245, 255)
 	clouds.Parent = terrain
 end
 
--- See hinter der unteren Reihe: mehrere runde Becken ergeben zusammen eine natürliche Form.
--- Je Eintrag: Versatz X, Versatz Z, Radius
-local LAKE_CENTER = Vector3.new(40, 0, -240)
-local LAKE_BLOBS = {
-	{ 0, 0, 46 },
-	{ -52, 8, 34 },
-	{ 54, -6, 36 },
-	{ 18, 26, 28 },
-	{ -22, -24, 28 },
-}
--- Terrain-Füllungen landen in Roblox etwa einen halben Block (2 Studs) höher als angegeben.
--- Darum füllen wir alles 2 Studs tiefer: Die Terrain-Oberkante liegt dann bei ca. 0, also
--- unter der Spielwiese (0 bis 1) und den Base-Böden (Oberkante 2). Sonst liegen Terrain und
--- Boden genau gleich hoch und flackern (Z-Fighting).
-local TERRAIN_DROP = 2
-local LAKE_WATER_Y = -1 - TERRAIN_DROP -- angegebene Wasser-Oberkante (echte wird gemessen)
-local lakeSurfaceY = -1 -- echte Wasseroberfläche, wird nach dem Füllen gemessen
-
--- Misst, wo das Terrain an einer Stelle wirklich anfängt (von oben nach unten)
-local function terrainHeightAt(x: number, z: number, ignoreWater: boolean): number?
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
-	params.FilterDescendantsInstances = { workspace.Terrain }
-	params.IgnoreWater = ignoreWater
-	local hit = workspace:Raycast(Vector3.new(x, 60, z), Vector3.new(0, -120, 0), params)
-	return hit and hit.Position.Y
+-- Insel aus Terrain --------------------------------------------------------------------
+-- Ruft fn(x, z) für Punkte rund um das Kern-Rechteck auf (dort sitzen die runden Rand-Scheiben)
+local function aroundCore(step: number, fn: (number, number) -> ())
+	local nx = math.ceil(ISLAND_CORE_X * 2 / step)
+	local nz = math.ceil(ISLAND_CORE_Z * 2 / step)
+	for i = 0, nx do
+		local x = -ISLAND_CORE_X + i * (ISLAND_CORE_X * 2 / nx)
+		fn(x, -ISLAND_CORE_Z)
+		fn(x, ISLAND_CORE_Z)
+	end
+	for i = 1, nz - 1 do
+		local z = -ISLAND_CORE_Z + i * (ISLAND_CORE_Z * 2 / nz)
+		fn(-ISLAND_CORE_X, z)
+		fn(ISLAND_CORE_X, z)
+	end
 end
 
--- Liegt ein Punkt im See oder am Ufer? (für Bäume, Felsen, Seerosen)
-local function inLake(x: number, z: number, margin: number): boolean
-	for _, blob in LAKE_BLOBS do
-		local dx = x - (LAKE_CENTER.X + blob[1])
-		local dz = z - (LAKE_CENTER.Z + blob[2])
-		if dx * dx + dz * dz < (blob[3] + margin) ^ 2 then
-			return true
+-- Fläche aus Kern-Rechteck + runden Rand-Scheiben füllen (für Gras- und Erdschicht)
+local function fillIslandLayer(yTop: number, height: number, inset: number, material: Enum.Material)
+	local terrain = workspace.Terrain
+	local cy = yTop - height / 2 - TERRAIN_DROP
+	terrain:FillBlock(CFrame.new(0, cy, 0), Vector3.new(ISLAND_CORE_X * 2, height, ISLAND_CORE_Z * 2), material)
+	aroundCore(40, function(x, z)
+		terrain:FillCylinder(CFrame.new(x, cy, z), height, ISLAND_ROUND - inset, material)
+	end)
+end
+
+local function buildIsland(info, rng: Random)
+	local terrain = workspace.Terrain
+	terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(110, 205, 90))
+	terrain:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(160, 110, 75))
+	terrain:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(150, 135, 175))
+	terrain:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(255, 230, 170))
+	terrain.WaterColor = Color3.fromRGB(40, 170, 220)
+	terrain.WaterTransparency = 0.5
+	terrain.WaterWaveSize = 0.15
+	terrain.WaterWaveSpeed = 8
+	terrain.WaterReflectance = 0.35
+
+	-- 1. Felsige Unterseite: viele Felskugeln, in der Mitte tiefer als am Rand
+	for x = -ISLAND_CORE_X - 20, ISLAND_CORE_X + 20, 55 do
+		for z = -ISLAND_CORE_Z - 20, ISLAND_CORE_Z + 20, 55 do
+			local fx = 1 - math.abs(x) / (ISLAND_CORE_X + ISLAND_ROUND)
+			local fz = 1 - math.abs(z) / (ISLAND_CORE_Z + ISLAND_ROUND)
+			local f = math.clamp(math.min(fx, fz) * 2.2, 0.15, 1)
+			local depth = 25 + f * 75
+			local r = rng:NextNumber(34, 44)
+			local top = -22 - TERRAIN_DROP
+			terrain:FillBall(Vector3.new(x, top - r * 0.5, z), r, Enum.Material.Rock)
+			terrain:FillBall(
+				Vector3.new(x + rng:NextNumber(-10, 10), top - depth * 0.6 - r * 0.4, z + rng:NextNumber(-10, 10)),
+				r * 0.7,
+				Enum.Material.Rock
+			)
+			terrain:FillBall(
+				Vector3.new(x + rng:NextNumber(-8, 8), top - depth - r * 0.2, z + rng:NextNumber(-8, 8)),
+				r * 0.4,
+				Enum.Material.Rock
+			)
 		end
 	end
-	return false
-end
 
--- Landschaft mit Terrain: Hügel, Berge, See ---------------------------------------
-local function buildTerrain(info, rng: Random)
-	local terrain = workspace.Terrain
-	-- Natürliches, etwas dunkleres Blau mit leichter Spiegelung (zu hell wirkt es wie Plastik)
-	terrain.WaterColor = Color3.fromRGB(30, 110, 165)
-	terrain.WaterTransparency = 0.55
-	terrain.WaterWaveSize = 0.2
-	terrain.WaterWaveSpeed = 8
-	terrain.WaterReflectance = 0.4
+	-- 2. Braune Erdschicht direkt unter dem Gras (sieht man an der Inselkante)
+	fillIslandLayer(-6, 18, 2, Enum.Material.Ground)
+	-- 3. Grasdecke oben
+	fillIslandLayer(0, 6, 0, Enum.Material.Grass)
 
-	-- Flache Wiese überall (Oberkante y = 0, unter dem Spielbereich)
-	terrain:FillBlock(CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(1400, 6, 1100), Enum.Material.Grass)
-
-	-- Unter Straße, Gehwegen, Bases und Plätzen kein Terrain-Gras: dessen Halme wachsen
+	-- Unter Weg, Promenaden, Bases und Plätzen kein Terrain-Gras: dessen Halme wachsen
 	-- sonst durch die Bauteile durch. "Ground" hat keine Halme und liegt unsichtbar darunter.
 	local hardX = info.StreetHalf + 76
 	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
 	terrain:FillBlock(CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(hardX * 2, 6, hardZ * 2), Enum.Material.Ground)
 
-	-- See: erst Sandufer, dann ausheben, Sandboden, Wasser rein
+	-- Teich: Sandufer, ausheben, Sandboden, Wasser rein
 	for _, blob in LAKE_BLOBS do
 		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
-		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3 - TERRAIN_DROP, 0)), 6, blob[3] + 9, Enum.Material.Sand)
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3 - TERRAIN_DROP, 0)), 6, blob[3] + 5, Enum.Material.Sand)
 	end
 	for _, blob in LAKE_BLOBS do
 		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
@@ -152,98 +236,216 @@ local function buildTerrain(info, rng: Random)
 			Enum.Material.Water
 		)
 	end
-
-	-- Nachmessen: echte Wasseroberfläche (für Seerosen/Schilf) und Boden unter der Straße
-	lakeSurfaceY = terrainHeightAt(LAKE_CENTER.X, LAKE_CENTER.Z, false) or lakeSurfaceY
-	local groundY = terrainHeightAt(0, info.BaseZ, true)
-	print(`[World] Terrain-Oberkante unter den Bases: {groundY and string.format("%.2f", groundY) or "?"}, Wasser: {string.format("%.2f", lakeSurfaceY)}`)
-
-	-- Hügel im Kreis um die Map
-	for i = 0, 31 do
-		local a = i / 32 * math.pi * 2
-		local x = math.cos(a) * 430
-		local z = math.sin(a) * 310
-		local nearLake = z < 0 and math.abs(x - 40) < 170
-		if not nearLake then
-			local r = rng:NextNumber(55, 95)
-			terrain:FillBall(Vector3.new(x, -r * 0.55 - TERRAIN_DROP, z), r, Enum.Material.Grass)
-		end
-	end
-	-- Berge ganz hinten
-	for i = 0, 15 do
-		local a = i / 16 * math.pi * 2 + 0.2
-		local pos = Vector3.new(math.cos(a) * 620, -40, math.sin(a) * 480)
-		local r = rng:NextNumber(110, 160)
-		terrain:FillBall(pos, r, Enum.Material.Rock)
-		terrain:FillBall(pos + Vector3.new(0, r * 0.85, 0), r * 0.28, Enum.Material.Snow)
-	end
 end
 
--- Natur ---------------------------------------------------------------------------
-local function tree(info, parent: Instance, pos: Vector3, scale: number, rng: Random)
-	local part = info.Part
-	local trunkHeight = 9 * scale
-	part({
-		Name = "Stamm",
-		Size = Vector3.new(1.6 * scale, trunkHeight, 1.6 * scale),
-		CFrame = CFrame.new(pos + Vector3.new(0, trunkHeight / 2, 0)),
-		Color = Color3.fromRGB(110, 75, 45),
-		Material = Enum.Material.Wood,
-		Parent = parent,
-	})
-	local leafColor = LEAF_COLORS[rng:NextInteger(1, #LEAF_COLORS)]
-	for i = 1, 3 do
-		local size = (8 - i * 1.5) * scale
-		part({
-			Name = "Blaetter",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(size, size, size),
-			CFrame = CFrame.new(pos + Vector3.new(rng:NextNumber(-1, 1) * scale, trunkHeight + (i - 1) * 3 * scale, rng:NextNumber(-1, 1) * scale)),
-			Color = leafColor,
-			Material = Enum.Material.Grass,
+-- Unsichtbare Wände am Inselrand
+local function buildBarrier(info, parent: Instance)
+	local h = 80
+	for _, side in { -1, 1 } do
+		info.Part({
+			Name = "Inselrand",
+			Size = Vector3.new(2, h, BARRIER_Z * 2),
+			CFrame = CFrame.new(side * BARRIER_X, h / 2 - 5, 0),
+			Transparency = 1,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = parent,
+		})
+		info.Part({
+			Name = "Inselrand",
+			Size = Vector3.new(BARRIER_X * 2, h, 2),
+			CFrame = CFrame.new(0, h / 2 - 5, side * BARRIER_Z),
+			Transparency = 1,
+			CanQuery = false,
+			CastShadow = false,
 			Parent = parent,
 		})
 	end
 end
 
--- Felsbrocken aus Terrain: 1-3 runde Steine, halb im Boden. Sieht natürlicher aus als flache Platten.
-local function rock(pos: Vector3, rng: Random)
-	local terrain = workspace.Terrain
-	for i = 1, rng:NextInteger(1, 3) do
-		local r = rng:NextNumber(3, 5.5) / i
-		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
-		terrain:FillBall(pos + offset + Vector3.new(0, -r * 0.35 - TERRAIN_DROP, 0), math.max(r, 2.5), Enum.Material.Rock)
+-- Natur-Bausteine -----------------------------------------------------------------------
+local function ball(info, parent: Instance, name: string, size: number, pos: Vector3, color: Color3, material: Enum.Material?)
+	return info.Part({
+		Name = name,
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(size, size, size),
+		CFrame = CFrame.new(pos),
+		Color = color,
+		Material = material or Enum.Material.SmoothPlastic,
+		Parent = parent,
+	})
+end
+
+local function cylinderUp(info, parent: Instance, name: string, radius: number, height: number, pos: Vector3, color: Color3, material: Enum.Material?, props: { [string]: any }?)
+	local p = info.Part({
+		Name = name,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(height, radius * 2, radius * 2),
+		CFrame = CFrame.new(pos) * UPRIGHT,
+		Color = color,
+		Material = material or Enum.Material.SmoothPlastic,
+		Parent = parent,
+	})
+	if props then
+		for k, v in props do
+			(p :: any)[k] = v
+		end
+	end
+	return p
+end
+
+-- Runder Laubbaum (grün) oder Blütenbaum (rosa/lila)
+local function roundTree(info, parent: Instance, pos: Vector3, scale: number, rng: Random, blossom: boolean)
+	local trunkHeight = 8 * scale
+	info.Part({
+		Name = "Stamm",
+		Size = Vector3.new(1.6 * scale, trunkHeight, 1.6 * scale),
+		CFrame = CFrame.new(pos + Vector3.new(0, trunkHeight / 2, 0)),
+		Color = Color3.fromRGB(140, 95, 60),
+		Material = Enum.Material.Wood,
+		Parent = parent,
+	})
+	local colors = if blossom then BLOSSOM_COLORS else LEAF_COLORS
+	local leafColor = colors[rng:NextInteger(1, #colors)]
+	ball(info, parent, "Krone", 9 * scale, pos + Vector3.new(0, trunkHeight + 2 * scale, 0), leafColor)
+	for _ = 1, 3 do
+		local offset = Vector3.new(rng:NextNumber(-3, 3), rng:NextNumber(0, 3), rng:NextNumber(-3, 3)) * scale
+		ball(info, parent, "Krone", rng:NextNumber(5, 7) * scale, pos + Vector3.new(0, trunkHeight + 1.5 * scale, 0) + offset, leafColor)
 	end
 end
 
--- Seerosen und Schilf, damit man sofort sieht: das ist Wasser
+-- Stufen-Tanne aus Scheiben, die nach oben kleiner werden
+local function tieredTree(info, parent: Instance, pos: Vector3, scale: number, rng: Random)
+	local color = LEAF_COLORS[rng:NextInteger(1, #LEAF_COLORS)]
+	cylinderUp(info, parent, "Stamm", 0.8 * scale, 5 * scale, pos + Vector3.new(0, 2.5 * scale, 0), Color3.fromRGB(140, 95, 60), Enum.Material.Wood)
+	for i = 0, 3 do
+		local r = (5 - i * 1.1) * scale
+		cylinderUp(info, parent, "Ebene", r, 2.2 * scale, pos + Vector3.new(0, (5 + i * 2.6) * scale, 0), color)
+	end
+	ball(info, parent, "Spitze", 1.6 * scale, pos + Vector3.new(0, 15.6 * scale, 0), color)
+end
+
+local function bush(info, parent: Instance, pos: Vector3, rng: Random)
+	local color = LEAF_COLORS[rng:NextInteger(1, #LEAF_COLORS)]
+	for _ = 1, rng:NextInteger(2, 3) do
+		local s = rng:NextNumber(3, 5)
+		ball(info, parent, "Busch", s, pos + Vector3.new(rng:NextNumber(-1.5, 1.5), s * 0.35, rng:NextNumber(-1.5, 1.5)), color)
+	end
+	if rng:NextNumber() < 0.5 then
+		local berry = ball(info, parent, "Beere", 0.8, pos + Vector3.new(rng:NextNumber(-1, 1), 2.4, rng:NextNumber(-1, 1)), FLOWER_COLORS[rng:NextInteger(1, #FLOWER_COLORS)])
+		berry.CanCollide = false
+	end
+end
+
+local function flower(info, parent: Instance, pos: Vector3, rng: Random, big: boolean)
+	local s = if big then 2.5 else 1
+	info.Part({
+		Name = "Stiel",
+		Size = Vector3.new(0.2 * s, 1.2 * s, 0.2 * s),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.6 * s, 0)),
+		Color = Color3.fromRGB(60, 160, 60),
+		CanCollide = false,
+		Parent = parent,
+	})
+	local color = FLOWER_COLORS[rng:NextInteger(1, #FLOWER_COLORS)]
+	local head = pos + Vector3.new(0, 1.3 * s, 0)
+	for i = 0, 4 do
+		local a = i / 5 * math.pi * 2
+		local petal = ball(info, parent, "Bluetenblatt", 0.55 * s, head + Vector3.new(math.cos(a) * 0.35 * s, 0, math.sin(a) * 0.35 * s), color)
+		petal.CanCollide = false
+	end
+	local middle = ball(info, parent, "Bluetenmitte", 0.4 * s, head + Vector3.new(0, 0.12 * s, 0), Color3.fromRGB(255, 230, 80))
+	middle.CanCollide = false
+end
+
+local function mushroom(info, parent: Instance, pos: Vector3, rng: Random)
+	local s = rng:NextNumber(1, 1.8)
+	cylinderUp(info, parent, "Pilzstiel", 0.6 * s, 2 * s, pos + Vector3.new(0, s, 0), Color3.fromRGB(250, 240, 220))
+	local capColor = if rng:NextNumber() < 0.6 then Color3.fromRGB(240, 60, 70) else Color3.fromRGB(170, 100, 255)
+	cylinderUp(info, parent, "Pilzhut", 1.8 * s, 0.9 * s, pos + Vector3.new(0, 2.3 * s, 0), capColor)
+	for i = 0, 3 do
+		local a = i / 4 * math.pi * 2 + rng:NextNumber(0, 1)
+		local dot = ball(info, parent, "Punkt", 0.5 * s, pos + Vector3.new(math.cos(a) * 1.1 * s, 2.75 * s, math.sin(a) * 1.1 * s), Color3.new(1, 1, 1))
+		dot.CanCollide = false
+	end
+end
+
+local function crystalCluster(info, parent: Instance, pos: Vector3, rng: Random, scale: number?)
+	local s = scale or 1
+	local color = CRYSTAL_COLORS[rng:NextInteger(1, #CRYSTAL_COLORS)]
+	for i = 1, rng:NextInteger(3, 5) do
+		local h = rng:NextNumber(3, 7) * s * (if i == 1 then 1.4 else 1)
+		local crystal = info.Part({
+			Name = "Kristall",
+			Size = Vector3.new(1.4 * s, h, 1.4 * s),
+			CFrame = CFrame.new(pos + Vector3.new(rng:NextNumber(-1.5, 1.5) * s, h * 0.4, rng:NextNumber(-1.5, 1.5) * s))
+				* CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, 6), rng:NextNumber(-0.4, 0.4)),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.15,
+			CanCollide = false,
+			Parent = parent,
+		})
+		if i == 1 then
+			local light = Instance.new("PointLight")
+			light.Color = color
+			light.Range = 12
+			light.Brightness = 1
+			light.Parent = crystal
+		end
+	end
+end
+
+-- Felsbrocken aus Terrain: 1-3 runde Steine, halb im Boden
+local function rock(pos: Vector3, rng: Random)
+	local terrain = workspace.Terrain
+	for i = 1, rng:NextInteger(1, 3) do
+		local r = rng:NextNumber(3, 5) / i
+		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-4, 4), 0, rng:NextNumber(-4, 4))
+		terrain:FillBall(Vector3.new(pos.X, 0, pos.Z) + offset + Vector3.new(0, -r * 0.35 - TERRAIN_DROP, 0), math.max(r, 2.5), Enum.Material.Rock)
+	end
+end
+
+-- Zufälliger Baum (Mischung aus allen Sorten)
+local function anyTree(info, parent: Instance, pos: Vector3, scale: number, rng: Random)
+	local roll = rng:NextNumber()
+	if roll < 0.45 then
+		roundTree(info, parent, pos, scale, rng, false)
+	elseif roll < 0.7 then
+		roundTree(info, parent, pos, scale, rng, true)
+	else
+		tieredTree(info, parent, pos, scale, rng)
+	end
+end
+
+-- Seerosen und Schilf am Teich, Bach und Wasserfall über die Inselkante
 local function lakeDecor(info, parent: Instance, rng: Random)
 	local part = info.Part
-	local padColors = { Color3.fromRGB(70, 165, 70), Color3.fromRGB(95, 185, 80) }
+	local padColors = { Color3.fromRGB(80, 185, 80), Color3.fromRGB(110, 205, 90) }
 	local placed = 0
-	for _ = 1, 400 do
-		if placed >= 28 then
+	for _ = 1, 200 do
+		if placed >= 8 then
 			break
 		end
-		local x = LAKE_CENTER.X + rng:NextNumber(-100, 100)
-		local z = LAKE_CENTER.Z + rng:NextNumber(-60, 60)
-		if inLake(x, z, -8) then
-			local size = rng:NextNumber(3, 5)
+		local x = LAKE_CENTER.X + rng:NextNumber(-25, 25)
+		local z = LAKE_CENTER.Z + rng:NextNumber(-18, 18)
+		if inLake(x, z, -4) then
+			local size = rng:NextNumber(2.5, 4)
 			local pad = part({
 				Name = "Seerose",
 				Shape = Enum.PartType.Cylinder,
 				Size = Vector3.new(0.2, size, size),
-				CFrame = CFrame.new(x, lakeSurfaceY + 0.1, z) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
+				CFrame = CFrame.new(x, LAKE_SURFACE_Y + 0.1, z) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
 				Color = padColors[rng:NextInteger(1, #padColors)],
 				CanCollide = false,
 				Parent = parent,
 			})
-			if rng:NextNumber() < 0.35 then
+			if rng:NextNumber() < 0.5 then
 				part({
 					Name = "Bluete",
 					Shape = Enum.PartType.Ball,
-					Size = Vector3.new(1.2, 1.2, 1.2),
-					CFrame = pad.CFrame * CFrame.new(0.5, 0, 0),
+					Size = Vector3.new(1, 1, 1),
+					CFrame = pad.CFrame * CFrame.new(0.45, 0, 0),
 					Color = Color3.fromRGB(255, 150, 200),
 					CanCollide = false,
 					Parent = parent,
@@ -252,109 +454,176 @@ local function lakeDecor(info, parent: Instance, rng: Random)
 			placed += 1
 		end
 	end
-	-- Schilf am Ufer
 	for _, blob in LAKE_BLOBS do
-		for _ = 1, 6 do
+		for _ = 1, 4 do
 			local a = rng:NextNumber(0, math.pi * 2)
-			local dist = blob[3] - rng:NextNumber(1, 3)
+			local dist = blob[3] - rng:NextNumber(0.5, 2)
 			local x = LAKE_CENTER.X + blob[1] + math.cos(a) * dist
 			local z = LAKE_CENTER.Z + blob[2] + math.sin(a) * dist
-			-- nur am Rand, nicht mitten im See (wenn ein anderes Becken hier schon tief ist)
-			if inLake(x, z, -5) then
+			-- nur am Rand, nicht mitten im Teich und nicht im Bach
+			if inLake(x, z, -4) or onStream(x, z) then
 				continue
 			end
-			for i = 1, 4 do
-				local h = rng:NextNumber(4, 7)
+			for i = 1, 3 do
+				local h = rng:NextNumber(3.5, 6)
 				part({
 					Name = "Schilf",
 					Size = Vector3.new(0.3, h, 0.3),
-					CFrame = CFrame.new(x + rng:NextNumber(-1, 1), lakeSurfaceY - 0.5 + h / 2, z + rng:NextNumber(-1, 1))
+					CFrame = CFrame.new(x + rng:NextNumber(-1, 1), LAKE_SURFACE_Y - 0.5 + h / 2, z + rng:NextNumber(-1, 1))
 						* CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15)),
-					Color = if i == 1 then Color3.fromRGB(150, 110, 60) else Color3.fromRGB(90, 150, 60),
+					Color = if i == 1 then Color3.fromRGB(150, 110, 60) else Color3.fromRGB(90, 160, 60),
 					CanCollide = false,
 					Parent = parent,
 				})
 			end
 		end
 	end
-end
 
-local function flower(info, parent: Instance, pos: Vector3, rng: Random)
-	info.Part({
-		Name = "Stiel",
-		Size = Vector3.new(0.2, 1, 0.2),
-		CFrame = CFrame.new(pos + Vector3.new(0, 0.5, 0)),
-		Color = Color3.fromRGB(60, 140, 50),
+	-- Bach vom Teich zur Kante und Wasserfall in die Tiefe
+	-- ragt ein paar Studs über die Kante hinaus, damit der Wasserfall frei vor dem Felsen fällt
+	local edgeZ = -(ISLAND_CORE_Z + ISLAND_ROUND) - 5
+	local streamStart = LAKE_CENTER.Z - 12
+	local streamLength = streamStart - edgeZ
+	part({
+		Name = "Bach",
+		Size = Vector3.new(6, 0.4, streamLength),
+		CFrame = CFrame.new(LAKE_CENTER.X, 0.4, streamStart - streamLength / 2),
+		Color = Color3.fromRGB(70, 190, 240),
+		Material = Enum.Material.Glass,
+		Transparency = 0.3,
 		CanCollide = false,
 		Parent = parent,
 	})
-	info.Part({
-		Name = "Bluete",
-		Size = Vector3.new(0.8, 0.4, 0.8),
-		CFrame = CFrame.new(pos + Vector3.new(0, 1.1, 0)),
-		Color = FLOWER_COLORS[rng:NextInteger(1, #FLOWER_COLORS)],
+	local fall = part({
+		Name = "Wasserfall",
+		Size = Vector3.new(7, 140, 1.2),
+		CFrame = CFrame.new(LAKE_CENTER.X, -69.5, edgeZ - 0.6),
+		Color = Color3.fromRGB(150, 220, 255),
+		Material = Enum.Material.Glass,
+		Transparency = 0.35,
 		CanCollide = false,
+		CanQuery = false,
+		CastShadow = false,
 		Parent = parent,
 	})
+	local spray = Instance.new("ParticleEmitter")
+	spray.Color = ColorSequence.new(Color3.fromRGB(230, 245, 255))
+	spray.Size = NumberSequence.new(2, 6)
+	spray.Transparency = NumberSequence.new(0.4, 1)
+	spray.Lifetime = NumberRange.new(1.5, 2.5)
+	spray.Rate = 25
+	spray.Speed = NumberRange.new(2, 5)
+	spray.SpreadAngle = Vector2.new(30, 30)
+	spray.EmissionDirection = Enum.NormalId.Front
+	spray.Parent = fall
 end
 
--- Straße ---------------------------------------------------------------------------
-local function streetLamp(info, parent: Instance, x: number, z: number)
+-- Kleine Schwebe-Inseln rund um die große Insel
+local MINI_ISLANDS = {
+	Vector3.new(-430, 10, -270),
+	Vector3.new(440, 30, -250),
+	Vector3.new(-470, -15, 250),
+	Vector3.new(470, 5, 270),
+	Vector3.new(0, 45, -330),
+	Vector3.new(-60, -10, 345),
+	Vector3.new(-570, 35, 0),
+	Vector3.new(570, 20, 30),
+}
+local function buildMiniIslands(info, parent: Instance, rng: Random)
+	local terrain = workspace.Terrain
+	for i, pos in MINI_ISLANDS do
+		local r = rng:NextNumber(20, 32)
+		terrain:FillBall(pos + Vector3.new(0, -r * 0.7 - TERRAIN_DROP, 0), r * 0.85, Enum.Material.Rock)
+		terrain:FillBall(pos + Vector3.new(rng:NextNumber(-5, 5), -r * 1.5 - TERRAIN_DROP, rng:NextNumber(-5, 5)), r * 0.45, Enum.Material.Rock)
+		terrain:FillCylinder(CFrame.new(pos + Vector3.new(0, -4 - TERRAIN_DROP, 0)), 4, r, Enum.Material.Ground)
+		terrain:FillCylinder(CFrame.new(pos + Vector3.new(0, -1.5 - TERRAIN_DROP, 0)), 3, r, Enum.Material.Grass)
+		local ground = pos + Vector3.new(0, -0.3, 0)
+		if i % 3 == 0 then
+			crystalCluster(info, parent, ground, rng, 2)
+		else
+			anyTree(info, parent, ground, rng:NextNumber(1.3, 1.8), rng)
+			bush(info, parent, ground + Vector3.new(r * 0.5, 0, rng:NextNumber(-4, 4)), rng)
+		end
+	end
+end
+
+-- Wolkenmeer unter der Insel
+local function buildCloudSea(info, parent: Instance, rng: Random)
+	for _ = 1, 80 do
+		local r = rng:NextNumber(35, 80)
+		local p = ball(
+			info,
+			parent,
+			"Wolke",
+			r * 2,
+			Vector3.new(rng:NextNumber(-900, 900), -175 + rng:NextNumber(-15, 15), rng:NextNumber(-700, 700)),
+			Color3.fromRGB(250, 245, 255)
+		)
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+	end
+end
+
+-- Weg ------------------------------------------------------------------------------------
+local function streetLamp(info, parent: Instance, x: number, z: number, index: number)
 	local part = info.Part
 	local y = info.FloorY
-	local side = if z > 0 then -1 else 1 -- Lampe hängt zur Fahrbahn
 	part({
 		Name = "Laternenmast",
-		Size = Vector3.new(0.8, 16, 0.8),
-		CFrame = CFrame.new(x, y + 8, z),
-		Color = Color3.fromRGB(40, 40, 50),
-		Material = Enum.Material.Metal,
+		Size = Vector3.new(0.8, 13, 0.8),
+		CFrame = CFrame.new(x, y + 6.5, z),
+		Color = Color3.fromRGB(255, 255, 255),
 		Parent = parent,
 	})
-	part({
-		Name = "Laternenarm",
-		Size = Vector3.new(0.5, 0.5, 4),
-		CFrame = CFrame.new(x, y + 15.8, z + side * 2),
-		Color = Color3.fromRGB(40, 40, 50),
-		Material = Enum.Material.Metal,
-		Parent = parent,
-	})
+	-- bunte Ringe am Mast (Zuckerstangen-Look)
+	for i = 1, 3 do
+		part({
+			Name = "Laternenring",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.5, 1.1, 1.1),
+			CFrame = CFrame.new(x, y + 2 + i * 3, z) * UPRIGHT,
+			Color = Color3.fromRGB(255, 110, 180),
+			CanCollide = false,
+			Parent = parent,
+		})
+	end
+	local color = LAMP_COLORS[(index % #LAMP_COLORS) + 1]
 	local lamp = part({
 		Name = "Laterne",
-		Size = Vector3.new(1.6, 0.8, 2),
-		CFrame = CFrame.new(x, y + 15.2, z + side * 3.6),
-		Color = Color3.fromRGB(255, 230, 160),
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.6, 2.6, 2.6),
+		CFrame = CFrame.new(x, y + 14.2, z),
+		Color = color,
 		Material = Enum.Material.Neon,
+		Transparency = 0.1,
 		CanCollide = false,
 		Parent = parent,
 	})
-	local light = Instance.new("SpotLight")
-	light.Face = Enum.NormalId.Bottom
-	light.Angle = 100
-	light.Range = 30
-	light.Brightness = 3
-	light.Color = Color3.fromRGB(255, 220, 150)
+	local light = Instance.new("PointLight")
+	light.Range = 22
+	light.Brightness = 1.5
+	light.Color = color
 	light.Parent = lamp
 end
 
-local function bench(info, parent: Instance, x: number, z: number)
+local function bench(info, parent: Instance, x: number, z: number, color: Color3)
 	local part = info.Part
 	local y = info.FloorY + 0.2
 	local back = if z > 0 then 1 else -1
 	part({
 		Name = "Bank",
-		Size = Vector3.new(6, 0.4, 1.8),
+		Size = Vector3.new(6, 0.5, 1.8),
 		CFrame = CFrame.new(x, y + 1.6, z),
-		Color = Color3.fromRGB(150, 95, 55),
-		Material = Enum.Material.WoodPlanks,
+		Color = color,
 		Parent = parent,
 	})
 	part({
 		Name = "Lehne",
-		Size = Vector3.new(6, 1.6, 0.3),
+		Size = Vector3.new(6, 1.6, 0.4),
 		CFrame = CFrame.new(x, y + 2.6, z + back * 0.8),
-		Color = Color3.fromRGB(150, 95, 55),
-		Material = Enum.Material.WoodPlanks,
+		Color = color,
 		Parent = parent,
 	})
 	for _, dx in { -2.5, 2.5 } do
@@ -362,61 +631,67 @@ local function bench(info, parent: Instance, x: number, z: number)
 			Name = "Bankbein",
 			Size = Vector3.new(0.4, 1.6, 1.6),
 			CFrame = CFrame.new(x + dx, y + 0.8, z),
-			Color = Color3.fromRGB(40, 40, 50),
-			Material = Enum.Material.Metal,
+			Color = Color3.fromRGB(255, 255, 255),
 			Parent = parent,
 		})
 	end
 end
 
+-- Kristall-Brunnen in der Mitte, oben schwebt ein drehender Kristall
 local function fountain(info, parent: Instance)
-	local part = info.Part
 	local y = info.FloorY
-	local function cylinder(name: string, radius: number, height: number, yCenter: number, color: Color3, material, props)
-		local p = part({
-			Name = name,
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(height, radius * 2, radius * 2),
-			CFrame = CFrame.new(0, yCenter, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = color,
-			Material = material,
-			Parent = parent,
-		})
-		if props then
-			for k, v in props do
-				(p :: any)[k] = v
-			end
-		end
-		return p
-	end
-	cylinder("Brunnenrand", 13, 2.4, y + 0.2, Color3.fromRGB(220, 215, 200), Enum.Material.Marble)
-	cylinder("Wasser", 11.5, 0.4, y + 1.1, Color3.fromRGB(60, 170, 230), Enum.Material.Glass,
-		{ Transparency = 0.25, CanCollide = false })
-	part({
-		Name = "Brunnensaeule",
-		Size = Vector3.new(3, 7, 3),
-		CFrame = CFrame.new(0, y + 4, 0),
-		Color = Color3.fromRGB(220, 215, 200),
-		Material = Enum.Material.Marble,
-		Parent = parent,
+	local marble = Color3.fromRGB(255, 225, 245)
+	cylinderUp(info, parent, "Brunnenrand", 13, 2.4, Vector3.new(0, y + 0.2, 0), marble, Enum.Material.Marble)
+	cylinderUp(info, parent, "Wasser", 11.5, 0.4, Vector3.new(0, y + 1.1, 0), Color3.fromRGB(60, 200, 240), Enum.Material.Glass, {
+		Transparency = 0.25,
+		CanCollide = false,
 	})
-	local top = cylinder("Brunnenschale", 4.5, 1, y + 7.8, Color3.fromRGB(220, 215, 200), Enum.Material.Marble)
+	cylinderUp(info, parent, "Brunnensaeule", 1.8, 7, Vector3.new(0, y + 4, 0), marble, Enum.Material.Marble)
+	local top = cylinderUp(info, parent, "Brunnenschale", 4.5, 1, Vector3.new(0, y + 7.8, 0), marble, Enum.Material.Marble)
 	local spray = Instance.new("ParticleEmitter")
-	spray.Color = ColorSequence.new(Color3.fromRGB(180, 230, 255))
+	spray.Color = ColorSequence.new(Color3.fromRGB(180, 235, 255))
 	spray.Size = NumberSequence.new(0.6, 0.2)
 	spray.Transparency = NumberSequence.new(0.2, 1)
 	spray.Lifetime = NumberRange.new(1.2, 1.6)
-	spray.Rate = 80
-	spray.Speed = NumberRange.new(12, 16)
-	spray.SpreadAngle = Vector2.new(15, 15)
+	spray.Rate = 60
+	spray.Speed = NumberRange.new(10, 14)
+	spray.SpreadAngle = Vector2.new(25, 25)
 	spray.Acceleration = Vector3.new(0, -25, 0)
 	spray.EmissionDirection = Enum.NormalId.Right -- beim gedrehten Zylinder ist "Right" oben
 	spray.Parent = top
+
+	local tilt = CFrame.Angles(0, 0, math.rad(45)) * CFrame.Angles(math.rad(45), 0, 0)
+	local crystal = info.Part({
+		Name = "Brunnenkristall",
+		Size = Vector3.new(4, 4, 4),
+		CFrame = CFrame.new(0, y + 14, 0) * tilt,
+		Color = Color3.fromRGB(200, 120, 255),
+		Material = Enum.Material.Neon,
+		Transparency = 0.1,
+		CanCollide = false,
+		Parent = parent,
+	})
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(120, 200, 255)
-	light.Range = 25
-	light.Brightness = 1.5
-	light.Parent = top
+	light.Color = Color3.fromRGB(210, 150, 255)
+	light.Range = 30
+	light.Brightness = 2
+	light.Parent = crystal
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkles.Color = ColorSequence.new(Color3.fromRGB(230, 190, 255))
+	sparkles.LightEmission = 1
+	sparkles.Size = NumberSequence.new(0.8, 0)
+	sparkles.Lifetime = NumberRange.new(1, 2)
+	sparkles.Rate = 15
+	sparkles.Speed = NumberRange.new(1, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Parent = crystal
+	-- langsam auf und ab schweben und dabei drehen
+	TweenService:Create(
+		crystal,
+		TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ CFrame = CFrame.new(0, y + 16, 0) * CFrame.Angles(0, math.rad(180), 0) * tilt }
+	):Play()
 end
 
 local function buildStreet(info, parent: Instance)
@@ -425,71 +700,95 @@ local function buildStreet(info, parent: Instance)
 	local half = info.StreetHalf
 	local length = half * 2 + 20
 
-	-- Fahrbahn
-	part({
-		Name = "Fahrbahn",
-		Size = Vector3.new(length, 1, 40),
-		CFrame = CFrame.new(0, y - 0.7, 0),
-		Color = Color3.fromRGB(55, 55, 62),
-		Material = Enum.Material.Asphalt,
-		Parent = parent,
-	})
-	-- Mittelstreifen (gestrichelt), nicht im Brunnen
-	for x = -half, half, 12 do
-		if math.abs(x) > 16 then
-			for _, z in { -10, 10 } do
+	-- Bunt gefliester Weg (Schachbrett rosa/hellblau), 40 breit
+	local tile = 10
+	local count = math.floor(length / tile)
+	for i = 0, count - 1 do
+		local x = -length / 2 + tile / 2 + i * tile
+		for j = 0, 3 do
+			part({
+				Name = "Wegfliese",
+				Size = Vector3.new(tile, 1, tile),
+				CFrame = CFrame.new(x, y - 0.7, -20 + tile / 2 + j * tile),
+				Color = TILE_COLORS[(i + j) % 2 + 1],
+				Parent = parent,
+			})
+		end
+	end
+	-- Leuchtkanten links und rechts am Bordstein
+	for i, side in { -1, 1 } do
+		part({
+			Name = "Leuchtkante",
+			Size = Vector3.new(length, 0.3, 0.8),
+			CFrame = CFrame.new(0, y - 0.05, side * 19.6),
+			Color = if i == 1 then Color3.fromRGB(0, 230, 255) else Color3.fromRGB(255, 90, 210),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = parent,
+		})
+	end
+	-- Leuchtende Pfeile Richtung Pack-Shop (nicht im Brunnen)
+	for x = -half + 20, half - 20, 40 do
+		if math.abs(x) > 20 then
+			for k, a in { -35, 35 } do
 				part({
-					Name = "Markierung",
-					Size = Vector3.new(6, 0.05, 0.6),
-					CFrame = CFrame.new(x, y - 0.17, z),
-					Color = Color3.fromRGB(240, 240, 240),
+					Name = "Pfeil",
+					Size = Vector3.new(4, 0.1, 0.9),
+					-- zweiter Strich minimal höher, damit die Spitze nicht flackert
+					CFrame = CFrame.new(x, y - 0.15 + k * 0.02, 0) * CFrame.Angles(0, math.rad(a), 0) * CFrame.new(-1.6, 0, 0),
+					Color = Color3.fromRGB(255, 230, 90),
+					Material = Enum.Material.Neon,
 					CanCollide = false,
 					Parent = parent,
 				})
 			end
 		end
 	end
-	-- Gehwege mit Bordstein
+
+	-- Promenaden mit Bordstein, Laternen und Bänken
 	local walkInner = 20
 	local walkOuter = Config.Map.StreetWidth / 2
 	local walkWidth = walkOuter - walkInner
+	local benchColors = { Color3.fromRGB(255, 150, 190), Color3.fromRGB(140, 200, 255), Color3.fromRGB(255, 210, 110) }
 	for _, side in { -1, 1 } do
 		part({
-			Name = "Gehweg",
+			Name = "Promenade",
 			Size = Vector3.new(length, 1, walkWidth),
 			CFrame = CFrame.new(0, y - 0.3, side * (walkInner + walkWidth / 2)),
-			Color = Color3.fromRGB(190, 185, 180),
-			Material = Enum.Material.Concrete,
+			Color = Color3.fromRGB(255, 246, 228),
 			Parent = parent,
 		})
 		part({
 			Name = "Bordstein",
 			Size = Vector3.new(length, 0.5, 1),
 			CFrame = CFrame.new(0, y + 0.35, side * (walkInner + 0.5)),
-			Color = Color3.fromRGB(230, 230, 230),
-			Material = Enum.Material.Concrete,
+			Color = Color3.fromRGB(255, 255, 255),
 			Parent = parent,
 		})
+		local index = 0
 		for x = -half + 20, half - 20, 40 do
-			streetLamp(info, parent, x, side * (walkInner + 3))
+			index += 1
+			streetLamp(info, parent, x, side * (walkInner + 3), index)
 		end
+		local b = 0
 		for x = -half + 40, half - 40, 80 do
-			bench(info, parent, x, side * (walkOuter - 3))
+			b += 1
+			bench(info, parent, x, side * (walkOuter - 3), benchColors[(b % #benchColors) + 1])
 		end
 	end
 
-	-- Wege von den Gehwegen zu den Base-Eingängen
+	-- Wege von den Promenaden zu den Base-Eingängen
 	local perRow = math.ceil(Config.Map.BaseCount / 2)
 	for col = 1, perRow do
 		local x = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
 		for _, side in { -1, 1 } do
+			-- endet genau an der Base-Kante und liegt minimal tiefer, damit nichts flackert
+			local len = info.BaseZ - info.BaseSize / 2 - walkOuter
 			part({
 				Name = "Eingangsweg",
-				-- endet genau an der Base-Kante und liegt minimal tiefer, damit nichts flackert
-				Size = Vector3.new(16, 1, info.BaseZ - info.BaseSize / 2 - walkOuter),
-				CFrame = CFrame.new(x, y - 0.55, side * (walkOuter + (info.BaseZ - info.BaseSize / 2 - walkOuter) / 2)),
-				Color = Color3.fromRGB(160, 150, 140),
-				Material = Enum.Material.Slate,
+				Size = Vector3.new(16, 1, len),
+				CFrame = CFrame.new(x, y - 0.55, side * (walkOuter + len / 2)),
+				Color = Color3.fromRGB(255, 232, 200),
 				Parent = parent,
 			})
 		end
@@ -498,16 +797,11 @@ local function buildStreet(info, parent: Instance)
 	fountain(info, parent)
 end
 
--- Plätze an den Enden ------------------------------------------------------------
-local function plaza(info, parent: Instance, center: Vector3, radius: number, color: Color3)
-	info.Part({
-		Name = "Platz",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(1, radius * 2, radius * 2),
-		CFrame = CFrame.new(center.X, info.FloorY - 0.45, center.Z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = color,
-		Material = Enum.Material.Pebble,
-		Parent = parent,
+-- Plätze an den Enden ------------------------------------------------------------------
+local function plaza(info, parent: Instance, center: Vector3, radius: number, color: Color3, ringColor: Color3)
+	cylinderUp(info, parent, "Platz", radius, 1, Vector3.new(center.X, info.FloorY - 0.45, center.Z), color)
+	cylinderUp(info, parent, "Platzrand", radius + 1, 0.6, Vector3.new(center.X, info.FloorY - 0.7, center.Z), ringColor, Enum.Material.Neon, {
+		CanCollide = false,
 	})
 end
 
@@ -515,9 +809,9 @@ local function buildPackShopArea(info, parent: Instance)
 	local part = info.Part
 	local y = info.FloorY
 	local shop = info.PackShop
-	plaza(info, parent, shop, 36, Color3.fromRGB(235, 225, 200))
+	plaza(info, parent, shop, 36, Color3.fromRGB(255, 238, 210), Color3.fromRGB(255, 170, 40))
 
-	-- Großer Torbogen über der Straße
+	-- Großer Torbogen über dem Weg
 	local archX = info.StreetHalf + 2
 	for _, z in { -22, 22 } do
 		part({
@@ -583,12 +877,12 @@ end
 local function buildStatue(info, parent: Instance)
 	local part = info.Part
 	local pos = info.Statue
-	plaza(info, parent, pos, 36, Color3.fromRGB(210, 210, 225))
+	plaza(info, parent, pos, 36, Color3.fromRGB(230, 225, 255), Color3.fromRGB(200, 120, 255))
 	local pedestal = part({
 		Name = "Sockel",
 		Size = Vector3.new(22, 6, 22),
 		CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)),
-		Color = Color3.fromRGB(235, 235, 245),
+		Color = Color3.fromRGB(245, 240, 255),
 		Material = Enum.Material.Marble,
 		Parent = parent,
 	})
@@ -634,91 +928,119 @@ local function buildStatue(info, parent: Instance)
 	end
 end
 
--- Bäume, Felsen, Blumen verteilen ---------------------------------------------------
+-- Bäume, Büsche, Blumen, Pilze, Kristalle verteilen -----------------------------------------
 local function buildNature(info, parent: Instance, rng: Random)
-	local y = info.FloorY - 1 -- Oberkante der Wiese
 	local half = info.StreetHalf
 	local baseZ = info.BaseZ
 	local S = info.BaseSize
 	local perRow = math.ceil(Config.Map.BaseCount / 2)
 	local spacing = Config.Map.BaseSpacing
 
-	-- Zwischen den Bases (Lücken) je zwei Bäume
+	local function at(x: number, z: number): Vector3
+		return Vector3.new(x, groundY(x, z), z)
+	end
+	local function blocked(x: number, z: number, margin: number): boolean
+		return inLake(x, z, margin) or onStream(x, z)
+	end
+
+	-- Zwischen den Bases (Lücken) je ein Baum und Büsche
 	for col = 0, perRow do
 		local x = (col + 0.5 - (perRow + 1) / 2) * spacing
 		for _, side in { -1, 1 } do
-			for _, dz in { -14, 14 } do
-				tree(info, parent, Vector3.new(x + rng:NextNumber(-2, 2), y, side * (baseZ + dz)), rng:NextNumber(0.8, 1.1), rng)
+			anyTree(info, parent, at(x + rng:NextNumber(-2, 2), side * (baseZ + 6)), rng:NextNumber(0.9, 1.1), rng)
+			bush(info, parent, at(x + rng:NextNumber(-3, 3), side * (baseZ - 16)), rng)
+			bush(info, parent, at(x + rng:NextNumber(-3, 3), side * (baseZ + 22)), rng)
+		end
+	end
+
+	-- Wald hinter den Bases (bis zum Inselrand)
+	local backStart = baseZ + S / 2 + 8
+	local backEnd = BARRIER_Z - 8
+	local trees = 0
+	local tries = 0
+	while trees < 60 and tries < 1000 do
+		tries += 1
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		local x, z = rng:NextNumber(-half - 80, half + 80), side * rng:NextNumber(backStart, backEnd)
+		if not blocked(x, z, 10) then
+			anyTree(info, parent, at(x, z), rng:NextNumber(0.9, 1.6), rng)
+			trees += 1
+		end
+	end
+
+	-- Büsche, Pilze und große Blumen dazwischen
+	for _ = 1, 40 do
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		local x, z = rng:NextNumber(-half - 80, half + 80), side * rng:NextNumber(backStart - 4, backEnd)
+		if not blocked(x, z, 5) then
+			local roll = rng:NextNumber()
+			if roll < 0.45 then
+				bush(info, parent, at(x, z), rng)
+			elseif roll < 0.75 then
+				mushroom(info, parent, at(x, z), rng)
+			else
+				flower(info, parent, at(x, z), rng, true)
 			end
 		end
 	end
-
-	-- Wald hinter den Bases
-	local backStart = baseZ + S / 2 + 8
-	for _ = 1, 70 do
-		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		local pos = Vector3.new(rng:NextNumber(-half - 70, half + 70), y, side * rng:NextNumber(backStart, 158))
-		tree(info, parent, pos, rng:NextNumber(0.9, 1.6), rng)
-	end
-
-	-- Bäume draußen auf der Wiese bis zu den Hügeln
-	local placed = 0
-	while placed < 70 do
-		local pos = Vector3.new(rng:NextNumber(-380, 380), 0, rng:NextNumber(-280, 280))
-		local inPlayArea = math.abs(pos.X) < 285 and math.abs(pos.Z) < 165
-		if not inPlayArea and not inLake(pos.X, pos.Z, 14) then
-			tree(info, parent, pos, rng:NextNumber(1, 2), rng)
-			placed += 1
-		end
-	end
-
-	-- Felsen (draußen auf der Wiese, nicht im See)
-	local rocks = 0
-	while rocks < 28 do
-		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		local pos = Vector3.new(rng:NextNumber(-360, 360), 0, side * rng:NextNumber(172, 270))
-		if not inLake(pos.X, pos.Z, 12) then
-			rock(pos, rng)
-			rocks += 1
-		end
-	end
-
-	-- Seerosen und Schilf
-	lakeDecor(info, parent, rng)
-
-	-- Blumen hinter den Bases und zwischen den Bäumen
 	for _ = 1, 90 do
 		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		local pos = Vector3.new(rng:NextNumber(-half - 60, half + 60), y, side * rng:NextNumber(backStart - 4, 158))
-		flower(info, parent, pos, rng)
+		local x, z = rng:NextNumber(-half - 80, half + 80), side * rng:NextNumber(backStart - 4, backEnd)
+		if not blocked(x, z, 3) then
+			flower(info, parent, at(x, z), rng, false)
+		end
 	end
+
+	-- Bäume, Kristalle und Felsen außen am Inselrand (hinter den unsichtbaren Wänden)
+	aroundCore(34, function(x, z)
+		local dir = Vector3.new(x, 0, z).Unit
+		local pos = Vector3.new(x, 0, z) + dir * rng:NextNumber(25, 45)
+		if blocked(pos.X, pos.Z, 12) then
+			return
+		end
+		local ground = at(pos.X, pos.Z)
+		local roll = rng:NextNumber()
+		if roll < 0.55 then
+			anyTree(info, parent, ground, rng:NextNumber(1.1, 1.7), rng)
+		elseif roll < 0.75 then
+			crystalCluster(info, parent, ground, rng, rng:NextNumber(1, 1.6))
+		elseif roll < 0.9 then
+			rock(ground, rng)
+		else
+			bush(info, parent, ground, rng)
+		end
+	end)
+
+	lakeDecor(info, parent, rng)
 end
 
 function World.Build(root: Instance, info)
 	local rng = Random.new(42)
-	-- Die graue Standard-Baseplate aus der Studio-Vorlage liegt auf Höhe 0 und schneidet
-	-- sonst mitten durch den See. Unser Terrain liegt sowieso unter der ganzen Map.
+	-- Die graue Standard-Baseplate aus der Studio-Vorlage liegt auf Höhe 0 und stört
+	-- die Insel. Unser Terrain liegt sowieso unter der ganzen Map.
 	local baseplate = workspace:FindFirstChild("Baseplate")
 	if baseplate and baseplate:IsA("BasePart") then
 		baseplate:Destroy()
 	end
 	setupLighting()
-	buildTerrain(info, rng)
+	buildIsland(info, rng)
 
 	local folder = Instance.new("Folder")
 	folder.Name = "Welt"
 	folder.Parent = root
 
-	-- Spielwiese (liegt etwas über dem Terrain, damit der Boden schön glatt ist)
+	-- Glatte Spielwiese rund um Weg und Bases (liegt etwas über dem Terrain).
+	-- Hinten (Wald, Teich) ist der Boden das Terrain selbst.
 	info.Part({
 		Name = "Wiese",
-		Size = Vector3.new(info.StreetHalf * 2 + 180, 1, 330),
+		Size = Vector3.new(WIESE_HALF_X * 2, 1, WIESE_HALF_Z * 2),
 		CFrame = CFrame.new(0, info.FloorY - 1.5, 0),
-		Color = Color3.fromRGB(95, 175, 75),
+		Color = Color3.fromRGB(110, 205, 90),
 		Material = Enum.Material.Grass,
 		Parent = folder,
 	})
 
+	buildBarrier(info, folder)
 	buildStreet(info, folder)
 	buildPackShopArea(info, folder)
 	buildStatue(info, folder)
@@ -727,6 +1049,12 @@ function World.Build(root: Instance, info)
 	nature.Name = "Natur"
 	nature.Parent = folder
 	buildNature(info, nature, rng)
+	buildMiniIslands(info, nature, rng)
+
+	local sky = Instance.new("Folder")
+	sky.Name = "Himmel"
+	sky.Parent = folder
+	buildCloudSea(info, sky, rng)
 end
 
 return World
