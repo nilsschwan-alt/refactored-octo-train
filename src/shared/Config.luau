@@ -59,6 +59,7 @@ Config.Rarities = {
 -- Jede Kreatur gehört zu genau einer Kiste (Pack = Id der Kiste). Jede Kiste hat ihre
 -- eigenen Kreaturen, und die werden von Kiste zu Kiste viel stärker.
 -- Price = Wert (beim Verkaufen gibt es die Hälfte), Income = Geld pro Sekunde
+-- Große Zahlen darf man mit Unterstrichen schreiben: 1_000_000 ist eine Million.
 -- Faustregel fürs Balancing: Einkommen innerhalb einer Kiste 1 : 2,5 : 6 : 18 : 60 (: 250),
 -- und die nächste Kiste bringt etwa das 8-Fache.
 -- Color, Accent, Extra = Aussehen der Klotz-Version, falls es kein 3D-Modell gibt.
@@ -82,61 +83,61 @@ Config.Creatures = {
 		Color = Color3.fromRGB(220, 235, 255), Accent = Color3.fromRGB(130, 180, 255), Extra = "Fuehler" },
 	{ Id = "Donnerdachs", Name = "Donnerdachs", Pack = "Gold", Rarity = "Rare", Price = 4500, Income = 50,
 		Color = Color3.fromRGB(80, 80, 110), Accent = Color3.fromRGB(255, 240, 60), Extra = "Hoerner" },
-	{ Id = "Glitzergans", Name = "Glitzergans", Pack = "Gold", Rarity = "Epic", Price = 11000, Income = 150,
+	{ Id = "Glitzergans", Name = "Glitzergans", Pack = "Gold", Rarity = "Epic", Price = 11_000, Income = 150,
 		Color = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 200, 60), Extra = "Hut" },
-	{ Id = "Kronenloewe", Name = "Kronenlöwe", Pack = "Gold", Rarity = "Legendary", Price = 30000, Income = 500,
+	{ Id = "Kronenloewe", Name = "Kronenlöwe", Pack = "Gold", Rarity = "Legendary", Price = 30_000, Income = 500,
 		Color = Color3.fromRGB(240, 170, 50), Accent = Color3.fromRGB(255, 235, 120), Extra = "Krone" },
 	-- Kristall-Kiste
-	{ Id = "Splitterspatz", Name = "Splitterspatz", Pack = "Kristall", Rarity = "Common", Price = 15000, Income = 60,
+	{ Id = "Splitterspatz", Name = "Splitterspatz", Pack = "Kristall", Rarity = "Common", Price = 20_000, Income = 60,
 		Color = Color3.fromRGB(190, 150, 255), Accent = Color3.fromRGB(120, 240, 255), Extra = "Fuehler" },
-	{ Id = "QuarzQualle", Name = "Quarz-Qualle", Pack = "Kristall", Rarity = "Uncommon", Price = 38000, Income = 150,
+	{ Id = "QuarzQualle", Name = "Quarz-Qualle", Pack = "Kristall", Rarity = "Uncommon", Price = 50_000, Income = 150,
 		Color = Color3.fromRGB(255, 170, 230), Accent = Color3.fromRGB(200, 240, 255), Extra = "Tentakel" },
-	{ Id = "PrismaPanda", Name = "Prisma-Panda", Pack = "Kristall", Rarity = "Rare", Price = 90000, Income = 360,
+	{ Id = "PrismaPanda", Name = "Prisma-Panda", Pack = "Kristall", Rarity = "Rare", Price = 120_000, Income = 360,
 		Color = Color3.fromRGB(245, 245, 255), Accent = Color3.fromRGB(150, 90, 255), Extra = "Ohren" },
-	{ Id = "JuwelenJaguar", Name = "Juwelen-Jaguar", Pack = "Kristall", Rarity = "Epic", Price = 220000, Income = 1100,
+	{ Id = "JuwelenJaguar", Name = "Juwelen-Jaguar", Pack = "Kristall", Rarity = "Epic", Price = 300_000, Income = 1100,
 		Color = Color3.fromRGB(90, 60, 170), Accent = Color3.fromRGB(80, 255, 200), Extra = "Ohren" },
-	{ Id = "KristallDrache", Name = "Kristall-Drache", Pack = "Kristall", Rarity = "Legendary", Price = 600000, Income = 3600,
+	{ Id = "KristallDrache", Name = "Kristall-Drache", Pack = "Kristall", Rarity = "Legendary", Price = 800_000, Income = 3600,
 		Color = Color3.fromRGB(150, 100, 255), Accent = Color3.fromRGB(140, 250, 255), Extra = "Stacheln" },
-	{ Id = "RegenbogenRex", Name = "Regenbogen-Rex", Pack = "Kristall", Rarity = "Mythic", Price = 2200000, Income = 15000,
+	{ Id = "RegenbogenRex", Name = "Regenbogen-Rex", Pack = "Kristall", Rarity = "Mythic", Price = 3_000_000, Income = 15_000,
 		Color = Color3.fromRGB(255, 80, 200), Accent = Color3.fromRGB(80, 255, 230), Extra = "Krone" },
 	-- Lava-Kiste
-	{ Id = "Glutkaefer", Name = "Glutkäfer", Pack = "Lava", Rarity = "Common", Price = 350000, Income = 500,
+	{ Id = "Glutkaefer", Name = "Glutkäfer", Pack = "Lava", Rarity = "Common", Price = 500_000, Income = 500,
 		Color = Color3.fromRGB(70, 40, 35), Accent = Color3.fromRGB(255, 120, 30), Extra = "Fuehler" },
-	{ Id = "LavaLurch", Name = "Lava-Lurch", Pack = "Lava", Rarity = "Uncommon", Price = 880000, Income = 1250,
+	{ Id = "LavaLurch", Name = "Lava-Lurch", Pack = "Lava", Rarity = "Uncommon", Price = 1_200_000, Income = 1250,
 		Color = Color3.fromRGB(60, 40, 40), Accent = Color3.fromRGB(255, 90, 20), Extra = "Stacheln" },
-	{ Id = "AscheAffe", Name = "Asche-Affe", Pack = "Lava", Rarity = "Rare", Price = 2100000, Income = 3000,
+	{ Id = "AscheAffe", Name = "Asche-Affe", Pack = "Lava", Rarity = "Rare", Price = 3_000_000, Income = 3000,
 		Color = Color3.fromRGB(95, 90, 95), Accent = Color3.fromRGB(255, 150, 40), Extra = "Ohren" },
-	{ Id = "VulkanWidder", Name = "Vulkan-Widder", Pack = "Lava", Rarity = "Epic", Price = 5200000, Income = 9000,
+	{ Id = "VulkanWidder", Name = "Vulkan-Widder", Pack = "Lava", Rarity = "Epic", Price = 7_500_000, Income = 9000,
 		Color = Color3.fromRGB(110, 55, 40), Accent = Color3.fromRGB(255, 200, 60), Extra = "Hoerner" },
-	{ Id = "MagmaMammut", Name = "Magma-Mammut", Pack = "Lava", Rarity = "Legendary", Price = 14000000, Income = 30000,
+	{ Id = "MagmaMammut", Name = "Magma-Mammut", Pack = "Lava", Rarity = "Legendary", Price = 20_000_000, Income = 30_000,
 		Color = Color3.fromRGB(55, 35, 35), Accent = Color3.fromRGB(255, 80, 20), Extra = "Hoerner" },
-	{ Id = "FeuerPhoenix", Name = "Feuer-Phönix", Pack = "Lava", Rarity = "Mythic", Price = 52000000, Income = 125000,
+	{ Id = "FeuerPhoenix", Name = "Feuer-Phönix", Pack = "Lava", Rarity = "Mythic", Price = 75_000_000, Income = 125_000,
 		Color = Color3.fromRGB(255, 110, 30), Accent = Color3.fromRGB(255, 230, 90), Extra = "Krone" },
 	-- Eis-Kiste
-	{ Id = "Schneehase", Name = "Schneehase", Pack = "Eis", Rarity = "Common", Price = 8000000, Income = 4000,
+	{ Id = "Schneehase", Name = "Schneehase", Pack = "Eis", Rarity = "Common", Price = 10_000_000, Income = 4000,
 		Color = Color3.fromRGB(245, 250, 255), Accent = Color3.fromRGB(170, 220, 255), Extra = "Ohren" },
-	{ Id = "EisIgel", Name = "Eiskristall-Igel", Pack = "Eis", Rarity = "Uncommon", Price = 20000000, Income = 10000,
+	{ Id = "EisIgel", Name = "Eiskristall-Igel", Pack = "Eis", Rarity = "Uncommon", Price = 25_000_000, Income = 10_000,
 		Color = Color3.fromRGB(170, 230, 255), Accent = Color3.fromRGB(240, 255, 255), Extra = "Stacheln" },
-	{ Id = "FrostRobbe", Name = "Frost-Robbe", Pack = "Eis", Rarity = "Rare", Price = 48000000, Income = 24000,
+	{ Id = "FrostRobbe", Name = "Frost-Robbe", Pack = "Eis", Rarity = "Rare", Price = 60_000_000, Income = 24_000,
 		Color = Color3.fromRGB(200, 225, 245), Accent = Color3.fromRGB(90, 150, 220), Extra = nil },
-	{ Id = "GletscherBaer", Name = "Gletscher-Bär", Pack = "Eis", Rarity = "Epic", Price = 120000000, Income = 72000,
+	{ Id = "GletscherBaer", Name = "Gletscher-Bär", Pack = "Eis", Rarity = "Epic", Price = 150_000_000, Income = 72_000,
 		Color = Color3.fromRGB(235, 245, 255), Accent = Color3.fromRGB(110, 190, 255), Extra = "Ohren" },
-	{ Id = "SturmWolf", Name = "Schneesturm-Wolf", Pack = "Eis", Rarity = "Legendary", Price = 320000000, Income = 240000,
+	{ Id = "SturmWolf", Name = "Schneesturm-Wolf", Pack = "Eis", Rarity = "Legendary", Price = 400_000_000, Income = 240_000,
 		Color = Color3.fromRGB(150, 180, 220), Accent = Color3.fromRGB(240, 250, 255), Extra = "Ohren" },
-	{ Id = "EisTitan", Name = "Eis-Titan", Pack = "Eis", Rarity = "Mythic", Price = 1200000000, Income = 1000000,
+	{ Id = "EisTitan", Name = "Eis-Titan", Pack = "Eis", Rarity = "Mythic", Price = 1_500_000_000, Income = 1_000_000,
 		Color = Color3.fromRGB(110, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Extra = "Krone" },
 	-- Galaxie-Kiste
-	{ Id = "MondMotte", Name = "Mond-Motte", Pack = "Galaxie", Rarity = "Common", Price = 160000000, Income = 32000,
+	{ Id = "MondMotte", Name = "Mond-Motte", Pack = "Galaxie", Rarity = "Common", Price = 200_000_000, Income = 32_000,
 		Color = Color3.fromRGB(210, 210, 235), Accent = Color3.fromRGB(120, 110, 200), Extra = "Fuehler" },
-	{ Id = "KometenKater", Name = "Kometen-Kater", Pack = "Galaxie", Rarity = "Uncommon", Price = 400000000, Income = 80000,
+	{ Id = "KometenKater", Name = "Kometen-Kater", Pack = "Galaxie", Rarity = "Uncommon", Price = 500_000_000, Income = 80_000,
 		Color = Color3.fromRGB(60, 50, 120), Accent = Color3.fromRGB(120, 220, 255), Extra = "Ohren" },
-	{ Id = "NebelNarwal", Name = "Nebel-Narwal", Pack = "Galaxie", Rarity = "Rare", Price = 960000000, Income = 190000,
+	{ Id = "NebelNarwal", Name = "Nebel-Narwal", Pack = "Galaxie", Rarity = "Rare", Price = 1_200_000_000, Income = 190_000,
 		Color = Color3.fromRGB(150, 80, 220), Accent = Color3.fromRGB(255, 150, 230), Extra = "Hoerner" },
-	{ Id = "SaturnSchildkroete", Name = "Saturn-Schildkröte", Pack = "Galaxie", Rarity = "Epic", Price = 2400000000, Income = 580000,
+	{ Id = "SaturnSchildkroete", Name = "Saturn-Schildkröte", Pack = "Galaxie", Rarity = "Epic", Price = 3_000_000_000, Income = 580_000,
 		Color = Color3.fromRGB(70, 90, 170), Accent = Color3.fromRGB(255, 200, 110), Extra = "Panzer" },
-	{ Id = "Sternenschnecke", Name = "Sternenschnecke", Pack = "Galaxie", Rarity = "Legendary", Price = 6400000000, Income = 1900000,
+	{ Id = "Sternenschnecke", Name = "Sternenschnecke", Pack = "Galaxie", Rarity = "Legendary", Price = 8_000_000_000, Income = 1_900_000,
 		Color = Color3.fromRGB(40, 30, 90), Accent = Color3.fromRGB(255, 220, 90), Extra = "Panzer" },
-	{ Id = "KosmoKrake", Name = "Kosmo-Krake", Pack = "Galaxie", Rarity = "Mythic", Price = 24000000000, Income = 8000000,
+	{ Id = "KosmoKrake", Name = "Kosmo-Krake", Pack = "Galaxie", Rarity = "Mythic", Price = 30_000_000_000, Income = 8_000_000,
 		Color = Color3.fromRGB(110, 40, 200), Accent = Color3.fromRGB(0, 255, 255), Extra = "Tentakel" },
 }
 
@@ -218,7 +219,7 @@ Config.Packs = {
 	{
 		Id = "Kristall",
 		Name = "Kristall-Kiste",
-		Price = 150000,
+		Price = 200_000,
 		Rebirths = 1,
 		Color = Color3.fromRGB(180, 100, 255),
 		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
@@ -226,7 +227,7 @@ Config.Packs = {
 	{
 		Id = "Lava",
 		Name = "Lava-Kiste",
-		Price = 3500000,
+		Price = 5_000_000,
 		Rebirths = 2,
 		Color = Color3.fromRGB(255, 95, 35),
 		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
@@ -234,7 +235,7 @@ Config.Packs = {
 	{
 		Id = "Eis",
 		Name = "Eis-Kiste",
-		Price = 80000000,
+		Price = 100_000_000,
 		Rebirths = 3,
 		Color = Color3.fromRGB(130, 215, 255),
 		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
@@ -242,7 +243,7 @@ Config.Packs = {
 	{
 		Id = "Galaxie",
 		Name = "Galaxie-Kiste",
-		Price = 1600000000,
+		Price = 2_000_000_000,
 		Rebirths = 4,
 		Color = Color3.fromRGB(85, 95, 255),
 		Weights = { Common = 48, Uncommon = 30, Rare = 15, Epic = 6, Legendary = 1, Mythic = 0.3 },
@@ -363,7 +364,7 @@ Config.Leaderboard = {
 Config.Rebirth = {
 	-- Kosten der 1., 2., 3. ... Wiedergeburt. Faustregel: etwa 20 Kisten der besten Sorte,
 	-- die man gerade kaufen darf. Jede der ersten vier schaltet eine neue Kiste frei.
-	Costs = { 150000, 3000000, 60000000, 1500000000, 30000000000 },
+	Costs = { 150_000, 4_000_000, 100_000_000, 2_000_000_000, 40_000_000_000 },
 	CostGrowth = 5, -- danach kostet jede weitere 5x so viel
 	IncomePerRebirth = 0.5, -- +50 % Einkommen pro Wiedergeburt
 	KeepCreatures = 4, -- so viele der besten Kreaturen bleiben
