@@ -1682,11 +1682,25 @@ end
 
 -- 2. Akt: Schläge. Bei jedem Schlag ruckt das Pack, bekommt einen Riss, der Ton wird höher,
 -- die Kamera rückt näher und das Raumlicht wird dunkler. Gibt true zurück, wenn übersprungen.
-local function chargePack(show, p, hits: number): boolean
+local function chargePack(show, p, hits: number, rank: number): boolean
 	local gap = 0.44
 	for i = 1, hits do
 		if beat(show, gap) then
 			return true
+		end
+		if i == 1 and rank >= EPIC_RANK then
+			-- Ab Episch läuft unter allem ein Ton, der immer höher steigt. Er wird so schnell
+			-- abgespielt, dass seine lauteste Stelle genau auf den Knall fällt.
+			local left = 0
+			for k = 1, hits do
+				left += gap * 0.86 ^ k
+			end
+			left += (rank - RARE_RANK + 1) * 0.46
+			local riser = startSound("Riser", 0.2, math.clamp(Config.RiserPeak / left, 0.75, 1.6))
+			if riser then
+				tween(riser, left, { Volume = 0.6 }, Enum.EasingStyle.Linear)
+			end
+			show.Riser = riser
 		end
 		local t = i / hits
 		local side = if i % 2 == 0 then 1 else -1
@@ -1723,7 +1737,6 @@ local function tellRarity(show, p, rank: number): boolean
 	local steps = rank - RARE_RANK + 1
 	local stepTime = if steps == 1 then 0.4 else 0.46
 	local total = steps * stepTime
-	local riser = if steps > 1 then startSound("Riser", 0.5, math.clamp(Config.RiserPeak / total, 0.9, 2.5)) else nil
 	local lift = Vector3.new(0, PACK_Y + 0.5 + steps * 0.25, 0)
 	tween(p.Pos, total, { Value = lift }, Enum.EasingStyle.Sine)
 	tween(show.CamLook, total, { Value = Vector3.new(0, lift.Y, 0) }, Enum.EasingStyle.Sine)
@@ -1747,7 +1760,8 @@ local function tellRarity(show, p, rank: number): boolean
 			break
 		end
 	end
-	stopSound(riser, 0.06)
+	stopSound(show.Riser, 0.06)
+	show.Riser = nil
 	if not skipped and rank >= LEGENDARY_RANK then
 		-- Ganz kurz ist alles still und dunkel. Genau dann knallt es am schönsten.
 		p.Jitter = 0
@@ -1763,6 +1777,8 @@ local function burstPack(show, p, rank: number, color: Color3)
 	local isEpic = rank >= EPIC_RANK
 	local isLegendary = rank >= LEGENDARY_RANK
 	local body = p.Body
+	stopSound(show.Riser, 0.05) -- falls übersprungen wurde, läuft er noch
+	show.Riser = nil
 	p.Jitter = 0
 	p.Size.Value = 1.32
 	task.wait(0.06)
@@ -2086,7 +2102,7 @@ local function openPackAnimation(entry: string, packId: string, wasPity: boolean
 	runShow(pack, 1, function(show)
 		local p = enterPack(show, pack, "?")
 		-- Seltene laden länger auf: 3 Schläge bei Gewöhnlich, bis 6 ab Episch
-		local _ = chargePack(show, p, 2 + math.min(rank, 4)) or tellRarity(show, p, rank)
+		local _ = chargePack(show, p, 2 + math.min(rank, 4), rank) or tellRarity(show, p, rank)
 		show.Skip = false
 		burstPack(show, p, rank, rarity.Color)
 		local c = revealCreature(show, def, rank, rarity.Color)
@@ -2196,7 +2212,7 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 	local bestRarity = Config.Rarities[Config.RarityOrder[bestRank]]
 	runShow(pack, #entries, function(show)
 		local p = enterPack(show, pack, `{#entries}x`)
-		local _ = chargePack(show, p, 3) or tellRarity(show, p, bestRank)
+		local _ = chargePack(show, p, 3, bestRank) or tellRarity(show, p, bestRank)
 		show.Skip = false
 		burstPack(show, p, bestRank, bestRarity.Color)
 
