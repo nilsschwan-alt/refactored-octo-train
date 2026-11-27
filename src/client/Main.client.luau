@@ -993,6 +993,11 @@ local EPIC_RANK = Config.RarityRank("Epic")
 local LEGENDARY_RANK = Config.RarityRank("Legendary")
 local MYTHIC_RANK = Config.RarityRank("Mythic")
 
+-- GROSSBUCHSTABEN, auch für ä, ö, ü (string.upper lässt die klein)
+local function upperDe(text: string): string
+	return (string.upper(text):gsub("ä", "Ä"):gsub("ö", "Ö"):gsub("ü", "Ü"))
+end
+
 -- Wie tween(), aber wird zum Ende hin schneller (für Fallen und Zuklappen)
 local function tweenIn(obj: Instance, time: number, props, style: Enum.EasingStyle?)
 	local t = TweenService:Create(obj, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.In), props)
@@ -1493,15 +1498,18 @@ local function packFace(parent: Instance, title: string, bigText: string, packCo
 	gradient.Color = ColorSequence.new(WHITE, packColor:Lerp(BLACK, 0.4))
 	gradient.Rotation = 90
 	gradient.Parent = bg
-	for _, yScale in { 0, 1 } do
-		local strip = Instance.new("Frame")
-		strip.AnchorPoint = Vector2.new(0, yScale)
-		strip.Position = UDim2.fromScale(0, yScale)
-		strip.Size = UDim2.fromScale(1, 0.06)
-		strip.BackgroundColor3 = WHITE
-		strip.BackgroundTransparency = 0.35
-		strip.BorderSizePixel = 0
-		strip.Parent = bg
+	if not radius then
+		-- helle Streifen oben und unten (nur beim eckigen 3D-Pack, bei runden Karten stehen sie über)
+		for _, yScale in { 0, 1 } do
+			local strip = Instance.new("Frame")
+			strip.AnchorPoint = Vector2.new(0, yScale)
+			strip.Position = UDim2.fromScale(0, yScale)
+			strip.Size = UDim2.fromScale(1, 0.06)
+			strip.BackgroundColor3 = WHITE
+			strip.BackgroundTransparency = 0.35
+			strip.BorderSizePixel = 0
+			strip.Parent = bg
+		end
 	end
 	if title ~= "" then
 		label({
@@ -2085,7 +2093,7 @@ local function openPackAnimation(entry: string, packId: string, wasPity: boolean
 
 		-- Landung: Fanfare und Schriftzug kommen im selben Moment
 		playSound(stingerKey(rank))
-		local banner, bannerScale = showLine(show, string.upper(rarity.Name) .. (if isLegendary then "!!" else "!"), rarity.Color, 0.16, 0.13)
+		local banner, bannerScale = showLine(show, upperDe(rarity.Name) .. (if isLegendary then "!!" else "!"), rarity.Color, 0.16, 0.13)
 		banner.Rotation = -5
 		bannerScale.Scale = 3.2
 		tween(bannerScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
@@ -2255,7 +2263,7 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 					BackgroundColor3 = rarity.Color,
 					Font = Enum.Font.FredokaOne,
 					TextStrokeTransparency = 0.4,
-					Text = string.upper(rarity.Name),
+					Text = upperDe(rarity.Name),
 					Parent = front,
 				})
 				local _, iconScale = creatureIcon(front, def, mutationId, 80, 26)
