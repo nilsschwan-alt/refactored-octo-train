@@ -1011,6 +1011,7 @@ end)
 -- das Bild, damit Ton und Bild genau zusammenpassen.
 local Lighting = game:GetService("Lighting")
 local ContentProvider = game:GetService("ContentProvider")
+local StarterGui = game:GetService("StarterGui")
 
 -- Sounds vorladen, damit beim ersten Pack nichts verzögert kommt
 task.spawn(function()
@@ -1478,8 +1479,8 @@ local function setupShow(show)
 	-- Podest mit Leuchtrand und Lichtfleck auf dem Boden
 	stageDisc(folder, PEDESTAL_TOP / 2, 7, PEDESTAL_TOP, Color3.fromRGB(48, 42, 88), Enum.Material.SmoothPlastic)
 	show.Ring = stageDisc(folder, PEDESTAL_TOP / 2, 7.5, 0.22, WHITE, Enum.Material.Neon)
-	show.FloorGlow = stageDisc(folder, 0.03, 17, 0.05, Color3.fromRGB(120, 90, 255), Enum.Material.Neon)
-	show.FloorGlow.Transparency = 0.82
+	show.FloorGlow = stageDisc(folder, 0.03, 13, 0.05, Color3.fromRGB(120, 90, 255), Enum.Material.Neon)
+	show.FloorGlow.Transparency = 0.93
 
 	-- Strahlenkranz hinter dem Podest (erst unsichtbar)
 	local board = stagePart({
@@ -1633,6 +1634,16 @@ local function setupShow(show)
 		bloom.Threshold = 1.05
 	end
 
+	-- Eigene Anzeige und die Roblox-Leisten ausblenden, damit es wie im Kino aussieht
+	gui.Enabled = false
+	show.CoreGui = {}
+	pcall(function()
+		for _, kind in { Enum.CoreGuiType.PlayerList, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.Chat, Enum.CoreGuiType.EmotesMenu } do
+			show.CoreGui[kind] = StarterGui:GetCoreGuiEnabled(kind)
+			StarterGui:SetCoreGuiEnabled(kind, false)
+		end
+	end)
+
 	camera.CameraType = Enum.CameraType.Scriptable
 	pcall(function()
 		RunService:UnbindFromRenderStep("PackKamera") -- falls von einem früheren Fehler noch eine hängt
@@ -1669,6 +1680,12 @@ local function teardownShow(show, savedType: Enum.CameraType, savedFov: number)
 	local camera = workspace.CurrentCamera
 	camera.CameraType = if savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else savedType
 	camera.FieldOfView = savedFov
+	gui.Enabled = true
+	for kind, enabled in show.CoreGui or {} do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(kind, enabled)
+		end)
+	end
 	if show.Atmosphere then
 		show.Atmosphere.Density = show.SavedDensity
 	end
@@ -1710,6 +1727,7 @@ local function runShow(pack, count: number, play)
 		end)
 		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 		workspace.CurrentCamera.FieldOfView = savedFov
+		gui.Enabled = true
 		if show.Fader then
 			show.Fader:Destroy()
 		end
@@ -1858,11 +1876,11 @@ local function addCrack(p, seed: number, color: Color3)
 		local len = rng:NextNumber(3.4, 5.2) * k
 		local ray = stagePart({
 			Name = "Riss",
-			Size = Vector3.new(len, 0.16 * k, 0.16 * k),
+			Size = Vector3.new(len, 0.09 * k, 0.09 * k),
 			CFrame = p.Core.CFrame * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi * 2)) * CFrame.new(len / 2, 0, 0),
 			Color = color,
 			Material = Enum.Material.Neon,
-			Transparency = 0.1,
+			Transparency = 0.25,
 			Parent = p.Model,
 		})
 		table.insert(p.Cracks, ray)
@@ -1881,7 +1899,7 @@ local function addCrack(p, seed: number, color: Color3)
 		if real > 0.05 then
 			local seg = stagePart({
 				Name = "Riss",
-				Size = Vector3.new(real + 0.06 * k, 0.1 * k, 0.06 * k),
+				Size = Vector3.new(real + 0.03 * k, 0.05 * k, 0.04 * k),
 				CFrame = body.CFrame * CFrame.new((x + nx) / 2, (y + ny) / 2, body.Size.Z / 2 + 0.02 * k) * CFrame.Angles(0, 0, math.atan2(dy, dx)),
 				Color = color,
 				Material = Enum.Material.Neon,
@@ -2555,10 +2573,10 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 					Text = upperDe(rarity.Name),
 					Parent = front,
 				})
-				local _, iconScale = creatureIcon(front, def, mutationId, 80, 26)
+				local _, iconScale = creatureIcon(front, def, mutationId, 94, 24)
 				label({
-					Size = UDim2.new(1, -12, 0, 28),
-					Position = UDim2.new(0, 6, 0, 108),
+					Size = UDim2.new(1, -12, 0, 24),
+					Position = UDim2.new(0, 6, 0, 118),
 					Font = Enum.Font.FredokaOne,
 					TextColor3 = rarity.Color,
 					TextStrokeTransparency = 0.5,
@@ -2568,7 +2586,7 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 				if mutation.Name ~= "" then
 					local mutationLabel = label({
 						Size = UDim2.new(1, -24, 0, 18),
-						Position = UDim2.new(0, 12, 0, 138),
+						Position = UDim2.new(0, 12, 0, 144),
 						BackgroundTransparency = 0,
 						BackgroundColor3 = mutation.Color or WHITE,
 						Font = Enum.Font.FredokaOne,
