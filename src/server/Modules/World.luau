@@ -136,6 +136,14 @@ local function setupLighting()
 		return e
 	end
 
+	-- Alte Dunst- und Leucht-Effekte aus dem Place entfernen. Roblox nimmt sonst irgendeinen
+	-- der beiden Dunst-Effekte, und zwei Leucht-Effekte addieren sich.
+	for _, old in Lighting:GetChildren() do
+		if (old:IsA("Atmosphere") and old.Name ~= "SpielDunst") or (old:IsA("BloomEffect") and old.Name ~= "SpielLeuchten") then
+			old:Destroy()
+		end
+	end
+
 	local atmosphere = effect("Atmosphere", "SpielDunst") :: Atmosphere
 	atmosphere.Density = 0.22
 	atmosphere.Offset = 0.1
