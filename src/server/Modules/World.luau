@@ -71,7 +71,7 @@ local LOBES = {
 
 -- Teich hinter der unteren Reihe, ein Bach läuft zur Inselkante und fällt als Wasserfall runter.
 -- Je Eintrag: Versatz X, Versatz Z, Radius
-local LAKE_CENTER = Vector3.new(150, 0, -140)
+local LAKE_CENTER = Vector3.new(90, 0, -152) -- zwischen zwei Villen, etwas dahinter
 local LAKE_BLOBS = {
 	{ 0, 0, 15 },
 	{ -13, 6, 10 },
@@ -1092,8 +1092,22 @@ local function buildNature(info, parent: Instance, rng: Random)
 	local function at(x: number, z: number): Vector3
 		return Vector3.new(x, groundY(x, z), z)
 	end
+	-- Hinter jeder Base steht (je nach Stufe) eine Villa: dort wächst nichts
+	local function behindBase(x: number, z: number, margin: number): boolean
+		local depth = math.abs(z) - baseZ
+		if depth < S / 2 - 8 or depth > S / 2 + 36 + margin then
+			return false
+		end
+		for col = 1, perRow do
+			local baseX = (col - (perRow + 1) / 2) * spacing
+			if math.abs(x - baseX) < 26 + margin then
+				return true
+			end
+		end
+		return false
+	end
 	local function blocked(x: number, z: number, margin: number): boolean
-		return inLake(x, z, margin) or onStream(x, z)
+		return inLake(x, z, margin) or onStream(x, z) or behindBase(x, z, margin)
 	end
 
 	-- Zwischen den Bases (Lücken) je ein Baum und Büsche

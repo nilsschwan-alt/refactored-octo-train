@@ -169,8 +169,97 @@ local function ringCFrame(cf: CFrame, angle: number, radius: number, y: number):
 	return cf * CFrame.lookAt(pos, Vector3.new(0, y, 0))
 end
 
--- Runder Zaun mit Lücke fürs Tor, je Stufe anders
-local function buildFence(cf: CFrame, style, folder: Instance)
+-- Villen -------------------------------------------------------------------------------
+-- Liegt in Studio unter ReplicatedStorage > BaseModelle ein Modell "Stufe1" bis "Stufe5",
+-- steht es als richtiges Gebäude hinter den Kreaturen-Plätzen. Vorne am Modell ist -Z, der
+-- Pivot liegt unten in der Mitte. Fehlt das Modell, sieht die Base aus wie bisher.
+local VILLA_FOLDER = "BaseModelle"
+local VILLA_WIDTH = { 32, 36, 40, 42, 44 } -- Breite je Stufe in Studs
+local VILLA_MAX_DEPTH = 36 -- tiefer darf sie nicht werden (dahinter liegen Wald und Teich)
+local VILLA_MAX_HEIGHT = 46
+local VILLA_FRONT_Z = 23 -- so weit hinter der Base-Mitte beginnt die Villa
+
+local function findVilla(level: number): Model?
+	local villas = ReplicatedStorage:FindFirstChild(VILLA_FOLDER)
+	local template = villas and villas:FindFirstChild("Stufe" .. level)
+	if template and template:IsA("Model") and template:FindFirstChildWhichIsA("BasePart", true) then
+		return template
+	end
+	return nil
+end
+
+-- Baut die Villa der Stufe hinter die Base. Gibt ihre halbe Breite zurück (dort bleibt der
+-- Zaun offen), oder nil, wenn es kein Modell gibt.
+local function buildVilla(cf: CFrame, level: number, style, folder: Instance): number?
+	local template = findVilla(level)
+	if not template then
+		return nil
+	end
+	local villa = template:Clone()
+	villa.Name = "Villa"
+	for _, d in villa:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false -- die Wände macht unten ein unsichtbarer Kasten
+			d.CanTouch = false
+			d.CanQuery = false
+		elseif d:IsA("LuaSourceContainer") then
+			d:Destroy()
+		end
+	end
+	local size = villa:GetExtentsSize()
+	if size.X < 0.5 or size.Y < 0.5 or size.Z < 0.5 then
+		villa:Destroy()
+		return nil
+	end
+	local width = VILLA_WIDTH[level] or VILLA_WIDTH[#VILLA_WIDTH]
+	local factor = math.min(width / size.X, VILLA_MAX_DEPTH / size.Z, VILLA_MAX_HEIGHT / size.Y)
+	villa:ScaleTo(villa:GetScale() * factor)
+
+	-- erst grob hinstellen, dann so schieben, dass sie genau hinter den Plätzen auf dem Boden steht
+	villa:PivotTo(cf)
+	local boxCF, boxSize = villa:GetBoundingBox()
+	local want = (cf * CFrame.new(0, boxSize.Y / 2 - 0.3, VILLA_FRONT_Z + boxSize.Z / 2)).Position
+	villa:PivotTo(villa:GetPivot() + (want - boxCF.Position))
+	villa.Parent = folder
+
+	local center = cf * CFrame.new(0, 0, VILLA_FRONT_Z + boxSize.Z / 2)
+	-- Terrasse unter der Villa (verdeckt die Kante zwischen Podest und Wiese)
+	part({
+		Name = "Terrasse",
+		Size = Vector3.new(boxSize.X + 6, 4, boxSize.Z + 8),
+		CFrame = center * CFrame.new(0, -2.06, -1),
+		Color = style.Pad,
+		Material = style.PadMat,
+		Parent = folder,
+	})
+	-- unsichtbarer Kasten, damit niemand durch die Villa läuft
+	part({
+		Name = "VillaWand",
+		Size = Vector3.new(boxSize.X - 2, boxSize.Y, boxSize.Z - 2),
+		CFrame = center * CFrame.new(0, boxSize.Y / 2, 0),
+		Transparency = 1,
+		CanQuery = false,
+		CastShadow = false,
+		Parent = folder,
+	})
+	-- warmes Licht vor der Fassade
+	local lamp = part({
+		Name = "VillaLicht",
+		Size = Vector3.new(1, 1, 1),
+		CFrame = cf * CFrame.new(0, 9, VILLA_FRONT_Z - 5),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = folder,
+	})
+	pointLight(lamp, style.Ring, 34, 0.9)
+	return boxSize.X / 2
+end
+
+-- Runder Zaun mit Lücke fürs Tor, je Stufe anders. villaHalf = halbe Breite der Villa:
+-- dort hinten bleibt der Zaun offen, die Fassade ist dann die Rückwand.
+local function buildFence(cf: CFrame, style, folder: Instance, villaHalf: number?)
 	local h = style.FenceHeight
 	local count = 28
 	local step = (math.pi * 2 - GATE_ANGLE * 2) / count
@@ -178,9 +267,14 @@ local function buildFence(cf: CFrame, style, folder: Instance)
 	local segR = FENCE_R * math.cos(step / 2)
 	local kind = style.Fence
 	local metal = style.FenceMat == Enum.Material.Metal
+	-- so breit ist die Lücke für die Villa (als Winkel links und rechts von hinten = 180°)
+	local villaAngle = if villaHalf then math.asin(math.clamp((villaHalf - 1.5) / FENCE_R, 0, 0.95)) else 0
 
 	for i = 0, count - 1 do
 		local mid = GATE_ANGLE + (i + 0.5) * step
+		if math.abs(mid - math.pi) < villaAngle then
+			continue
+		end
 		if kind == "Holz" then
 			-- zwei Latten zwischen den Pfosten
 			for _, y in { 1.1, 2.4 } do
@@ -236,6 +330,9 @@ local function buildFence(cf: CFrame, style, folder: Instance)
 			continue
 		end
 		local a = GATE_ANGLE + i * step
+		if math.abs(a - math.pi) < villaAngle - step * 0.6 then
+			continue
+		end
 		local postH = h + (if kind == "Holz" then 0.6 else 1.2)
 		local w = if kind == "Stein" then 2.4 else if kind == "Holz" then 0.8 else 1.3
 		part({
@@ -369,8 +466,9 @@ function Map.BuildDecor(plot, level: number)
 		})
 	end
 
-	buildFence(cf, style, folder)
-	if style.Arcs then
+	local villaHalf = buildVilla(cf, level, style, folder)
+	buildFence(cf, style, folder, villaHalf)
+	if style.Arcs and not villaHalf then
 		buildArcs(cf, style, folder)
 	end
 
@@ -400,8 +498,8 @@ function Map.BuildDecor(plot, level: number)
 		ring:SetAttribute("EmptyColor", style.Ring)
 	end
 
-	-- Glaskuppel ab Stufe 4
-	if style.Dome then
+	-- Glaskuppel ab Stufe 4 (nur ohne Villa, sie würde mitten durchs Gebäude gehen)
+	if style.Dome and not villaHalf then
 		part({
 			Name = "Kuppel",
 			Shape = Enum.PartType.Ball,
@@ -421,6 +519,9 @@ function Map.BuildDecor(plot, level: number)
 	-- Kristalle rundherum und Lichtsäule für die höchste Stufe
 	if style.Crystals then
 		for i = 1, 5 do
+			if villaHalf and i == 3 then
+				continue -- hinten steht die Villa
+			end
 			local a = math.rad(i * 60) -- vorne (0°) bleibt frei
 			local color = if i % 2 == 0 then Color3.fromRGB(0, 255, 255) else Color3.fromRGB(200, 100, 255)
 			local crystal = part({
