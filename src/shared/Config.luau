@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.6.1"
+Config.Version = "0.6.2"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
