@@ -2274,33 +2274,19 @@ local function addMutationShell(model: Model, mutationId: string, mutation)
 	if not mutation.Color then
 		return
 	end
-	local found = false
-	for _, mesh in model:GetDescendants() do
-		if mesh:IsA("MeshPart") then
-			found = true
-			local shell = mesh:Clone()
-			shell:ClearAllChildren()
-			shell.Name = "MutationsGlanz"
-			shell.TextureID = ""
-			-- leuchtender Schleier in der Farbe der Mutation, knapp um die Kreatur herum
-			shell.Material = Enum.Material.Neon
-			shell.Color = mutation.Color
-			shell.Transparency = 0.72
-			shell.CastShadow = false
-			shell.Size = mesh.Size * 1.04
-			shell.CFrame = mesh.CFrame + Vector3.new(0, mesh.Size.Y * 0.02, 0) -- sonst sinkt er ins Podest
-			if mutationId == "Regenbogen" then
-				CollectionService:AddTag(shell, "Rainbow")
-			end
-			shell.Parent = mesh.Parent
-		end
-	end
-	if not found and model.PrimaryPart then
-		model.PrimaryPart.Color = mutation.Color
-		model.PrimaryPart.Material = Enum.Material.Glass
-		if mutationId == "Regenbogen" then
-			CollectionService:AddTag(model.PrimaryPart, "Rainbow")
-		end
+	-- Die ganze Kreatur bekommt einen Schimmer und einen Rand in der Farbe der Mutation.
+	-- Erst blitzt sie ganz in der Farbe auf, dann scheint ihr eigenes Aussehen wieder durch.
+	local glow = Instance.new("Highlight")
+	glow.Name = "MutationsGlanz"
+	glow.DepthMode = Enum.HighlightDepthMode.Occluded
+	glow.FillColor = mutation.Color
+	glow.FillTransparency = 0
+	glow.OutlineColor = mutation.Color:Lerp(WHITE, 0.3)
+	glow.OutlineTransparency = 0
+	glow.Parent = model
+	tween(glow, 0.5, { FillTransparency = 0.6 })
+	if mutationId == "Regenbogen" then
+		CollectionService:AddTag(glow, "Rainbow")
 	end
 end
 
@@ -2903,6 +2889,9 @@ RunService.Heartbeat:Connect(function()
 	for _, part in CollectionService:GetTagged("Rainbow") do
 		if part:IsA("BasePart") then
 			part.Color = color
+		elseif part:IsA("Highlight") then
+			part.FillColor = color
+			part.OutlineColor = color
 		end
 	end
 	for _, frame in CollectionService:GetTagged("RainbowGui") do
