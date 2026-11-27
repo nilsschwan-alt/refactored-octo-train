@@ -236,7 +236,7 @@ local function buildVilla(cf: CFrame, level: number, style, folder: Instance): n
 	-- unsichtbarer Kasten, damit niemand durch die Villa läuft
 	part({
 		Name = "VillaWand",
-		Size = Vector3.new(boxSize.X - 2, boxSize.Y, boxSize.Z - 2),
+		Size = Vector3.new(boxSize.X, boxSize.Y, boxSize.Z - 2),
 		CFrame = center * CFrame.new(0, boxSize.Y / 2, 0),
 		Transparency = 1,
 		CanQuery = false,
@@ -267,8 +267,11 @@ local function buildFence(cf: CFrame, style, folder: Instance, villaHalf: number
 	local segR = FENCE_R * math.cos(step / 2)
 	local kind = style.Fence
 	local metal = style.FenceMat == Enum.Material.Metal
-	-- so breit ist die Lücke für die Villa (als Winkel links und rechts von hinten = 180°)
-	local villaAngle = if villaHalf then math.asin(math.clamp((villaHalf - 1.5) / FENCE_R, 0, 0.95)) else 0
+	-- Lücke für die Villa (als Winkel links und rechts von hinten = 180°): Der Zaun hört dort
+	-- auf, wo der Ring die Fassade erreicht, egal wie breit die Villa ist. villaEdge ist die
+	-- Stoßstelle, an der das letzte Zaunteil endet.
+	local villaAngle = if villaHalf then math.acos(math.clamp(VILLA_FRONT_Z / FENCE_R, 0, 1)) else 0
+	local villaEdge = if villaHalf then math.ceil(villaAngle / step - 0.5) * step else 0
 
 	for i = 0, count - 1 do
 		local mid = GATE_ANGLE + (i + 0.5) * step
@@ -323,6 +326,28 @@ local function buildFence(cf: CFrame, style, folder: Instance, villaHalf: number
 		end
 	end
 
+	-- kurze Seitenstücke vom letzten Zaunteil gerade nach hinten bis in die Fassade, damit an den
+	-- Ecken der Villa niemand in eine abgeschlossene Base schlüpft
+	if villaHalf then
+		local x = FENCE_R * math.sin(villaEdge)
+		local z = FENCE_R * math.cos(villaEdge)
+		local zEnd = VILLA_FRONT_Z + 1.2
+		if zEnd > z and x < villaHalf then
+			local thick = if kind == "Stein" then 1.5 else if kind == "Holz" then 0.4 else 1
+			for _, side in { -1, 1 } do
+				part({
+					Name = "Zaunende",
+					Size = Vector3.new(thick, h, zEnd - z + 0.4),
+					CFrame = cf * CFrame.new(side * x, h / 2, (z + zEnd) / 2 - 0.2),
+					Color = style.FenceColor,
+					Material = style.FenceMat,
+					Reflectance = if metal then 0.3 else 0,
+					Parent = folder,
+				})
+			end
+		end
+	end
+
 	-- Pfosten an den Stößen (bei Stein und Lichtern nur jeder zweite, aber immer an den Torseiten)
 	for i = 0, count do
 		local every = if kind == "Holz" then 1 else 2
@@ -330,7 +355,7 @@ local function buildFence(cf: CFrame, style, folder: Instance, villaHalf: number
 			continue
 		end
 		local a = GATE_ANGLE + i * step
-		if math.abs(a - math.pi) < villaAngle - step * 0.6 then
+		if math.abs(a - math.pi) < villaEdge - 0.01 then
 			continue
 		end
 		local postH = h + (if kind == "Holz" then 0.6 else 1.2)
@@ -633,7 +658,7 @@ function Map.Build()
 	-- Auf der Theke stehen die Kisten: als 3D-Modell (ReplicatedStorage.PackModelle), sonst als Würfel
 	local packModels = ReplicatedStorage:FindFirstChild("PackModelle")
 	for i, pack in Config.Packs do
-		local offset = Vector3.new(-3, 4, (i - (#Config.Packs + 1) / 2) * 2.5)
+		local offset = Vector3.new(-3, 4, (i - (#Config.Packs + 1) / 2) * 2.6)
 		local template = packModels and packModels:FindFirstChild(pack.Id)
 		if template and template:IsA("Model") then
 			local chest = template:Clone()
@@ -646,7 +671,9 @@ function Map.Build()
 					d.CanQuery = false
 				end
 			end
-			chest:ScaleTo(0.58)
+			-- alle Kisten etwa gleich groß, egal in welcher Größe das Modell gespeichert ist
+			local chestSize = chest:GetExtentsSize()
+			chest:ScaleTo(chest:GetScale() * math.min(2.35 / math.max(chestSize.X, 0.1), 2.3 / math.max(chestSize.Y, 0.1)))
 			-- Vorderseite der Modelle zeigt nach -Z, die Spieler kommen von -X
 			chest:PivotTo(CFrame.new(shopPos + offset) * CFrame.Angles(0, math.rad(90), 0))
 			chest.Parent = root

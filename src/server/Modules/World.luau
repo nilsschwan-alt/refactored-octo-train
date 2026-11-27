@@ -56,6 +56,8 @@ local ISLAND_CORE_X, ISLAND_CORE_Z = 275, 125 -- Kern-Rechteck der Insel
 local ISLAND_ROUND = 60 -- so weit ragt der runde Rand über das Kern-Rechteck hinaus
 local BARRIER_X, BARRIER_Z = 310, 170 -- unsichtbare Wände, damit niemand runterfällt
 local WIESE_HALF_X, WIESE_HALF_Z = 290, 108 -- glatte Spielwiese (Part) rund um Bases und Weg
+-- Hinter jeder Base reicht ein Streifen Wiese weiter nach hinten: dort steht die Villa
+local VILLA_STRIP_HALF, VILLA_STRIP_DEPTH = 28, 32
 -- Ausbuchtungen am Rand, damit die Insel von oben nicht wie ein Rechteck aussieht: X, Z, Radius
 local LOBES = {
 	{ -320, 120, 70 },
@@ -112,6 +114,15 @@ end
 local function groundY(x: number, z: number): number
 	if math.abs(x) <= WIESE_HALF_X and math.abs(z) <= WIESE_HALF_Z then
 		return 1
+	end
+	if math.abs(z) <= WIESE_HALF_Z + VILLA_STRIP_DEPTH - 6 then
+		local spacing = Config.Map.BaseSpacing
+		local perRow = math.ceil(Config.Map.BaseCount / 2)
+		for col = 1, perRow do
+			if math.abs(x - (col - (perRow + 1) / 2) * spacing) <= VILLA_STRIP_HALF - 2 then
+				return 1
+			end
+		end
 	end
 	local y = terrainY(x, z, true)
 	return if y then y - 0.25 else 1 -- etwas einsinken lassen, damit nichts schwebt
@@ -263,9 +274,24 @@ local function buildIsland(info, rng: Random)
 
 	-- Unter Weg, Promenaden, Bases und Plätzen kein Terrain-Gras: dessen Halme wachsen
 	-- sonst durch die Bauteile durch. "Ground" hat keine Halme und liegt unsichtbar darunter.
+	-- Am Inselrand (runde Füllungen) liegt das Gras zwei Studs höher als in der Mitte und würde
+	-- die Böden überdecken. Darum dort erst alles ab -4 wegnehmen und die Schicht neu einfüllen:
+	-- so liegt die Oberkante überall bei ca. 0.
+	local function flatten(cx: number, cz: number, sizeX: number, sizeZ: number)
+		terrain:FillBlock(CFrame.new(cx, 4, cz), Vector3.new(sizeX, 16, sizeZ), Enum.Material.Air)
+		terrain:FillBlock(CFrame.new(cx, -3 - TERRAIN_DROP, cz), Vector3.new(sizeX, 6, sizeZ), Enum.Material.Ground)
+	end
 	local hardX = info.StreetHalf + 76
 	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
-	terrain:FillBlock(CFrame.new(0, -3 - TERRAIN_DROP, 0), Vector3.new(hardX * 2, 6, hardZ * 2), Enum.Material.Ground)
+	flatten(0, 0, hardX * 2, hardZ * 2)
+	-- dasselbe hinter jeder Base, wo die Villa steht
+	local perRow = math.ceil(Config.Map.BaseCount / 2)
+	for col = 1, perRow do
+		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
+		for _, side in { -1, 1 } do
+			flatten(baseX, side * (hardZ + VILLA_STRIP_DEPTH / 2), VILLA_STRIP_HALF * 2, VILLA_STRIP_DEPTH)
+		end
+	end
 
 	-- Teich: Sandufer, ausheben, Sandboden, Wasser rein
 	for _, blob in LAKE_BLOBS do
@@ -1206,6 +1232,24 @@ function World.Build(root: Instance, info)
 		Material = Enum.Material.Grass,
 		Parent = folder,
 	})
+
+	-- Wiesen-Streifen hinter jeder Base für die Villa (gleiche Höhe wie die Spielwiese)
+	local stripStart = info.BaseZ + info.BaseSize / 2 + 6
+	local stripEnd = stripStart + VILLA_STRIP_DEPTH
+	local perRow = math.ceil(Config.Map.BaseCount / 2)
+	for col = 1, perRow do
+		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
+		for _, side in { -1, 1 } do
+			info.Part({
+				Name = "VillaWiese",
+				Size = Vector3.new(VILLA_STRIP_HALF * 2 - 2, 1, stripEnd - WIESE_HALF_Z - 1),
+				CFrame = CFrame.new(baseX, info.FloorY - 1.5, side * (WIESE_HALF_Z + stripEnd - 1) / 2),
+				Color = Color3.fromRGB(110, 205, 90),
+				Material = Enum.Material.Grass,
+				Parent = folder,
+			})
+		end
+	end
 
 	buildBarrier(info, folder)
 	buildStreet(info, folder)
