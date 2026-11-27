@@ -668,6 +668,12 @@ end
 
 function World.Build(root: Instance, info)
 	local rng = Random.new(42)
+	-- Die graue Standard-Baseplate aus der Studio-Vorlage liegt auf Höhe 0 und schneidet
+	-- sonst mitten durch den See. Unser Terrain liegt sowieso unter der ganzen Map.
+	local baseplate = workspace:FindFirstChild("Baseplate")
+	if baseplate and baseplate:IsA("BasePart") then
+		baseplate:Destroy()
+	end
 	setupLighting()
 	buildTerrain(info, rng)
 
