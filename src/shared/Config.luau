@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.6.0"
+Config.Version = "0.6.1"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
@@ -295,6 +295,14 @@ Config.SoundSamples = {
 	Swoosh = "rbxasset://sounds/swoosh.wav",
 	Oof = "rbxasset://sounds/uuhhh.mp3",
 	Tick = "rbxasset://sounds/clickfast.wav",
+	-- Creator-Store-Sounds (APM / Pro Sound Effects, für alle Spiele frei) für die Pack-Öffnung
+	DrumRoll = "rbxassetid://9042819052",
+	PackCrack = "rbxassetid://9117624703",
+	RevealCommon = "rbxassetid://9117848644",
+	RevealRare = "rbxassetid://1842312835",
+	RevealEpic = "rbxassetid://9125646918",
+	RevealLegendary = "rbxassetid://1844584698",
+	RevealMythic = "rbxassetid://1846902656",
 }
 
 -- Daraus werden kleine Melodien: { Geräusch, Tonhöhe, Lautstärke, Verzögerung in Sekunden }
@@ -305,8 +313,30 @@ Config.Sounds = {
 	Collect = { { "Ping", 1.5, 0.45, 0 }, { "Ping", 2, 0.35, 0.07 } },
 	Coin = { { "Ping", 2.2, 0.25, 0 } },
 	Reveal = { { "Ping", 1, 0.5, 0 }, { "Ping", 1.26, 0.5, 0.09 }, { "Ping", 1.5, 0.6, 0.18 } },
-	Epic = { { "Ping", 1, 0.5, 0 }, { "Ping", 1.26, 0.5, 0.09 }, { "Ping", 1.5, 0.6, 0.18 }, { "Ping", 2, 0.7, 0.3 } },
+	-- Pack-Öffnung: echter Sound + die alten Töne drunter (falls ein Sound mal nicht lädt)
+	RevealCommon = { { "RevealCommon", 1, 0.7, 0 }, { "Ping", 1.5, 0.35, 0 }, { "Ping", 2, 0.3, 0.08 } },
+	Rare = { { "RevealRare", 1, 0.6, 0 }, { "Ping", 1, 0.4, 0 }, { "Ping", 1.26, 0.4, 0.09 }, { "Ping", 1.5, 0.5, 0.18 } },
+	PackCrack = { { "PackCrack", 1.1, 0.9, 0 }, { "Swoosh", 1.3, 0.5, 0 } },
+	Epic = {
+		{ "RevealEpic", 1, 0.8, 0 },
+		{ "Ping", 1, 0.5, 0 },
+		{ "Ping", 1.26, 0.5, 0.09 },
+		{ "Ping", 1.5, 0.6, 0.18 },
+		{ "Ping", 2, 0.7, 0.3 },
+	},
+	Mythic = {
+		{ "RevealMythic", 1, 1, 0 },
+		{ "RevealLegendary", 1, 0.7, 0.5 },
+		{ "Swoosh", 0.5, 0.8, 0 },
+		{ "Ping", 0.75, 0.6, 0.05 },
+		{ "Ping", 1, 0.6, 0.15 },
+		{ "Ping", 1.26, 0.7, 0.25 },
+		{ "Ping", 1.5, 0.8, 0.35 },
+		{ "Ping", 2, 0.9, 0.48 },
+		{ "Ping", 3, 1, 0.62 },
+	},
 	Legendary = {
+		{ "RevealLegendary", 1, 0.9, 0.05 },
 		{ "Swoosh", 0.7, 0.6, 0 },
 		{ "Ping", 1, 0.6, 0.05 },
 		{ "Ping", 1.26, 0.6, 0.15 },
