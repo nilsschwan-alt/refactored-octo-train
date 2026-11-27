@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.7.0"
+Config.Version = "0.7.1"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
@@ -295,31 +295,37 @@ Config.SoundSamples = {
 	Swoosh = "rbxasset://sounds/swoosh.wav",
 	Oof = "rbxasset://sounds/uuhhh.mp3",
 	Tick = "rbxasset://sounds/clickfast.wav",
-	Glass = "rbxasset://sounds/glassbreak.wav",
-	-- Offizielle Creator-Store-Sounds (Roblox / APM / Pro Sound Effects, in jedem Spiel erlaubt).
-	-- Alle in Studio ausgemessen: Sie fangen ohne Vorlauf an, darum sitzen sie genau auf dem Bild.
-	Whoosh = "rbxassetid://15675012262", -- kurzes Zischen, 0,35 s
-	Slam = "rbxassetid://9126267607", -- dumpfer Aufschlag, 0,73 s
-	Knock = "rbxassetid://16480560696", -- kurzer, satter Schlag, 0,53 s
-	Riser = "rbxassetid://16480577565", -- Ton, der 2,4 s lang ansteigt
-	PackCrack = "rbxassetid://9117624703", -- Knall, 1,36 s
-	Poof = "rbxassetid://9116405618", -- Zauber-Puff, 1,12 s
-	MagicBurst = "rbxassetid://9116385087", -- großer Zauber-Knall, 2,27 s
-	Shimmer = "rbxassetid://9116393976", -- Glitzern, 1,69 s
-	TinyClick = "rbxassetid://16480550203", -- winziger Klick, 0,18 s
-	BrightClick = "rbxassetid://15675059323", -- heller Klick, 0,37 s
-	Blip = "rbxassetid://16480580213", -- kleiner Erfolgs-Ton, 0,69 s
-	BlipFanfare = "rbxassetid://16480578737", -- kleine Fanfare, 1,11 s
-	TonalStinger = "rbxassetid://15675043410", -- heller Akkord, 1,47 s
-	WinSting = "rbxassetid://1840076509", -- Orchester-Tusch, 2,25 s
-	DramaSting = "rbxassetid://1846902656", -- großer Orchester-Schlag, 3,44 s
+	-- Creator-Store-Sounds von APM und Pro Sound Effects (in jedem Spiel erlaubt), Richtung
+	-- "wuchtig und episch". Alle in Studio ausgemessen: Sie fangen ohne Vorlauf an, darum
+	-- sitzen sie genau auf dem Bild. Hinter jedem steht die Länge.
+	Thud = "rbxassetid://9126267607", -- dumpfer Aufschlag, 0,73 s
+	Boom = "rbxassetid://1837830656", -- tiefer Kino-Wumms, 2,9 s
+	SubHit = "rbxassetid://9126009571", -- tiefer Trommelschlag, 0,63 s
+	Kick = "rbxassetid://9043367506", -- harter Schlag, 1,15 s
+	MetalRing = "rbxassetid://1837829473", -- heller Metall-Schlag, klingt lange nach
+	Riser = "rbxassetid://1847543036", -- Becken, das anschwillt (am lautesten bei 2,07 s)
+	Rip = "rbxassetid://9117624703", -- Reißen, 1,36 s
+	Punch = "rbxassetid://9040280079", -- großer Einschlag, 5 s (Kraft in den ersten 1,3 s)
+	Smash = "rbxassetid://9040283831", -- zweiter großer Einschlag, 7 s
+	ZoomUp = "rbxassetid://9125648149", -- Zischen nach oben, 0,72 s
+	Anvil = "rbxassetid://9113133643", -- Amboss-Schlag, 0,77 s
+	Bell = "rbxassetid://1843035275", -- Orchester-Glocke, klingt lange nach
+	WoodWhoosh = "rbxassetid://9120972321", -- kurzes Zischen, 0,56 s
+	WoodTick = "rbxassetid://9119982224", -- Holzblock-Klick, 0,1 s
+	StingSmall = "rbxassetid://1846902656", -- ein tiefer Orchester-Schlag, 3,4 s
+	StingStabs = "rbxassetid://1846902224", -- kurze Orchester-Schläge, 3,5 s
+	StingWin = "rbxassetid://1840076509", -- Orchester-Tusch, 2,25 s
+	StingBrute = "rbxassetid://1837950656", -- großer Tusch, 6,5 s
+	StingPower = "rbxassetid://1841824473", -- größter Tusch, 5,1 s
 }
 
--- Nach so vielen Sekunden ist der Riser am lautesten. Die Pack-Öffnung spielt ihn so schnell
--- ab, dass diese Stelle genau auf den Knall fällt.
-Config.RiserPeak = 2.43
+-- Nach so vielen Sekunden ist der Riser am lautesten. Die Pack-Öffnung startet ihn so,
+-- dass diese Stelle genau auf den Knall fällt.
+Config.RiserPeak = 2.07
 
 -- Daraus werden kleine Melodien: { Geräusch, Tonhöhe, Lautstärke, Verzögerung in Sekunden }
+-- Optional eine fünfte Zahl: nach so vielen Sekunden wird der Ton ausgeblendet (für Sounds,
+-- die lange nachklingen).
 -- Tonhöhe 1 = normal, 2 = eine Oktave höher, 1.26 / 1.5 = Terz / Quinte (klingt nach Fanfare)
 Config.Sounds = {
 	Click = { { "Click", 1, 0.5, 0 } },
@@ -328,25 +334,24 @@ Config.Sounds = {
 	Coin = { { "Ping", 2.2, 0.25, 0 } },
 	Reveal = { { "Ping", 1, 0.5, 0 }, { "Ping", 1.26, 0.5, 0.09 }, { "Ping", 1.5, 0.6, 0.18 } },
 	-- Pack-Öffnung: ein Eintrag pro Moment der Animation -------------------------
-	PackDrop = { { "Whoosh", 0.85, 0.6, 0 } }, -- Pack fällt
-	PackSlam = { { "Slam", 1, 0.9, 0 }, { "Knock", 0.6, 0.4, 0 } }, -- Pack schlägt auf
-	PackHit = { { "Knock", 0.8, 0.7, 0 }, { "Tick", 1, 0.3, 0 } }, -- jeder Schlag (wird höher)
-	PackCrackle = { { "Glass", 1.7, 0.12, 0 } }, -- Riss
-	TellStep = { { "BrightClick", 1, 0.7, 0 }, { "Ping", 1, 0.5, 0 } }, -- Farbe steigt eine Stufe
-	PackBurst = { { "PackCrack", 1, 0.8, 0 }, { "Poof", 1, 0.8, 0 } }, -- Pack platzt
-	PackBurstBig = { { "MagicBurst", 1, 0.8, 0 } }, -- dazu ab Episch
-	Appear = { { "Shimmer", 1.2, 0.6, 0 }, { "Whoosh", 0.7, 0.4, 0 } }, -- Kreatur steigt auf
-	Stamp = { { "Slam", 1.5, 1, 0 }, { "Knock", 1.2, 0.5, 0 } }, -- Mutations-Stempel
-	CountTick = { { "TinyClick", 1.3, 0.3, 0 } }, -- Zahl zählt hoch
-	CountDone = { { "Ping", 1.5, 0.45, 0 }, { "Ping", 2, 0.4, 0.07 } },
-	CardDeal = { { "Whoosh", 1.25, 0.4, 0 } }, -- Karte fliegt raus
-	CardFlip = { { "TinyClick", 1, 0.5, 0 }, { "Whoosh", 1.6, 0.2, 0 } }, -- Karte dreht sich um
-	-- Fanfare bei der Landung, je seltener desto größer
-	RevealCommon = { { "Blip", 1, 0.7, 0 } },
-	Rare = { { "BlipFanfare", 1, 0.7, 0 } },
-	Epic = { { "TonalStinger", 1, 0.8, 0 }, { "Poof", 1.3, 0.4, 0 } },
-	Legendary = { { "WinSting", 1, 0.9, 0 }, { "Slam", 0.8, 0.6, 0 } },
-	Mythic = { { "DramaSting", 1, 1, 0 }, { "Slam", 0.7, 0.8, 0 }, { "Shimmer", 1, 0.5, 0.15 } },
+	PackDrop = { { "WoodWhoosh", 0.7, 1, 0 } }, -- Pack fällt
+	PackSlam = { { "Boom", 1, 0.8, 0, 1.2 }, { "Thud", 0.9, 0.7, 0 } }, -- Pack schlägt auf
+	PackHit = { { "SubHit", 1, 1.3, 0 }, { "Kick", 1, 0.35, 0, 0.5 } }, -- jeder Schlag (wird höher)
+	TellStep = { { "MetalRing", 1, 0.6, 0, 0.8 } }, -- Farbe steigt eine Stufe (wird höher)
+	PackBurst = { { "Punch", 1, 0.9, 0, 1.6 }, { "Rip", 1, 0.5, 0 } }, -- Pack platzt
+	PackBurstBig = { { "Smash", 1, 0.6, 0, 1.8 } }, -- dazu ab Episch
+	Appear = { { "ZoomUp", 1, 1, 0 } }, -- Kreatur steigt auf
+	Stamp = { { "Anvil", 1, 1.2, 0 }, { "Thud", 1.5, 0.5, 0 } }, -- Mutations-Stempel
+	CountTick = { { "WoodTick", 1, 0.9, 0, 0.25 } }, -- Zahl zählt hoch
+	CountDone = { { "Bell", 1.5, 1, 0, 1.2 } },
+	CardDeal = { { "WoodWhoosh", 1.2, 0.8, 0 } }, -- Karte fliegt raus
+	CardFlip = { { "WoodTick", 0.75, 1.2, 0, 0.25 }, { "WoodWhoosh", 1.6, 0.3, 0 } }, -- Karte dreht sich um
+	-- Tusch bei der Landung, je seltener desto größer
+	RevealCommon = { { "StingSmall", 1.25, 0.5, 0, 1.2 } },
+	Rare = { { "StingStabs", 1, 0.6, 0, 1.3 } },
+	Epic = { { "StingWin", 1, 0.8, 0 } },
+	Legendary = { { "StingBrute", 1, 0.9, 0, 3.5 }, { "Boom", 1, 0.5, 0, 1.5 } },
+	Mythic = { { "StingPower", 1, 1, 0 }, { "Boom", 0.8, 0.7, 0, 2 } },
 	Upgrade = {
 		{ "Swoosh", 0.8, 0.6, 0 },
 		{ "Ping", 0.75, 0.6, 0.05 },
