@@ -454,6 +454,7 @@ local announceBox = label({
 	BackgroundTransparency = 0.1,
 	Font = Enum.Font.FredokaOne,
 	Text = "",
+	Visible = false, -- sonst sieht man oben kurz eine leere Leiste
 	Parent = gui,
 })
 corner(announceBox, 12)
@@ -467,12 +468,18 @@ Remotes.Announce.OnClientEvent:Connect(function(text: string, color: Color3)
 	announceBox.TextColor3 = color
 	announceStroke.Color = color
 	announceBox.Position = UDim2.new(0.5, -320, 0, -60)
+	announceBox.Visible = true
 	tween(announceBox, 0.4, { Position = UDim2.new(0.5, -320, 0, 8) }, Enum.EasingStyle.Back)
 	playSound("Announce")
 	confetti(40)
 	task.delay(5, function()
 		if token == announceToken then
 			tween(announceBox, 0.4, { Position = UDim2.new(0.5, -320, 0, -60) })
+			task.delay(0.45, function()
+				if token == announceToken then
+					announceBox.Visible = false
+				end
+			end)
 		end
 	end)
 end)
@@ -1400,8 +1407,10 @@ local function squish(model: Model)
 	squishing[model] = true
 	task.spawn(function()
 		local ok = pcall(function()
+			-- relativ zur jetzigen Größe (KI-Modelle sind schon skaliert)
+			local base = model:GetScale()
 			for _, s in { 1.12, 1.18, 1.08, 0.97, 1 } do
-				model:ScaleTo(s)
+				model:ScaleTo(base * s)
 				task.wait(0.03)
 			end
 		end)

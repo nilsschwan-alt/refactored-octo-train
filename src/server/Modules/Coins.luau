@@ -43,8 +43,8 @@ local function spawnCoin()
 		sparkles.Parent = coin
 		local light = Instance.new("PointLight")
 		light.Color = GOLD
-		light.Range = 14
-		light.Brightness = 2
+		light.Range = 10
+		light.Brightness = 1
 		light.Parent = coin
 	end
 	coin.Parent = folder

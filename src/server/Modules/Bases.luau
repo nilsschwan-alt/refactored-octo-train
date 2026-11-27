@@ -172,6 +172,24 @@ local function addPrompt(parent, kind, action, object, hold, plot, slot)
 	return p
 end
 
+-- Leuchtring unter einem Platz in der Seltenheits-Farbe färben (nil = leer, Grundfarbe)
+local function colorRing(plot, slot: number, color: Color3?)
+	local ring = plot.Decor:FindFirstChild("PlatzRing" .. slot)
+	if ring and ring:IsA("BasePart") then
+		ring.Color = color or ring:GetAttribute("EmptyColor") or ring.Color
+	end
+end
+
+-- Alle Leuchtringe neu färben (nach einem Base-Upgrade, weil dann die Deko neu gebaut wird)
+function Bases.RefreshRings(state)
+	local plot = state.Plot
+	for slot = 1, Config.BaseLevels[#Config.BaseLevels].Slots do
+		local entry = state.Data.Slots[tostring(slot)]
+		local def = entry and not plot.Stolen[slot] and Config.ParseEntry(entry)
+		colorRing(plot, slot, def and Config.Rarities[def.Rarity].Color or nil)
+	end
+end
+
 -- Zeigt die Kreatur auf einem Platz an (oder entfernt sie, wenn der Platz leer/geklaut ist)
 function Bases.RenderSlot(state, slot: number)
 	local plot = state.Plot
@@ -182,12 +200,15 @@ function Bases.RenderSlot(state, slot: number)
 	end
 	local entry = state.Data.Slots[tostring(slot)]
 	if not entry or plot.Stolen[slot] then
+		colorRing(plot, slot, nil)
 		return
 	end
 	local def, mutation = Config.ParseEntry(entry)
 	if not def then
+		colorRing(plot, slot, nil)
 		return
 	end
+	colorRing(plot, slot, Config.Rarities[def.Rarity].Color)
 	local model = CreatureModels.Build(def, { Label = true, Mutation = mutation })
 	model:PivotTo(Map.SlotCFrame(plot, slot))
 	local body = model.PrimaryPart
@@ -410,6 +431,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	state.Data.BaseLevel += 1
 	Bases.RefreshStats(state)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
+	Bases.RefreshRings(state)
 	Bases.RefreshPlot(state.Plot)
 	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
 	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)

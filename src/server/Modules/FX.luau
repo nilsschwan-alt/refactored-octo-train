@@ -74,8 +74,10 @@ function FX.PopIn(model: Model)
 	if not model.PrimaryPart then
 		return
 	end
+	-- Relativ zur jetzigen Größe skalieren: KI-Modelle sind schon auf Seltenheits-Größe gebracht
+	local base = model:GetScale()
 	local ok = pcall(function()
-		model:ScaleTo(0.05)
+		model:ScaleTo(base * 0.05)
 	end)
 	if not ok then
 		return
@@ -89,7 +91,7 @@ function FX.PopIn(model: Model)
 			local c = 1.7
 			local eased = 1 + (c + 1) * (t - 1) ^ 3 + c * (t - 1) ^ 2
 			pcall(function()
-				model:ScaleTo(math.max(0.05, eased))
+				model:ScaleTo(base * math.max(0.05, eased))
 			end)
 			if t >= 1 then
 				break
@@ -98,7 +100,7 @@ function FX.PopIn(model: Model)
 		end
 		if model.Parent then
 			pcall(function()
-				model:ScaleTo(1)
+				model:ScaleTo(base)
 			end)
 		end
 	end)
