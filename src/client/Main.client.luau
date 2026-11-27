@@ -761,7 +761,11 @@ task.spawn(function()
 	end
 end)
 
--- Pack-Öffnung: Folien-Pack, Risse, Platzen, 3D-Kreatur auf der Karte -----------------
+-- Pack-Öffnung ------------------------------------------------------------------------
+-- Läuft als kleine Zwischensequenz auf einer eigenen Bühne: Kamera fährt ran, das Pack
+-- knallt aufs Podest, lädt Schlag für Schlag auf, verrät seine Farbe, platzt, und die
+-- Kreatur steigt in 3D heraus. Jeder Moment startet seinen Ton in derselben Zeile wie
+-- das Bild, damit Ton und Bild genau zusammenpassen.
 local Lighting = game:GetService("Lighting")
 local ContentProvider = game:GetService("ContentProvider")
 
@@ -815,20 +819,6 @@ local function stopSound(sound: Sound?, fade: number)
 	task.delay(fade + 0.05, function()
 		sound:Destroy()
 	end)
-end
-
--- Welcher Reveal-Sound passt zur Seltenheit?
-local function revealSoundKey(rank: number, mutated: boolean): string
-	if rank >= 6 then
-		return "Mythic"
-	elseif rank >= 5 then
-		return "Legendary"
-	elseif rank >= 4 or mutated then
-		return "Epic"
-	elseif rank >= 3 then
-		return "Rare"
-	end
-	return "RevealCommon"
 end
 
 -- Kreatur für die Karte: 3D-KI-Modell im ViewportFrame, das wippt und sich hin und her dreht.
@@ -990,56 +980,565 @@ local function shockwave(parent: Instance, color: Color3, maxSize: number)
 	end)
 end
 
--- Das Pack: Folie mit Streifen, Name, "?" und einem Glanz, der drüberläuft
-local function makePackBox(parent: Instance, title: string, bigText: string, packColor: Color3, w: number, h: number)
-	local box = Instance.new("Frame")
-	box.AnchorPoint = Vector2.new(0.5, 0.5)
-	box.Position = UDim2.fromScale(0.5, -0.3)
-	box.Size = UDim2.fromOffset(w, h)
-	box.BackgroundColor3 = packColor
-	box.ClipsDescendants = true
-	box.Parent = parent
-	corner(box, 18)
-	local boxStroke = stroke(box, Color3.new(1, 1, 1), 5)
-	local boxScale = Instance.new("UIScale")
-	boxScale.Parent = box
+-- Die Bühne --------------------------------------------------------------------------
+-- Ein dunkler Raum hoch über der Insel. Dort steht ein Podest, auf dem das Pack landet.
+-- Die Kamera gehört während der Öffnung dem Skript und fährt wie in einem Film mit.
+local WHITE = Color3.new(1, 1, 1)
+local BLACK = Color3.new(0, 0, 0)
+local STAGE = CFrame.new(0, 3000, 0) -- Mitte des Bühnenbodens
+local PEDESTAL_TOP = 0.6 -- Höhe des Podests
+local PACK_Y = 2.95 -- so hoch ist die Mitte des Packs, wenn es auf dem Podest steht
+local RARE_RANK = Config.RarityRank("Rare")
+local EPIC_RANK = Config.RarityRank("Epic")
+local LEGENDARY_RANK = Config.RarityRank("Legendary")
+local MYTHIC_RANK = Config.RarityRank("Mythic")
+
+-- Wie tween(), aber wird zum Ende hin schneller (für Fallen und Zuklappen)
+local function tweenIn(obj: Instance, time: number, props, style: Enum.EasingStyle?)
+	local t = TweenService:Create(obj, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.In), props)
+	t:Play()
+	return t
+end
+
+-- Ein Teil für die Bühne: fest, ohne Kollision
+local function stagePart(props): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CanQuery = false
+	p.CastShadow = false
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	local parent = props.Parent
+	props.Parent = nil
+	for k, v in props do
+		(p :: any)[k] = v
+	end
+	p.Parent = parent
+	return p
+end
+
+-- Flache runde Scheibe, die auf dem Boden liegt (y = Höhe der Mitte)
+local function stageDisc(parent: Instance, y: number, diameter: number, height: number, color: Color3, material: Enum.Material): Part
+	return stagePart({
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(height, diameter, diameter),
+		CFrame = STAGE * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color = color,
+		Material = material,
+		Parent = parent,
+	})
+end
+
+-- Funken, die man mit :Emit(anzahl) losschießt
+local function sparkEmitter(parent: Instance, color: Color3, size: number, speed: number): ParticleEmitter
+	local e = Instance.new("ParticleEmitter")
+	e.Enabled = false
+	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	e.Color = ColorSequence.new(color)
+	e.LightEmission = 1
+	e.Size = NumberSequence.new(size, 0)
+	e.Lifetime = NumberRange.new(0.45, 0.95)
+	e.Speed = NumberRange.new(speed * 0.4, speed)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Acceleration = Vector3.new(0, -14, 0)
+	e.Drag = 2
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-200, 200)
+	e.Parent = parent
+	return e
+end
+
+-- Weiches Leuchten aus übereinander liegenden Rauch-Teilchen (Rate 0 = aus)
+local function glowEmitter(parent: Instance, size: number): ParticleEmitter
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	e.Color = ColorSequence.new(WHITE)
+	e.LightEmission = 1
+	e.LockedToPart = true
+	e.Size = NumberSequence.new(size, size * 1.5)
+	e.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.3, 0.72),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	e.Lifetime = NumberRange.new(0.5, 0.8)
+	e.Speed = NumberRange.new(0)
+	e.Rate = 0
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-40, 40)
+	e.ZOffset = -1.5
+	e.Parent = parent
+	return e
+end
+
+-- Eine "Puppe" ist ein Modell auf der Bühne, das über drei Werte bewegt wird:
+-- Pos (Ort), Tilt (Drehung in Grad) und Size (Größe). Die Werte kann man tweenen.
+local function makePuppet(show, model: Model, baseScale: number, facing: CFrame)
+	local p = {
+		Model = model,
+		Pos = Instance.new("Vector3Value"),
+		Tilt = Instance.new("Vector3Value"),
+		Size = Instance.new("NumberValue"),
+		BaseScale = baseScale,
+		Facing = facing,
+		Jitter = 0, -- Zittern in Studs
+		Idle = false, -- hüpft und schaut sich um
+		IdleStart = 0,
+		LastScale = -1,
+	}
+	p.Size.Value = 1
+	table.insert(show.Trash, p.Pos)
+	table.insert(show.Trash, p.Tilt)
+	table.insert(show.Trash, p.Size)
+	show.Puppets[p] = true
+	return p
+end
+
+local function updatePuppet(p)
+	local model = p.Model
+	local scale = math.max(0.03, p.Size.Value) * p.BaseScale
+	if math.abs(scale - p.LastScale) > 0.0005 then
+		p.LastScale = scale
+		model:ScaleTo(scale)
+	end
+	local pos = p.Pos.Value
+	local tilt = p.Tilt.Value
+	local yaw = tilt.Y
+	if p.Jitter > 0 then
+		pos += Vector3.new(math.random() - 0.5, math.random() - 0.5, 0) * (p.Jitter * 2)
+	end
+	if p.Idle then
+		local t = os.clock() - p.IdleStart
+		pos += Vector3.new(0, math.abs(math.sin(t * 3.2)) * 0.28, 0)
+		yaw += math.sin(t * 1.4) * 28
+	end
+	model:PivotTo(STAGE * CFrame.new(pos) * p.Facing * CFrame.Angles(math.rad(tilt.X), math.rad(yaw), math.rad(tilt.Z)))
+end
+
+-- Wartet. Gibt true zurück, sobald der Spieler geklickt hat (dann geht es sofort weiter).
+local function beat(show, seconds: number): boolean
+	local stop = os.clock() + seconds
+	while os.clock() < stop do
+		if show.Skip then
+			return true
+		end
+		task.wait()
+	end
+	return show.Skip
+end
+
+-- Bildschirm blitzt kurz in einer Farbe auf
+local function screenFlash(show, color: Color3, strength: number, time: number)
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromScale(1, 1)
+	f.BackgroundColor3 = color
+	f.BackgroundTransparency = 1 - strength
+	f.BorderSizePixel = 0
+	f.ZIndex = 20
+	f.Parent = show.Root
+	tween(f, time, { BackgroundTransparency = 1 })
+	task.delay(time + 0.05, function()
+		f:Destroy()
+	end)
+end
+
+-- Leuchtende Scheibe, die sich auf dem Podest schnell ausbreitet und verblasst
+local function stageRing(show, color: Color3, diameter: number, time: number)
+	local ring = stageDisc(show.Folder, PEDESTAL_TOP + 0.04, 2, 0.06, color, Enum.Material.Neon)
+	ring.Transparency = 0.35
+	tween(ring, time, { Size = Vector3.new(0.06, diameter, diameter), Transparency = 1 })
+	task.delay(time + 0.05, function()
+		ring:Destroy()
+	end)
+end
+
+-- Strahlen hinter dem Podest ein- oder ausblenden (alpha 0 = unsichtbar, 1 = voll)
+local function setRays(show, alpha: number, time: number)
+	for i, r in show.Rays:GetChildren() do
+		if r:IsA("Frame") then
+			local strong = if i % 2 == 0 then 0.55 else 0.3
+			tween(r, time, { BackgroundTransparency = 1 - alpha * strong })
+		end
+	end
+end
+
+-- Alles auf der Bühne in eine Farbe tauchen (die Farbe der Seltenheit)
+local function setShowColor(show, p, color: Color3)
+	show.Ring.Color = color
+	show.FloorGlow.Color = color
+	show.Rim.Color = color
+	for _, r in show.Rays:GetChildren() do
+		if r:IsA("Frame") then
+			r.BackgroundColor3 = color
+		end
+	end
+	if p then
+		for _, seg in p.Cracks do
+			seg.Color = color
+		end
+		p.Glow.Color = ColorSequence.new(color)
+		p.Light.Color = color
+		p.Sparks.Color = ColorSequence.new(color, WHITE)
+	end
+end
+
+-- Bühne aufbauen und Kamera übernehmen. Alles landet in show.Trash und wird am Ende entfernt.
+local function setupShow(show)
+	local camera = workspace.CurrentCamera
+	show.Puppets = {}
+	show.Trash = {}
+	show.Skip = false
+	show.Clicks = 0
+	show.Again = false
+
+	-- Schwarzblende, damit der Kamerasprung nicht hart aussieht
+	local fader = Instance.new("Frame")
+	fader.Size = UDim2.fromScale(1, 1)
+	fader.BackgroundColor3 = BLACK
+	fader.BackgroundTransparency = 1
+	fader.BorderSizePixel = 0
+	fader.ZIndex = 50
+	fader.Parent = overlayGui
+	show.Fader = fader
+	tween(fader, 0.14, { BackgroundTransparency = 0 })
+	task.wait(0.15)
+
+	local folder = Instance.new("Folder")
+	folder.Name = "PackBuehne"
+	show.Folder = folder
+	table.insert(show.Trash, folder)
+
+	-- Raum: Boden, Decke und vier Wände (dick, damit kein Tageslicht reinkommt)
+	local wallColor = Color3.fromRGB(20, 16, 38)
+	local function wall(size: Vector3, pos: Vector3, color: Color3?)
+		stagePart({
+			Size = size,
+			CFrame = STAGE * CFrame.new(pos),
+			Color = color or wallColor,
+			CastShadow = true,
+			Parent = folder,
+		})
+	end
+	wall(Vector3.new(96, 4, 96), Vector3.new(0, -2, 0), Color3.fromRGB(28, 23, 54))
+	wall(Vector3.new(96, 4, 96), Vector3.new(0, 52, 0))
+	wall(Vector3.new(96, 60, 4), Vector3.new(0, 24, -36))
+	wall(Vector3.new(96, 60, 4), Vector3.new(0, 24, 44))
+	wall(Vector3.new(4, 60, 96), Vector3.new(-46, 24, 0))
+	wall(Vector3.new(4, 60, 96), Vector3.new(46, 24, 0))
+
+	-- Podest mit Leuchtrand und Lichtfleck auf dem Boden
+	stageDisc(folder, PEDESTAL_TOP / 2, 7, PEDESTAL_TOP, Color3.fromRGB(48, 42, 88), Enum.Material.SmoothPlastic)
+	show.Ring = stageDisc(folder, PEDESTAL_TOP / 2, 7.5, 0.22, WHITE, Enum.Material.Neon)
+	show.FloorGlow = stageDisc(folder, 0.03, 17, 0.05, Color3.fromRGB(120, 90, 255), Enum.Material.Neon)
+	show.FloorGlow.Transparency = 0.82
+
+	-- Strahlenkranz hinter dem Podest (erst unsichtbar)
+	local board = stagePart({
+		Size = Vector3.new(34, 34, 0.2),
+		CFrame = STAGE * CFrame.new(0, 5, -15),
+		Transparency = 1,
+		Parent = folder,
+	})
+	local boardGui = Instance.new("SurfaceGui")
+	boardGui.Face = Enum.NormalId.Back
+	boardGui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	boardGui.CanvasSize = Vector2.new(700, 700)
+	boardGui.LightInfluence = 0
+	boardGui.Parent = board
+	show.Rays = sunburst(boardGui, WHITE, 700)
+	for _, r in show.Rays:GetChildren() do
+		if r:IsA("Frame") then
+			r.Size = UDim2.new(0, 64, 1, 0)
+			r.BackgroundTransparency = 1
+		end
+	end
+
+	-- Licht: Scheinwerfer von vorne oben, farbiges Licht von hinten
+	local keyPart = stagePart({
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.lookAt(STAGE * Vector3.new(0, 15, 10), STAGE * Vector3.new(0, 2, 0)),
+		Transparency = 1,
+		Parent = folder,
+	})
+	local key = Instance.new("SpotLight")
+	key.Face = Enum.NormalId.Front
+	key.Angle = 60
+	key.Range = 44
+	key.Brightness = 2.6
+	key.Color = Color3.fromRGB(255, 242, 228)
+	key.Parent = keyPart
+	show.Key = key
+	local rimPart = stagePart({
+		Size = Vector3.new(1, 1, 1),
+		CFrame = STAGE * CFrame.new(0, 5, -7),
+		Transparency = 1,
+		Parent = folder,
+	})
+	local rim = Instance.new("PointLight")
+	rim.Range = 28
+	rim.Brightness = 1.4
+	rim.Color = Color3.fromRGB(150, 110, 255)
+	rim.Parent = rimPart
+	show.Rim = rim
+
+	-- Glitzer-Staub in der Luft und Staubwolke fürs Aufschlagen
+	local air = stagePart({
+		Size = Vector3.new(40, 1, 34),
+		CFrame = STAGE * CFrame.new(0, 15, -4),
+		Transparency = 1,
+		Parent = folder,
+	})
+	local motes = Instance.new("ParticleEmitter")
+	motes.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	motes.Color = ColorSequence.new(Color3.fromRGB(200, 190, 255))
+	motes.LightEmission = 1
+	motes.Size = NumberSequence.new(0.16)
+	motes.Transparency = NumberSequence.new(0.35)
+	motes.Lifetime = NumberRange.new(7, 10)
+	motes.Rate = 12
+	motes.Speed = NumberRange.new(1, 2)
+	motes.EmissionDirection = Enum.NormalId.Bottom
+	motes.Parent = air
+	local dustPart = stagePart({
+		Size = Vector3.new(5, 0.2, 5),
+		CFrame = STAGE * CFrame.new(0, PEDESTAL_TOP, 0),
+		Transparency = 1,
+		Parent = folder,
+	})
+	local dust = Instance.new("ParticleEmitter")
+	dust.Enabled = false
+	dust.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	dust.Color = ColorSequence.new(Color3.fromRGB(190, 180, 230))
+	dust.Size = NumberSequence.new(1.2, 3.4)
+	dust.Transparency = NumberSequence.new(0.55, 1)
+	dust.Lifetime = NumberRange.new(0.45, 0.8)
+	dust.Speed = NumberRange.new(5, 10)
+	dust.SpreadAngle = Vector2.new(80, 80)
+	dust.Drag = 3
+	dust.Rotation = NumberRange.new(0, 360)
+	dust.Parent = dustPart
+	show.Dust = dust
+	-- Funken für den großen Knall (hängen am Podest, nicht am Pack)
+	local burstPart = stagePart({
+		Size = Vector3.new(1, 1, 1),
+		CFrame = STAGE * CFrame.new(0, PACK_Y, 0),
+		Transparency = 1,
+		Parent = folder,
+	})
+	show.Burst = sparkEmitter(burstPart, WHITE, 0.9, 30)
+	show.Burst.Lifetime = NumberRange.new(0.6, 1.3)
+
+	folder.Parent = workspace
+
+	-- Alles, was als Bild über der Bühne liegt (Schrift, Karten, Knöpfe)
+	local root = Instance.new("Frame")
+	root.Size = UDim2.fromScale(1, 1)
+	root.BackgroundTransparency = 1
+	root.Parent = overlayGui
+	show.Root = root
+	table.insert(show.Trash, root)
+	-- Klick irgendwo: beim Aufladen überspringen, am Ende schließen
+	local catcher = Instance.new("TextButton")
+	catcher.Size = UDim2.fromScale(1, 1)
+	catcher.BackgroundTransparency = 1
+	catcher.Text = ""
+	catcher.Parent = root
+	catcher.Activated:Connect(function()
+		show.Clicks += 1
+		show.Skip = true
+	end)
+
+	-- Kamera: drei Werte, die man tweenen kann
+	show.CamPos = Instance.new("Vector3Value")
+	show.CamPos.Value = Vector3.new(0, 7.5, 24)
+	show.CamLook = Instance.new("Vector3Value")
+	show.CamLook.Value = Vector3.new(0, 3, 0)
+	show.CamFov = Instance.new("NumberValue")
+	show.CamFov.Value = 55
+	table.insert(show.Trash, show.CamPos)
+	table.insert(show.Trash, show.CamLook)
+	table.insert(show.Trash, show.CamFov)
+
+	-- Hintergrund leicht unscharf, das Pack bleibt scharf
+	local dof = Instance.new("DepthOfFieldEffect")
+	dof.FarIntensity = 0.3
+	dof.NearIntensity = 0
+	dof.InFocusRadius = 9
+	dof.FocusDistance = 14
+	dof.Parent = camera
+	table.insert(show.Trash, dof)
+
+	-- Dunst aus, Leuchten etwas stärker (wird am Ende zurückgestellt)
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		show.Atmosphere = atmosphere
+		show.SavedDensity = atmosphere.Density
+		atmosphere.Density = 0
+	end
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
+	if bloom then
+		show.Bloom = bloom
+		show.SavedBloom = { bloom.Intensity, bloom.Size, bloom.Threshold }
+		bloom.Intensity = 0.7
+		bloom.Size = 24
+		bloom.Threshold = 1.05
+	end
+
+	camera.CameraType = Enum.CameraType.Scriptable
+	pcall(function()
+		RunService:UnbindFromRenderStep("PackKamera") -- falls von einem früheren Fehler noch eine hängt
+	end)
+	RunService:BindToRenderStep("PackKamera", Enum.RenderPriority.Camera.Value, function()
+		local cam = workspace.CurrentCamera
+		if cam.CameraType ~= Enum.CameraType.Scriptable then
+			cam.CameraType = Enum.CameraType.Scriptable
+		end
+		local from, to = STAGE * show.CamPos.Value, STAGE * show.CamLook.Value
+		cam.CFrame = CFrame.lookAt(from, to)
+		cam.Focus = CFrame.new(to)
+		cam.FieldOfView = show.CamFov.Value
+		-- Maus freigeben (in der Ich-Ansicht hängt sie sonst in der Mitte fest)
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		dof.FocusDistance = (from - to).Magnitude
+		for p in show.Puppets do
+			updatePuppet(p)
+		end
+	end)
+	tween(fader, 0.22, { BackgroundTransparency = 1 })
+end
+
+-- Bühne abbauen, Kamera zurückgeben. Läuft immer, auch wenn unterwegs etwas schiefging.
+local function teardownShow(show, savedType: Enum.CameraType, savedFov: number)
+	local fader = show.Fader
+	if fader then
+		tween(fader, 0.16, { BackgroundTransparency = 0 })
+		task.wait(0.17)
+	end
+	pcall(function()
+		RunService:UnbindFromRenderStep("PackKamera")
+	end)
+	local camera = workspace.CurrentCamera
+	camera.CameraType = if savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else savedType
+	camera.FieldOfView = savedFov
+	if show.Atmosphere then
+		show.Atmosphere.Density = show.SavedDensity
+	end
+	if show.Bloom then
+		show.Bloom.Intensity, show.Bloom.Size, show.Bloom.Threshold = show.SavedBloom[1], show.SavedBloom[2], show.SavedBloom[3]
+	end
+	for _, thing in show.Trash or {} do
+		if typeof(thing) == "Instance" then
+			thing:Destroy()
+		end
+	end
+	if fader then
+		tween(fader, 0.25, { BackgroundTransparency = 1 })
+		task.delay(0.3, function()
+			fader:Destroy()
+		end)
+	end
+end
+
+-- Führt eine Öffnung aus: Bühne auf, abspielen, Bühne ab. Danach Shop oder gleich nochmal.
+local function runShow(pack, count: number, play)
+	local camera = workspace.CurrentCamera
+	local savedType, savedFov = camera.CameraType, camera.FieldOfView
+	opening = true
+	shop.Visible = false
+	local show = {}
+	local ok, err = pcall(function()
+		setupShow(show)
+		play(show)
+	end)
+	if not ok then
+		warn(`[Pack-Öffnung] Fehler in der Animation: {err}`)
+	end
+	local cleaned = pcall(teardownShow, show, savedType, savedFov)
+	if not cleaned then
+		-- Sicherheitsnetz: die Kamera gehört auf jeden Fall wieder dem Spieler
+		pcall(function()
+			RunService:UnbindFromRenderStep("PackKamera")
+		end)
+		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+		workspace.CurrentCamera.FieldOfView = savedFov
+		if show.Fader then
+			show.Fader:Destroy()
+		end
+	end
+	opening = false
+	if show.Again and pack then
+		Remotes.BuyPack:FireServer(pack.Id, count)
+	else
+		updateShop()
+		shop.Visible = true
+	end
+end
+
+-- Vorderseite eines Packs: Folie, Streifen, Name, "?" und ein Glanz, der drüberläuft.
+-- Wird fürs 3D-Pack und für die Rückseiten der Karten benutzt.
+local function packFace(parent: Instance, title: string, bigText: string, packColor: Color3, radius: number?): Frame
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = packColor
+	bg.BorderSizePixel = 0
+	bg.ClipsDescendants = true
+	bg.Parent = parent
+	if radius then
+		corner(bg, radius)
+	end
 	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new(Color3.new(1, 1, 1), packColor:Lerp(Color3.new(0, 0, 0), 0.35))
+	gradient.Color = ColorSequence.new(WHITE, packColor:Lerp(BLACK, 0.4))
 	gradient.Rotation = 90
-	gradient.Parent = box
-	-- Folien-Streifen oben und unten wie bei einer Sammelkarten-Packung
+	gradient.Parent = bg
 	for _, yScale in { 0, 1 } do
 		local strip = Instance.new("Frame")
 		strip.AnchorPoint = Vector2.new(0, yScale)
 		strip.Position = UDim2.fromScale(0, yScale)
-		strip.Size = UDim2.new(1, 0, 0, 14)
-		strip.BackgroundColor3 = Color3.new(1, 1, 1)
+		strip.Size = UDim2.fromScale(1, 0.06)
+		strip.BackgroundColor3 = WHITE
 		strip.BackgroundTransparency = 0.35
 		strip.BorderSizePixel = 0
-		strip.Parent = box
+		strip.Parent = bg
 	end
+	if title ~= "" then
+		label({
+			Size = UDim2.fromScale(0.9, 0.16),
+			Position = UDim2.fromScale(0.05, 0.09),
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0.3,
+			Text = title,
+			Parent = bg,
+		})
+	end
+	local circle = Instance.new("Frame")
+	circle.AnchorPoint = Vector2.new(0.5, 0.5)
+	circle.Position = UDim2.fromScale(0.5, 0.58)
+	circle.Size = UDim2.fromScale(0.62, 0.62)
+	circle.SizeConstraint = Enum.SizeConstraint.RelativeXX
+	circle.BackgroundColor3 = WHITE
+	circle.BackgroundTransparency = 0.8
+	circle.BorderSizePixel = 0
+	circle.Parent = bg
+	corner(circle, 2000)
+	stroke(circle, WHITE, 3)
 	label({
-		Size = UDim2.new(1, -16, 0.18, 0),
-		Position = UDim2.new(0, 8, 0, 20),
-		Font = Enum.Font.FredokaOne,
-		TextStrokeTransparency = 0.3,
-		Text = title,
-		Parent = box,
-	})
-	local question = label({
-		Size = UDim2.fromScale(1, 0.45),
-		Position = UDim2.fromScale(0, 0.32),
+		Size = UDim2.fromScale(1, 0.42),
+		Position = UDim2.fromScale(0, 0.37),
 		Font = Enum.Font.FredokaOne,
 		TextStrokeTransparency = 0.3,
 		Text = bigText,
-		Parent = box,
+		ZIndex = 2,
+		Parent = bg,
 	})
 	local shine = Instance.new("Frame")
 	shine.Size = UDim2.fromScale(1, 1)
-	shine.BackgroundColor3 = Color3.new(1, 1, 1)
+	shine.BackgroundColor3 = WHITE
 	shine.BorderSizePixel = 0
 	shine.ZIndex = 3
-	shine.Parent = box
+	shine.Parent = bg
 	local shineGradient = Instance.new("UIGradient")
 	shineGradient.Rotation = 25
 	shineGradient.Transparency = NumberSequence.new({
@@ -1058,175 +1557,514 @@ local function makePackBox(parent: Instance, title: string, bigText: string, pac
 			task.wait(1.1)
 		end
 	end)
-	return box, boxStroke, boxScale, question
+	return bg
 end
 
--- Ein Riss im Pack: 3 Zacken von einem zufälligen Punkt aus
-local function addCrack(box: Frame, color: Color3, seed: number, list: { Frame })
+-- Das Pack als 3D-Modell: Folien-Tafel mit geriffelten Rändern, Bild auf der Vorderseite,
+-- Licht und Funken im Inneren
+local function buildPack(show, title: string, bigText: string, packColor: Color3)
+	local model = Instance.new("Model")
+	model.Name = "Pack"
+	local body = stagePart({
+		Name = "Body",
+		Size = Vector3.new(2.8, 3.8, 0.5),
+		Color = packColor,
+		Material = Enum.Material.Foil,
+		Parent = model,
+	})
+	model.PrimaryPart = body
+	for _, dir in { 1, -1 } do
+		stagePart({
+			Name = "Rand",
+			Size = Vector3.new(2.8, 0.38, 0.16),
+			CFrame = CFrame.new(0, dir * 2.09, 0),
+			Color = packColor:Lerp(WHITE, 0.5),
+			Material = Enum.Material.Metal,
+			Parent = model,
+		})
+	end
+	local face = Instance.new("SurfaceGui")
+	face.Face = Enum.NormalId.Back -- die Seite, die zur Kamera zeigt
+	face.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	face.CanvasSize = Vector2.new(280, 380)
+	face.LightInfluence = 0
+	face.Parent = body
+	packFace(face, title, bigText, packColor)
+
+	local core = stagePart({
+		Name = "Kern",
+		Size = Vector3.new(0.4, 0.4, 0.4),
+		CFrame = CFrame.new(0, 0, -0.6),
+		Transparency = 1,
+		Parent = model,
+	})
+	local light = Instance.new("PointLight")
+	light.Range = 18
+	light.Brightness = 0
+	light.Parent = core
+
+	local p = makePuppet(show, model, 1, CFrame.identity)
+	p.Body = body
+	p.Face = face
+	p.Cracks = {}
+	p.Glow = glowEmitter(core, 4.5)
+	p.Light = light
+	p.Sparks = sparkEmitter(body, WHITE, 0.55, 16)
+	return p
+end
+
+-- Ein leuchtender Riss auf der Vorderseite: 3 Zacken von einem zufälligen Punkt aus
+local function addCrack(p, seed: number, color: Color3)
 	local rng = Random.new(seed)
-	local w, h = box.Size.X.Offset, box.Size.Y.Offset
-	local x, y = rng:NextNumber(0.2, 0.8) * w, rng:NextNumber(0.2, 0.8) * h
+	local body = p.Body
+	local k = body.Size.X / 2.8 -- aktuelle Größe des Packs
+	local halfX, halfY = body.Size.X * 0.44, body.Size.Y * 0.44
+	local x, y = rng:NextNumber(-0.3, 0.3) * body.Size.X, rng:NextNumber(-0.32, 0.32) * body.Size.Y
 	local angle = rng:NextNumber(0, math.pi * 2)
 	for _ = 1, 3 do
-		local len = rng:NextNumber(24, 44)
-		local nx, ny = x + math.cos(angle) * len, y + math.sin(angle) * len
-		local seg = Instance.new("Frame")
-		seg.AnchorPoint = Vector2.new(0.5, 0.5)
-		seg.Position = UDim2.fromOffset((x + nx) / 2, (y + ny) / 2)
-		seg.Size = UDim2.fromOffset(len + 2, 4)
-		seg.Rotation = math.deg(angle)
-		seg.BackgroundColor3 = color
-		seg.BorderSizePixel = 0
-		seg.ZIndex = 4
-		seg.Parent = box
-		table.insert(list, seg)
+		local len = rng:NextNumber(0.5, 0.95) * k
+		local nx = math.clamp(x + math.cos(angle) * len, -halfX, halfX)
+		local ny = math.clamp(y + math.sin(angle) * len, -halfY, halfY)
+		local dx, dy = nx - x, ny - y
+		local real = math.sqrt(dx * dx + dy * dy)
+		if real > 0.05 then
+			local seg = stagePart({
+				Name = "Riss",
+				Size = Vector3.new(real + 0.06 * k, 0.1 * k, 0.06 * k),
+				CFrame = body.CFrame * CFrame.new((x + nx) / 2, (y + ny) / 2, body.Size.Z / 2 + 0.02 * k) * CFrame.Angles(0, 0, math.atan2(dy, dx)),
+				Color = color,
+				Material = Enum.Material.Neon,
+				Parent = p.Model,
+			})
+			table.insert(p.Cracks, seg)
+		end
 		x, y = nx, ny
-		angle += rng:NextNumber(-1, 1)
+		angle += rng:NextNumber(-1.1, 1.1)
 	end
 end
 
--- Pack aufladen: wackeln, Ticks werden höher, Risse mit Licht, Leuchtkreis wächst.
--- Seltene laden länger, ab Episch gibt es einen Trommelwirbel und die Farbe verrät sich am Ende.
-local function chargePack(box: Frame, boxStroke: UIStroke, boxScale: UIScale, question: TextLabel, rays: Frame, glow: Frame, rank: number, color: Color3, steps: number, baseWait: number)
-	local isEpic = rank >= Config.RarityRank("Epic")
-	local isLegendary = rank >= Config.RarityRank("Legendary")
-	local drum = if isEpic then startSound("DrumRoll", 0.55) else nil
-	local cracks = {}
-	local crackCount = 0
-	for i = 1, steps do
-		local t = i / steps
-		local strength = 2 + t * 14
-		box.Rotation = (if i % 2 == 0 then 1 else -1) * strength
-		box.Position = UDim2.new(0.5, math.random(-1, 1) * t * 8, 0.5, math.random(-1, 1) * t * 8)
-		boxScale.Scale = 1 + t * 0.28
-		question.Rotation = -box.Rotation
-		playSound("Tick", 0.8 + t * 1.2)
-		local reveal = isEpic and t > 0.6
-		local rayColor = if reveal then color else Color3.new(1, 1, 1)
-		for _, r in rays:GetChildren() do
-			if r:IsA("Frame") then
-				r.BackgroundColor3 = rayColor
-				r.BackgroundTransparency = 1 - t * 0.5
-			end
-		end
-		-- Risse: ab gut einem Drittel immer mehr
-		local want = math.floor(math.max(0, t - 0.3) * 10)
-		while crackCount < want do
-			crackCount += 1
-			addCrack(box, Color3.new(1, 1, 1), crackCount * 13 + rank, cracks)
-		end
-		glow.Size = UDim2.fromOffset(220 + t * 180, 220 + t * 180)
-		glow.BackgroundTransparency = 0.9 - t * 0.4
-		if reveal then
-			-- Licht in der Seltenheits-Farbe scheint durch die Risse
-			boxStroke.Color = color
-			boxStroke.Thickness = 5 + t * 8
-			glow.BackgroundColor3 = color
-			for _, seg in cracks do
-				seg.BackgroundColor3 = color
-				seg.Size = UDim2.fromOffset(seg.Size.X.Offset, 6)
-			end
-		end
-		if isLegendary and t > 0.5 then
-			shake(t * 1.5, 0.2)
-		end
-		task.wait(baseWait - t * baseWait * 0.4)
-	end
-	stopSound(drum, 0.15)
-	-- Ab Legendär: kurzer Moment Stille, das Pack glüht in der Farbe und wird groß
-	if isLegendary then
-		box.Rotation = 0
-		question.Rotation = 0
-		tween(box, 0.35, { BackgroundColor3 = color, Position = UDim2.fromScale(0.5, 0.48) })
-		tween(boxScale, 0.35, { Scale = 1.5 })
-		shake(3, 0.35)
-		task.wait(0.4)
-	end
+-- 1. Akt: Kamera fährt ran, das Pack fällt von oben und knallt aufs Podest
+local function enterPack(show, pack, bigText: string)
+	local packColor = pack and pack.Color or WHITE
+	local p = buildPack(show, pack and pack.Name or "Pack", bigText, packColor)
+	p.Pos.Value = Vector3.new(0, 17, 0)
+	p.Tilt.Value = Vector3.new(0, -360, 20)
+	updatePuppet(p)
+	p.Model.Parent = show.Folder
+	tween(show.CamPos, 0.9, { Value = Vector3.new(0, 3.9, 14) }, Enum.EasingStyle.Quart)
+	task.wait(0.15) -- kurz warten, bis die Schwarzblende offen ist
+
+	local fall = 0.42
+	playSound("PackDrop")
+	tweenIn(p.Pos, fall, { Value = Vector3.new(0, PACK_Y, 0) })
+	tween(p.Tilt, fall, { Value = Vector3.zero }, Enum.EasingStyle.Linear)
+	task.wait(fall)
+
+	-- Aufschlag: dumpfer Schlag, Staub, Ring, das Pack federt kurz nach
+	playSound("PackSlam")
+	shake(2.4, 0.3)
+	show.Dust:Emit(18)
+	stageRing(show, WHITE, 15, 0.45)
+	p.Size.Value = 0.8
+	tween(p.Size, 0.45, { Value = 1 }, Enum.EasingStyle.Elastic)
+	p.Pos.Value = Vector3.new(0, PACK_Y - 0.25, 0)
+	tween(p.Pos, 0.3, { Value = Vector3.new(0, PACK_Y, 0) }, Enum.EasingStyle.Back)
+	return p
 end
 
--- Pack platzt: reißt in zwei Hälften, Blitz, Druckwelle, Sterne
-local function burstPack(dim: Frame, box: Frame, packColor: Color3, rank: number, color: Color3)
-	local isEpic = rank >= Config.RarityRank("Epic")
-	local isLegendary = rank >= Config.RarityRank("Legendary")
-	playSound("PackCrack")
-	local absPos, absSize = box.AbsolutePosition - dim.AbsolutePosition, box.AbsoluteSize
-	local halfColor = box.BackgroundColor3
-	box:Destroy()
+-- 2. Akt: Schläge. Bei jedem Schlag ruckt das Pack, bekommt einen Riss, der Ton wird höher,
+-- die Kamera rückt näher und das Raumlicht wird dunkler. Gibt true zurück, wenn übersprungen.
+local function chargePack(show, p, hits: number): boolean
+	local gap = 0.44
+	for i = 1, hits do
+		if beat(show, gap) then
+			return true
+		end
+		local t = i / hits
+		local side = if i % 2 == 0 then 1 else -1
+		playSound("PackHit", 2 ^ ((i - 1) * 2 / 12)) -- jeder Schlag einen Ganzton höher
+		if i > 1 then
+			playSound("PackCrackle", 0.9 + t * 0.4)
+		end
+		p.Tilt.Value = Vector3.new(0, side * 12, side * (10 + t * 14))
+		tween(p.Tilt, gap * 0.85, { Value = Vector3.zero }, Enum.EasingStyle.Elastic)
+		p.Size.Value = 1.12 + t * 0.12
+		tween(p.Size, gap * 0.7, { Value = 1 + t * 0.06 }, Enum.EasingStyle.Back)
+		p.Pos.Value = Vector3.new(0, PACK_Y + 0.35 + t * 0.4, 0)
+		tween(p.Pos, gap * 0.6, { Value = Vector3.new(0, PACK_Y, 0) }, Enum.EasingStyle.Bounce)
+		addCrack(p, i * 17 + hits, WHITE)
+		p.Sparks:Emit(6 + i * 4)
+		p.Light.Brightness = t * 3
+		p.Glow.Rate = t * 14
+		shake(0.6 + t * 1.6, 0.18)
+		tween(show.CamPos, gap, { Value = Vector3.new(0, 3.9 - t * 0.4, 14 - t * 3) })
+		tween(show.CamFov, gap, { Value = 55 - t * 7 })
+		show.Key.Brightness = 2.6 - t * 1.6
+		gap *= 0.86
+	end
+	return beat(show, gap)
+end
+
+-- 3. Akt (ab Selten): Das Pack hebt ab und verrät seine Farbe. Die Farbe steigt Stufe für
+-- Stufe (blau, lila, gold, pink), und man hofft bei jeder Stufe, dass noch eine kommt.
+-- Gibt true zurück, wenn übersprungen.
+local function tellRarity(show, p, rank: number): boolean
+	if rank < RARE_RANK then
+		return false
+	end
+	local steps = rank - RARE_RANK + 1
+	local stepTime = if steps == 1 then 0.4 else 0.46
+	local total = steps * stepTime
+	local riser = if steps > 1 then startSound("Riser", 0.5, math.clamp(Config.RiserPeak / total, 0.9, 2.5)) else nil
+	local lift = Vector3.new(0, PACK_Y + 0.5 + steps * 0.25, 0)
+	tween(p.Pos, total, { Value = lift }, Enum.EasingStyle.Sine)
+	tween(show.CamLook, total, { Value = Vector3.new(0, lift.Y, 0) }, Enum.EasingStyle.Sine)
+	tween(show.CamPos, total, { Value = Vector3.new(0, lift.Y + 0.6, 10 - steps * 0.3) }, Enum.EasingStyle.Sine)
+	tween(show.CamFov, total, { Value = 46 })
+	setRays(show, 0.5, total)
+	local skipped = false
+	for s = 1, steps do
+		local color = Config.Rarities[Config.RarityOrder[RARE_RANK + s - 1]].Color
+		playSound("TellStep", 2 ^ ((s - 1) * 3 / 12)) -- jede Stufe eine kleine Terz höher
+		setShowColor(show, p, color)
+		p.Jitter = 0.02 + s * 0.03
+		p.Size.Value = 1.24
+		tween(p.Size, stepTime * 0.8, { Value = 1.08 + s * 0.02 }, Enum.EasingStyle.Back)
+		p.Sparks:Emit(14)
+		p.Light.Brightness = 3 + s
+		stageRing(show, color, 12 + s * 3, 0.45)
+		shake(1 + s * 0.5, stepTime * 0.6)
+		if beat(show, stepTime) then
+			skipped = true
+			break
+		end
+	end
+	stopSound(riser, 0.06)
+	if not skipped and rank >= LEGENDARY_RANK then
+		-- Ganz kurz ist alles still und dunkel. Genau dann knallt es am schönsten.
+		p.Jitter = 0
+		show.Key.Brightness = 0
+		show.Rim.Brightness = 0.3
+		skipped = beat(show, if rank >= MYTHIC_RANK then 0.42 else 0.24)
+	end
+	return skipped
+end
+
+-- 4. Akt: Das Pack platzt. Ein winziger Stillstand, dann Blitz, Knall, Scherben, Druckwelle.
+local function burstPack(show, p, rank: number, color: Color3)
+	local isEpic = rank >= EPIC_RANK
+	local isLegendary = rank >= LEGENDARY_RANK
+	local body = p.Body
+	p.Jitter = 0
+	p.Size.Value = 1.32
+	task.wait(0.06)
+
+	playSound("PackBurst")
+	if isEpic then
+		playSound("PackBurstBig")
+	end
+	show.Puppets[p] = nil -- ab jetzt fliegen die Teile einzeln
+	local center = body.Position
+	local bodyCF, bodySize, bodyColor = body.CFrame, body.Size, body.Color
+	p.Face:Destroy()
+	body.Transparency = 1
+	p.Glow.Rate = 0
+	tween(p.Light, 0.4, { Brightness = 0 })
+	-- zwei Hälften reißen auseinander
 	for _, dir in { -1, 1 } do
-		local half = Instance.new("Frame")
-		half.AnchorPoint = Vector2.new(0.5, 0.5)
-		half.Size = UDim2.fromOffset(absSize.X, absSize.Y / 2)
-		half.Position = UDim2.fromOffset(absPos.X + absSize.X / 2, absPos.Y + absSize.Y * (if dir < 0 then 0.25 else 0.75))
-		half.BackgroundColor3 = halfColor
-		half.Parent = dim
-		corner(half, 14)
-		local s = stroke(half, Color3.new(1, 1, 1), 4)
-		tween(half, 0.55, {
-			Position = half.Position + UDim2.fromOffset(dir * 180, dir * 260),
-			Rotation = dir * 40,
-			BackgroundTransparency = 1,
+		local half = stagePart({
+			Size = Vector3.new(bodySize.X / 2, bodySize.Y, bodySize.Z),
+			CFrame = bodyCF * CFrame.new(dir * bodySize.X / 4, 0, 0),
+			Color = bodyColor,
+			Material = Enum.Material.Foil,
+			Parent = show.Folder,
 		})
-		tween(s, 0.55, { Transparency = 1 })
-		task.delay(0.6, function()
+		tween(half, 0.6, {
+			CFrame = bodyCF * CFrame.new(dir * 9, 2.5, 1) * CFrame.Angles(math.rad(40), dir * math.rad(70), dir * math.rad(-120)),
+			Transparency = 1,
+		})
+		task.delay(0.65, function()
 			half:Destroy()
 		end)
 	end
-	local flash = Instance.new("Frame")
-	flash.Size = UDim2.fromScale(1, 1)
-	flash.BackgroundColor3 = if isLegendary then color else Color3.new(1, 1, 1)
-	flash.BorderSizePixel = 0
-	flash.Parent = overlayGui
-	tween(flash, 0.7, { BackgroundTransparency = 1 })
-	task.delay(0.8, function()
-		flash:Destroy()
-	end)
-	shockwave(dim, if isEpic then color else packColor, if isLegendary then 1100 else 700)
-	if isLegendary then
-		task.delay(0.12, function()
-			shockwave(dim, Color3.new(1, 1, 1), 900)
-		end)
-	end
-	starBurst(UDim2.fromScale(0.5, 0.5), color, if isLegendary then 44 else 22, if isLegendary then 440 else 290)
-	if rank >= 6 then
-		shake(8, 1.1)
-	elseif isLegendary then
-		shake(6, 0.8)
-	elseif isEpic then
-		shake(2.5, 0.4)
-	end
-end
-
--- Hintergrund: unscharf, dunkel, Strahlen und Leuchtkreis hinter dem Pack
-local function openingBackdrop(raySize: number)
-	local blur = Instance.new("BlurEffect")
-	blur.Size = 0
-	blur.Parent = Lighting
-	tween(blur, 0.4, { Size = 18 })
-	local dim = Instance.new("Frame")
-	dim.Size = UDim2.fromScale(1, 1)
-	dim.BackgroundColor3 = Color3.new(0, 0, 0)
-	dim.BackgroundTransparency = 1
-	dim.Parent = overlayGui
-	tween(dim, 0.4, { BackgroundTransparency = 0.4 })
-	local glow = Instance.new("Frame")
-	glow.AnchorPoint = Vector2.new(0.5, 0.5)
-	glow.Position = UDim2.fromScale(0.5, 0.5)
-	glow.Size = UDim2.fromOffset(220, 220)
-	glow.BackgroundColor3 = Color3.new(1, 1, 1)
-	glow.BackgroundTransparency = 1
-	glow.BorderSizePixel = 0
-	glow.Parent = dim
-	corner(glow, 2000)
-	local rays = sunburst(dim, Color3.new(1, 1, 1), raySize)
-	rays.Position = UDim2.fromScale(0.5, 0.5)
-	for _, r in rays:GetChildren() do
-		if r:IsA("Frame") then
-			r.BackgroundTransparency = 1
+	-- Ränder und Risse fliegen als Scherben weg
+	for _, part in p.Model:GetChildren() do
+		if part:IsA("BasePart") and part ~= body and part.Name ~= "Kern" then
+			local away = part.Position - center
+			if away.Magnitude < 0.1 then
+				away = Vector3.new(math.random() - 0.5, math.random() - 0.5, 0.2)
+			end
+			local target = part.Position + away.Unit * (5 + math.random() * 6) + Vector3.new(0, math.random() * 2, math.random() * 3)
+			tween(part, 0.5, {
+				CFrame = CFrame.new(target) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+				Transparency = 1,
+			})
 		end
 	end
-	return blur, dim, rays, glow
+	task.delay(0.7, function()
+		p.Model:Destroy()
+	end)
+
+	screenFlash(show, if isLegendary then color:Lerp(WHITE, 0.5) else WHITE, 0.95, if isLegendary then 0.7 else 0.5)
+	show.Burst.Color = ColorSequence.new(color, WHITE)
+	show.Burst:Emit(40 + rank * 14)
+	stageRing(show, color, 30, 0.5)
+	shockwave(show.Root, color, if isLegendary then 1300 else 800)
+	if isLegendary then
+		task.delay(0.12, function()
+			if show.Root.Parent then
+				stageRing(show, WHITE, 40, 0.6)
+				shockwave(show.Root, WHITE, 1000)
+			end
+		end)
+	end
+	starBurst(UDim2.fromScale(0.5, 0.5), color, if isLegendary then 40 else 20, if isLegendary then 460 else 300)
+	shake(if rank >= MYTHIC_RANK then 8 elseif isLegendary then 6 elseif isEpic then 4 else 2.5, if isLegendary then 0.9 else 0.45)
+
+	-- Kamera springt zurück (wirkt wie ein Rückstoß), Licht geht wieder an
+	setShowColor(show, nil, color)
+	setRays(show, 1, 0.3)
+	show.Key.Brightness = 3
+	show.Rim.Brightness = 2
+	show.CamFov.Value = 72
+	tween(show.CamFov, 0.6, { Value = 50 }, Enum.EasingStyle.Back)
+	tween(show.CamPos, 0.6, { Value = Vector3.new(0, 4.4, 13.5) }, Enum.EasingStyle.Back)
+	tween(show.CamLook, 0.4, { Value = Vector3.new(0, 3, 0) })
 end
 
+-- Kreatur als 3D-Modell für die Bühne. Gibt das Modell und seine Grundgröße zurück.
+local function buildShowCreature(def, rank: number): (Model, number)
+	local wanted = 3.5 + rank * 0.25 -- Höhe in Studs: seltene sind größer
+	local folder = ReplicatedStorage:FindFirstChild("KreaturenModelle")
+	local template = folder and folder:FindFirstChild(def.Id)
+	if template and template:IsA("Model") then
+		local model = template:Clone()
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide = false
+				d.CanTouch = false
+				d.CanQuery = false
+				d.CastShadow = false
+			elseif d:IsA("LuaSourceContainer") then
+				d:Destroy()
+			end
+		end
+		local height = model:GetExtentsSize().Y
+		if height > 0.05 then
+			return model, model:GetScale() * wanted / height
+		end
+		model:Destroy()
+	end
+	-- Backup ohne KI-Modell: Klotz mit Augen und Bauchbinde (schaut wie die Modelle nach -Z)
+	local s = wanted * 0.8
+	local model = Instance.new("Model")
+	local body = stagePart({
+		Name = "Body",
+		Size = Vector3.new(s, s, s),
+		CFrame = CFrame.new(0, s / 2, 0),
+		Color = def.Color,
+		Parent = model,
+	})
+	for _, x in { -0.22, 0.22 } do
+		stagePart({
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * (s * 0.24),
+			CFrame = CFrame.new(x * s, s * 0.62, -s * 0.5),
+			Color = WHITE,
+			Parent = model,
+		})
+		stagePart({
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * (s * 0.12),
+			CFrame = CFrame.new(x * s, s * 0.6, -s * 0.59),
+			Color = BLACK,
+			Parent = model,
+		})
+	end
+	stagePart({
+		Size = Vector3.new(s * 1.04, s * 0.18, s * 1.04),
+		CFrame = CFrame.new(0, s * 0.16, 0),
+		Color = def.Accent,
+		Parent = model,
+	})
+	body.PivotOffset = CFrame.new(0, -s / 2, 0) -- Pivot unten in der Mitte
+	model.PrimaryPart = body
+	return model, 1
+end
+
+-- Mutation: leuchtende Hülle über der Kreatur (wie in der Base)
+local function addMutationShell(model: Model, mutationId: string, mutation)
+	if not mutation.Color then
+		return
+	end
+	local found = false
+	for _, mesh in model:GetDescendants() do
+		if mesh:IsA("MeshPart") then
+			found = true
+			local shell = mesh:Clone()
+			shell:ClearAllChildren()
+			shell.Name = "MutationsGlanz"
+			shell.TextureID = ""
+			shell.Material = Enum.Material.ForceField
+			shell.Color = mutation.Color
+			shell.Size = mesh.Size * 1.06
+			shell.CFrame = mesh.CFrame
+			if mutationId == "Regenbogen" then
+				CollectionService:AddTag(shell, "Rainbow")
+			end
+			shell.Parent = mesh.Parent
+		end
+	end
+	if not found and model.PrimaryPart then
+		model.PrimaryPart.Color = mutation.Color
+		model.PrimaryPart.Material = Enum.Material.Glass
+		if mutationId == "Regenbogen" then
+			CollectionService:AddTag(model.PrimaryPart, "Rainbow")
+		end
+	end
+end
+
+-- 5. Akt: Die Kreatur wirbelt aus dem Licht nach oben und landet auf dem Podest.
+-- Die Funktion kommt genau im Moment der Landung zurück (da gehört die Fanfare hin).
+local function revealCreature(show, def, rank: number, color: Color3)
+	local model, baseScale = buildShowCreature(def, rank)
+	local c = makePuppet(show, model, baseScale, CFrame.Angles(0, math.pi, 0)) -- umdrehen: Gesicht zur Kamera
+	c.Pos.Value = Vector3.new(0, PACK_Y - 0.8, 0)
+	c.Size.Value = 0.12
+	c.Tilt.Value = Vector3.new(0, -540, 0)
+	updatePuppet(c)
+	model.Parent = show.Folder
+	c.Sparks = sparkEmitter(stagePart({
+		Name = "Funken",
+		Size = Vector3.new(3, 3, 3),
+		CFrame = STAGE * CFrame.new(0, PEDESTAL_TOP + 2, 0),
+		Transparency = 1,
+		Parent = show.Folder,
+	}), color, 0.6, 12)
+
+	playSound("Appear")
+	local rise = 0.52
+	tween(c.Size, rise, { Value = 1 }, Enum.EasingStyle.Back)
+	tween(c.Tilt, rise, { Value = Vector3.zero }, Enum.EasingStyle.Quart)
+	tween(c.Pos, rise * 0.55, { Value = Vector3.new(0, PACK_Y + 0.4, 0) })
+	task.wait(rise * 0.55)
+	tweenIn(c.Pos, rise * 0.45, { Value = Vector3.new(0, PEDESTAL_TOP, 0) })
+	task.wait(rise * 0.45)
+
+	-- Landung
+	c.Size.Value = 0.84
+	tween(c.Size, 0.45, { Value = 1 }, Enum.EasingStyle.Elastic)
+	c.IdleStart = os.clock()
+	c.Idle = true
+	show.Dust:Emit(10)
+	stageRing(show, color, 20, 0.5)
+	c.Sparks:Emit(20 + rank * 6)
+	shake(if rank >= LEGENDARY_RANK then 4 else 1.5, 0.3)
+	return c
+end
+
+local function stingerKey(rank: number): string
+	if rank >= MYTHIC_RANK then
+		return "Mythic"
+	elseif rank >= LEGENDARY_RANK then
+		return "Legendary"
+	elseif rank >= EPIC_RANK then
+		return "Epic"
+	elseif rank >= RARE_RANK then
+		return "Rare"
+	end
+	return "RevealCommon"
+end
+
+-- Schriftzug in der Mitte (y und Höhe als Anteil vom Bildschirm)
+local function showLine(show, text: string, color: Color3, y: number, height: number): (TextLabel, UIScale)
+	local l = label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, y),
+		Size = UDim2.fromScale(0.9, height),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = color,
+		TextStrokeTransparency = 0,
+		Text = text,
+		ZIndex = 4,
+		Parent = show.Root,
+	})
+	stroke(l, BLACK, 3)
+	local s = Instance.new("UIScale")
+	s.Parent = l
+	return l, s
+end
+
+-- Zahl zählt hoch, bei jedem Schritt ein Tick, der höher wird, am Ende ein "Ding"
+local function countIncome(l: TextLabel, scale: UIScale, from: number, to: number, time: number, prefix: string?)
+	local pre = prefix or ""
+	local steps = math.clamp(math.floor(time / 0.05), 4, 12)
+	for i = 1, steps do
+		local v = from + (to - from) * (i / steps)
+		l.Text = `{pre}+{Config.FormatNumber(math.floor(v + 0.5))} $/s`
+		playSound("CountTick", 1 + i * 0.06)
+		task.wait(time / steps)
+	end
+	l.Text = `{pre}+{Config.FormatNumber(to)} $/s`
+	playSound("CountDone")
+	scale.Scale = 1.35
+	tween(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+end
+
+local function showButton(show, text: string, color: Color3, xOffset: number): TextButton
+	local b = Instance.new("TextButton")
+	b.AnchorPoint = Vector2.new(0.5, 0.5)
+	b.Position = UDim2.new(0.5, xOffset, 0.93, 0)
+	b.Size = UDim2.fromOffset(230, 48)
+	b.BackgroundColor3 = color
+	b.Font = Enum.Font.FredokaOne
+	b.TextScaled = true
+	b.TextColor3 = WHITE
+	b.TextStrokeTransparency = 0.5
+	b.Text = text
+	b.ZIndex = 6
+	b.Parent = show.Root
+	corner(b, 12)
+	stroke(b, WHITE, 3).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 7)
+	pad.PaddingBottom = UDim.new(0, 7)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.Parent = b
+	local s = Instance.new("UIScale")
+	s.Scale = 0
+	s.Parent = b
+	tween(s, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	return b
+end
+
+-- Letzter Akt: "Nochmal" und "Fertig". Wartet auf einen Klick oder bis die Zeit um ist.
+local function waitForEnd(show, pack, count: number, seconds: number)
+	local cost = if pack then Config.PackCost(pack, count) else 0
+	local again: TextButton? = nil
+	if pack and (player:GetAttribute("Money") or 0) >= cost then
+		again = showButton(show, `Nochmal · {Config.FormatNumber(cost)} $`, Color3.fromRGB(60, 200, 90), -125)
+		again.Activated:Connect(function()
+			show.Again = true
+		end)
+	end
+	local done = showButton(show, "Fertig", Color3.fromRGB(90, 90, 115), if again then 125 else 0)
+	local baseClicks = show.Clicks
+	done.Activated:Connect(function()
+		show.Clicks += 1
+	end)
+	local stop = os.clock() + seconds
+	while os.clock() < stop and not show.Again and show.Clicks == baseClicks do
+		task.wait()
+	end
+	if show.Again or show.Clicks ~= baseClicks then
+		playSound("Click")
+	end
+end
+
+-- Ein Pack: die ganze Zwischensequenz mit einer Kreatur
 local function openPackAnimation(entry: string, packId: string, wasPity: boolean)
 	local def, mutationId = Config.ParseEntry(entry)
 	if not def then
@@ -1236,397 +2074,430 @@ local function openPackAnimation(entry: string, packId: string, wasPity: boolean
 	local rarity = Config.Rarities[def.Rarity]
 	local mutation = Config.Mutations[mutationId]
 	local rank = Config.RarityRank(def.Rarity)
-	local isEpic = rank >= Config.RarityRank("Epic")
-	local isLegendary = rank >= Config.RarityRank("Legendary")
-	local packColor = pack and pack.Color or Color3.new(1, 1, 1)
-	opening = true
-	shop.Visible = false
+	local isLegendary = rank >= LEGENDARY_RANK
+	runShow(pack, 1, function(show)
+		local p = enterPack(show, pack, "?")
+		-- Seltene laden länger auf: 3 Schläge bei Gewöhnlich, bis 6 ab Episch
+		local _ = chargePack(show, p, 2 + math.min(rank, 4)) or tellRarity(show, p, rank)
+		show.Skip = false
+		burstPack(show, p, rank, rarity.Color)
+		local c = revealCreature(show, def, rank, rarity.Color)
 
-	local blur, dim, rays, glow = openingBackdrop(520)
-
-	-- Das Pack fällt von oben rein
-	local box, boxStroke, boxScale, question = makePackBox(dim, pack and pack.Name or "Pack", "?", packColor, 160, 210)
-	playSound("Swoosh", 0.8)
-	tween(box, 0.6, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Bounce)
-	task.wait(0.6)
-
-	chargePack(box, boxStroke, boxScale, question, rays, glow, rank, rarity.Color, 12 + math.max(0, rank - 2) * 4, 0.12)
-	burstPack(dim, box, packColor, rank, rarity.Color)
-	playSound(revealSoundKey(rank, mutationId ~= "Normal"))
-	if rank >= 6 then
-		-- Mythisch: großer Schriftzug knallt oben rein
-		local slam = label({
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = UDim2.new(0.8, 0, 0, 90),
-			Position = UDim2.fromScale(0.5, 0.13),
-			Font = Enum.Font.FredokaOne,
-			TextColor3 = rarity.Color,
-			TextStrokeTransparency = 0,
-			Text = string.upper(rarity.Name) .. "!!",
-			ZIndex = 6,
-			Parent = dim,
-		})
-		local slamScale = Instance.new("UIScale")
-		slamScale.Scale = 3
-		slamScale.Parent = slam
-		tween(slamScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
-	end
-	for _, r in rays:GetChildren() do
-		if r:IsA("Frame") then
-			r.BackgroundColor3 = rarity.Color
-			r.BackgroundTransparency = 0.45
+		-- Landung: Fanfare und Schriftzug kommen im selben Moment
+		playSound(stingerKey(rank))
+		local banner, bannerScale = showLine(show, string.upper(rarity.Name) .. (if isLegendary then "!!" else "!"), rarity.Color, 0.16, 0.13)
+		banner.Rotation = -5
+		bannerScale.Scale = 3.2
+		tween(bannerScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		tween(banner, 0.3, { Rotation = 0 }, Enum.EasingStyle.Back)
+		if wasPity then
+			showLine(show, "PITY-GARANTIE!", Color3.fromRGB(255, 230, 120), 0.065, 0.045)
 		end
-	end
-	tween(rays, 0.5, { Size = UDim2.fromOffset(if isLegendary then 900 else 650, if isLegendary then 900 else 650) })
-	glow.BackgroundColor3 = mutation.Color or rarity.Color
-	tween(glow, 0.5, { Size = UDim2.fromOffset(460, 460), BackgroundTransparency = 0.75 })
-
-	-- Reveal-Karte dreht sich auf (Breite 0 -> voll sieht aus wie ein Umdrehen)
-	local card = Instance.new("Frame")
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
-	card.Position = UDim2.fromScale(0.5, 0.5)
-	card.Size = UDim2.fromOffset(0, 340)
-	card.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-	card.ClipsDescendants = true
-	card.Parent = dim
-	corner(card, 18)
-	if isLegendary then
-		animatedBorder(card, mutation.Color or rarity.Color, 7)
-	else
-		stroke(card, mutation.Color or rarity.Color, 6)
-	end
-	tween(card, 0.45, { Size = UDim2.fromOffset(340, 340) }, Enum.EasingStyle.Back)
-	shineOnce(card, 0.5)
-
-	label({
-		Size = UDim2.new(1, 0, 0, 34),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = rarity.Color,
-		Font = Enum.Font.FredokaOne,
-		TextColor3 = Color3.new(1, 1, 1),
-		TextStrokeTransparency = 0.3,
-		Text = string.upper(rarity.Name) .. "!",
-		Parent = card,
-	})
-
-	local _, iconScale = creatureIcon(card, def, mutationId, 136, 40)
-	task.delay(0.25, function()
-		tween(iconScale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
-	end)
-
-	label({
-		Size = UDim2.new(1, -20, 0, 36),
-		Position = UDim2.new(0, 10, 0, 180),
-		Font = Enum.Font.FredokaOne,
-		TextColor3 = rarity.Color,
-		TextStrokeTransparency = 0.5,
-		Text = Config.EntryName(entry),
-		Parent = card,
-	})
-	if mutation.Name ~= "" then
-		local mutationLabel = label({
-			Size = UDim2.new(1, -40, 0, 24),
-			Position = UDim2.new(0, 20, 0, 218),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = mutation.Color or Color3.new(1, 1, 1),
-			Font = Enum.Font.FredokaOne,
-			TextColor3 = Color3.new(0, 0, 0),
-			Text = `{string.upper(mutation.Name)} x{mutation.Multiplier}`,
-			Parent = card,
-		})
-		corner(mutationLabel, 8)
-		if mutationId == "Regenbogen" then
-			CollectionService:AddTag(mutationLabel, "RainbowGui")
+		if rank >= EPIC_RANK then
+			confetti(if rank >= MYTHIC_RANK then 200 elseif isLegendary then 140 else 60)
 		end
-	end
-	label({
-		Size = UDim2.new(1, -20, 0, 28),
-		Position = UDim2.new(0, 10, 0, 248),
-		TextColor3 = Color3.fromRGB(130, 255, 130),
-		Text = `+{Config.FormatNumber(Config.EntryIncome(entry))} $/s`,
-		Parent = card,
-	})
-	label({
-		Size = UDim2.new(1, -20, 0, 18),
-		Position = UDim2.new(0, 10, 1, -28),
-		TextColor3 = Color3.fromRGB(180, 180, 190),
-		Text = if wasPity then "Pity-Garantie! · Klicken zum Schließen" else "Klicken zum Schließen",
-		Parent = card,
-	})
-
-	if isEpic or mutationId ~= "Normal" then
-		confetti(if rank >= 6 then 200 elseif isLegendary then 140 else 60)
-	end
-	if rank >= 6 then
-		-- Mythisch: zweite Welle Konfetti und Sterne
-		task.delay(0.8, function()
-			confetti(120)
-			starBurst(UDim2.fromScale(0.5, 0.5), mutation.Color or rarity.Color, 30, 500)
+		if rank >= MYTHIC_RANK then
+			-- Mythisch: es knallt noch ein paar Mal nach
+			task.spawn(function()
+				for i = 1, 3 do
+					task.wait(0.45)
+					if not show.Root.Parent then
+						return
+					end
+					stageRing(show, if i % 2 == 0 then WHITE else rarity.Color, 30, 0.6)
+					starBurst(UDim2.fromScale(0.25 + math.random() * 0.5, 0.25 + math.random() * 0.4), rarity.Color, 18, 260)
+					c.Sparks:Emit(30)
+				end
+				confetti(120)
+			end)
+		end
+		-- ruhige Kamerafahrt um die Kreatur, damit das Bild nicht steht
+		task.delay(0.6, function()
+			tween(show.CamPos, 6, { Value = Vector3.new(if isLegendary then 3.2 else 1.4, 4.1, 12.2) }, Enum.EasingStyle.Sine)
 		end)
-	end
 
-	-- Schließen per Klick oder automatisch
-	local closeButtonOverlay = Instance.new("TextButton")
-	closeButtonOverlay.Size = UDim2.fromScale(1, 1)
-	closeButtonOverlay.BackgroundTransparency = 1
-	closeButtonOverlay.Text = ""
-	closeButtonOverlay.Parent = dim
-	local closed = false
-	local function close()
-		if closed then
-			return
+		task.wait(0.25)
+		local name, nameScale = showLine(show, def.Name, WHITE, 0.79, 0.075)
+		nameScale.Scale = 0.3
+		tween(nameScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+		playSound("Pop")
+		task.wait(0.22)
+		local income, incomeScale = showLine(show, "+0 $/s", Color3.fromRGB(130, 255, 130), 0.86, 0.055)
+		countIncome(income, incomeScale, 0, def.Income, 0.4)
+
+		if mutationId ~= "Normal" then
+			-- Zweite Überraschung: der Mutations-Stempel knallt drauf, die Zahl springt hoch
+			task.wait(0.3)
+			local stampColor = mutation.Color or WHITE
+			local stamp = label({
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.69, 0.36),
+				Size = UDim2.fromScale(0.24, 0.085),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = stampColor,
+				Font = Enum.Font.FredokaOne,
+				TextColor3 = BLACK,
+				Text = `{string.upper(mutation.Name)} x{mutation.Multiplier}`,
+				Rotation = 30,
+				ZIndex = 5,
+				Parent = show.Root,
+			})
+			corner(stamp, 12)
+			stroke(stamp, WHITE, 4).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			if mutationId == "Regenbogen" then
+				CollectionService:AddTag(stamp, "RainbowGui")
+			end
+			local stampScale = Instance.new("UIScale")
+			stampScale.Scale = 4
+			stampScale.Parent = stamp
+			tweenIn(stampScale, 0.16, { Scale = 1 })
+			tweenIn(stamp, 0.16, { Rotation = 9 })
+			task.wait(0.16)
+			playSound("Stamp")
+			shake(3.5, 0.3)
+			screenFlash(show, stampColor, 0.45, 0.4)
+			addMutationShell(c.Model, mutationId, mutation)
+			c.Sparks.Color = ColorSequence.new(stampColor, WHITE)
+			c.Sparks:Emit(40)
+			c.Size.Value = 1.25
+			tween(c.Size, 0.45, { Value = 1 }, Enum.EasingStyle.Elastic)
+			stageRing(show, stampColor, 24, 0.5)
+			name.Text = Config.EntryName(entry)
+			name.TextColor3 = stampColor
+			task.wait(0.25)
+			countIncome(income, incomeScale, def.Income, Config.EntryIncome(entry), 0.45)
+			confetti(60)
 		end
-		closed = true
-		tween(blur, 0.25, { Size = 0 }).Completed:Once(function()
-			blur:Destroy()
-		end)
-		tween(card, 0.2, { Size = UDim2.fromOffset(0, 340) })
-		task.wait(0.2)
-		dim:Destroy()
-		opening = false
-		-- Shop wieder aufmachen, damit man direkt das nächste Pack öffnen kann
-		updateShop()
-		shop.Visible = true
-	end
-	task.delay(0.6, function()
-		closeButtonOverlay.Activated:Connect(close)
+
+		waitForEnd(show, pack, 1, if isLegendary then 9 elseif rank >= EPIC_RANK then 7 else 5.5)
 	end)
-	task.delay(if rank >= 6 then 8 elseif isLegendary then 6.5 else 4.5, close)
 end
 
--- Mehrere Packs auf einmal: Pack platzt, dann drehen sich die Karten nacheinander um.
--- Mit "Überspringen" kommen alle restlichen Karten sofort.
+-- Mehrere Packs: ein Pack platzt, die Karten fliegen verdeckt raus. Erst drehen sich die
+-- normalen schnell um, die besten glühen schon vorher und kommen einzeln zum Schluss.
 local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number)
 	local pack = findPack(packId)
-	local packColor = pack and pack.Color or Color3.new(1, 1, 1)
-	-- beste Kreatur finden (bestimmt, wie heftig es wird)
-	local bestRank, bestIndex = 0, 1
-	for i, entry in entries do
+	local packColor = pack and pack.Color or WHITE
+	local bestRank = 1
+	for _, entry in entries do
 		local def = Config.ParseEntry(entry)
-		local rank = def and Config.RarityRank(def.Rarity) or 0
-		if rank > bestRank then
-			bestRank, bestIndex = rank, i
+		if def then
+			bestRank = math.max(bestRank, Config.RarityRank(def.Rarity))
 		end
 	end
-	local bestDef = Config.ParseEntry(entries[bestIndex])
-	local bestRarity = bestDef and Config.Rarities[bestDef.Rarity] or Config.Rarities.Common
-	local isEpic = bestRank >= Config.RarityRank("Epic")
-	local isLegendary = bestRank >= Config.RarityRank("Legendary")
-	opening = true
-	shop.Visible = false
+	local bestRarity = Config.Rarities[Config.RarityOrder[bestRank]]
+	runShow(pack, #entries, function(show)
+		local p = enterPack(show, pack, `{#entries}x`)
+		local _ = chargePack(show, p, 3) or tellRarity(show, p, bestRank)
+		show.Skip = false
+		burstPack(show, p, bestRank, bestRarity.Color)
 
-	local blur, dim, rays, glow = openingBackdrop(700)
+		-- Bühne etwas abdunkeln, damit man die Karten gut lesen kann
+		local dim = Instance.new("Frame")
+		dim.Size = UDim2.fromScale(1, 1)
+		dim.BackgroundColor3 = BLACK
+		dim.BackgroundTransparency = 1
+		dim.BorderSizePixel = 0
+		dim.Parent = show.Root
+		tween(dim, 0.3, { BackgroundTransparency = 0.5 })
+		local blur = Instance.new("BlurEffect")
+		blur.Size = 0
+		blur.Parent = workspace.CurrentCamera
+		table.insert(show.Trash, blur)
+		tween(blur, 0.3, { Size = 12 })
 
-	-- Stapel aus Packs fällt rein und lädt auf
-	local box, boxStroke, boxScale, question = makePackBox(dim, pack and pack.Name or "Pack", `{#entries}x`, packColor, 170, 220)
-	playSound("Swoosh", 0.7)
-	tween(box, 0.55, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Bounce)
-	task.wait(0.55)
-	chargePack(box, boxStroke, boxScale, question, rays, glow, bestRank, bestRarity.Color, 10 + math.max(0, bestRank - 2) * 3, 0.1)
-	burstPack(dim, box, packColor, bestRank, bestRarity.Color)
-	playSound("RevealCommon")
-	tween(glow, 0.4, { BackgroundTransparency = 1 })
+		-- Karten-Raster: alle in einer Reihe (bis 5) oder 5 x 2
+		local perRow = if #entries <= 5 then #entries else 5
+		local rowsCount = math.ceil(#entries / perRow)
+		local cardW, cardH, gap = 150, 196, 14
+		local grid = Instance.new("Frame")
+		grid.AnchorPoint = Vector2.new(0.5, 0.5)
+		grid.Position = UDim2.fromScale(0.5, 0.5)
+		grid.Size = UDim2.fromOffset(perRow * cardW + (perRow - 1) * gap, rowsCount * cardH + (rowsCount - 1) * gap)
+		grid.BackgroundTransparency = 1
+		grid.Parent = show.Root
+		local gridScale = Instance.new("UIScale")
+		gridScale.Parent = grid
+		local view = workspace.CurrentCamera.ViewportSize
+		gridScale.Scale = math.min(1, (view.X - 40) / grid.Size.X.Offset, (view.Y - 230) / grid.Size.Y.Offset)
 
-	-- Karten-Raster: alle in einer Reihe (bis 5) oder 5 x 2
-	local perRow = if #entries <= 5 then #entries else 5
-	local rowsCount = math.ceil(#entries / perRow)
-	local cardW, cardH, gap = 150, 196, 14
-	local grid = Instance.new("Frame")
-	grid.AnchorPoint = Vector2.new(0.5, 0.5)
-	grid.Position = UDim2.fromScale(0.5, 0.5)
-	grid.Size = UDim2.fromOffset(perRow * cardW + (perRow - 1) * gap, rowsCount * cardH + (rowsCount - 1) * gap)
-	grid.BackgroundTransparency = 1
-	grid.Parent = dim
-	local gridScale = Instance.new("UIScale")
-	gridScale.Parent = grid
-	local camera = workspace.CurrentCamera
-	if camera then
-		local view = camera.ViewportSize
-		gridScale.Scale = math.min(1, (view.X - 40) / grid.Size.X.Offset, (view.Y - 180) / grid.Size.Y.Offset)
-	end
+		local cards = {}
+		for i, entry in entries do
+			local def, mutationId = Config.ParseEntry(entry)
+			if def then
+				local rarity = Config.Rarities[def.Rarity]
+				local mutation = Config.Mutations[mutationId]
+				local col = (i - 1) % perRow
+				local row = math.floor((i - 1) / perRow)
+				local holder = Instance.new("Frame")
+				holder.AnchorPoint = Vector2.new(0.5, 0.5)
+				holder.Position = UDim2.fromScale(0.5, 0.5)
+				holder.Size = UDim2.fromOffset(cardW, cardH)
+				holder.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+				holder.ClipsDescendants = true
+				holder.Rotation = math.random(-30, 30)
+				holder.Parent = grid
+				corner(holder, 14)
+				local border = stroke(holder, WHITE, 4)
+				local scale = Instance.new("UIScale")
+				scale.Scale = 0.15
+				scale.Parent = holder
 
-	-- quiet = übersprungen: keine einzelnen Sounds und Effekte
-	local function makeCard(i: number, entry: string, quiet: boolean)
-		local def, mutationId = Config.ParseEntry(entry)
-		if not def then
-			return
-		end
-		local rarity = Config.Rarities[def.Rarity]
-		local mutation = Config.Mutations[mutationId]
-		local rank = Config.RarityRank(def.Rarity)
-		local col = (i - 1) % perRow
-		local row = math.floor((i - 1) / perRow)
-		local holder = Instance.new("Frame")
-		holder.AnchorPoint = Vector2.new(0.5, 0.5)
-		holder.Position = UDim2.fromOffset(col * (cardW + gap) + cardW / 2, row * (cardH + gap) + cardH / 2)
-		holder.Size = UDim2.fromOffset(0, cardH)
-		holder.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-		holder.ClipsDescendants = true
-		holder.Parent = grid
-		corner(holder, 14)
-		if rank >= Config.RarityRank("Legendary") then
-			animatedBorder(holder, mutation.Color or rarity.Color, 6)
-		else
-			stroke(holder, mutation.Color or rarity.Color, if rank >= 4 then 6 else 4)
-		end
-		label({
-			Size = UDim2.new(1, 0, 0, 24),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = rarity.Color,
-			Font = Enum.Font.FredokaOne,
-			TextStrokeTransparency = 0.4,
-			Text = string.upper(rarity.Name),
-			Parent = holder,
-		})
-		local _, iconScale = creatureIcon(holder, def, mutationId, 80, 26)
-		tween(iconScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
-		label({
-			Size = UDim2.new(1, -12, 0, 28),
-			Position = UDim2.new(0, 6, 0, 108),
-			Font = Enum.Font.FredokaOne,
-			TextColor3 = rarity.Color,
-			TextStrokeTransparency = 0.5,
-			Text = Config.EntryName(entry),
-			Parent = holder,
-		})
-		if mutation.Name ~= "" then
-			local mutationLabel = label({
-				Size = UDim2.new(1, -24, 0, 18),
-				Position = UDim2.new(0, 12, 0, 138),
-				BackgroundTransparency = 0,
-				BackgroundColor3 = mutation.Color or Color3.new(1, 1, 1),
-				Font = Enum.Font.FredokaOne,
-				TextColor3 = Color3.new(0, 0, 0),
-				Text = `{string.upper(mutation.Name)} x{mutation.Multiplier}`,
-				Parent = holder,
-			})
-			corner(mutationLabel, 6)
-		end
-		label({
-			Size = UDim2.new(1, -12, 0, 22),
-			Position = UDim2.new(0, 6, 1, -28),
-			TextColor3 = Color3.fromRGB(130, 255, 130),
-			Text = if pities[i] then `PITY! +{Config.FormatNumber(Config.EntryIncome(entry))} $/s` else `+{Config.FormatNumber(Config.EntryIncome(entry))} $/s`,
-			Parent = holder,
-		})
-		-- Umdrehen mit kleinem Ploppen
-		local pop = Instance.new("UIScale")
-		pop.Scale = 1.2
-		pop.Parent = holder
-		tween(holder, 0.3, { Size = UDim2.fromOffset(cardW, cardH) }, Enum.EasingStyle.Back)
-		tween(pop, 0.3, { Scale = 1 })
-		if rank >= 4 or mutationId ~= "Normal" then
-			shineOnce(holder, 0.3)
-		end
-		if quiet then
-			return
-		end
-		local center = UDim2.fromOffset(
-			holder.AbsolutePosition.X + holder.AbsoluteSize.X / 2,
-			holder.AbsolutePosition.Y + holder.AbsoluteSize.Y / 2
-		)
-		if rank >= Config.RarityRank("Legendary") then
-			playSound(revealSoundKey(rank, false))
-			shake(if rank >= 6 then 7 else 5, 0.6)
-			confetti(80)
-			starBurst(center, rarity.Color, 30, 300)
-		elseif rank >= Config.RarityRank("Epic") or mutationId ~= "Normal" then
-			playSound("Epic")
-			shake(2, 0.3)
-			starBurst(center, mutation.Color or rarity.Color, 16, 180)
-		elseif rank >= Config.RarityRank("Rare") then
-			playSound("Rare")
-		else
-			playSound("Card", 0.9 + i * 0.05)
-		end
-	end
+				-- Vorderseite (erst unsichtbar)
+				local front = Instance.new("Frame")
+				front.Size = UDim2.fromScale(1, 1)
+				front.BackgroundTransparency = 1
+				front.Visible = false
+				front.Parent = holder
+				label({
+					Size = UDim2.new(1, 0, 0, 24),
+					BackgroundTransparency = 0,
+					BackgroundColor3 = rarity.Color,
+					Font = Enum.Font.FredokaOne,
+					TextStrokeTransparency = 0.4,
+					Text = string.upper(rarity.Name),
+					Parent = front,
+				})
+				local _, iconScale = creatureIcon(front, def, mutationId, 80, 26)
+				label({
+					Size = UDim2.new(1, -12, 0, 28),
+					Position = UDim2.new(0, 6, 0, 108),
+					Font = Enum.Font.FredokaOne,
+					TextColor3 = rarity.Color,
+					TextStrokeTransparency = 0.5,
+					Text = Config.EntryName(entry),
+					Parent = front,
+				})
+				if mutation.Name ~= "" then
+					local mutationLabel = label({
+						Size = UDim2.new(1, -24, 0, 18),
+						Position = UDim2.new(0, 12, 0, 138),
+						BackgroundTransparency = 0,
+						BackgroundColor3 = mutation.Color or WHITE,
+						Font = Enum.Font.FredokaOne,
+						TextColor3 = BLACK,
+						Text = `{string.upper(mutation.Name)} x{mutation.Multiplier}`,
+						Parent = front,
+					})
+					corner(mutationLabel, 6)
+					if mutationId == "Regenbogen" then
+						CollectionService:AddTag(mutationLabel, "RainbowGui")
+					end
+				end
+				label({
+					Size = UDim2.new(1, -12, 0, 22),
+					Position = UDim2.new(0, 6, 1, -28),
+					TextColor3 = Color3.fromRGB(130, 255, 130),
+					Text = if pities[i]
+						then `PITY! +{Config.FormatNumber(Config.EntryIncome(entry))} $/s`
+						else `+{Config.FormatNumber(Config.EntryIncome(entry))} $/s`,
+					Parent = front,
+				})
+				-- Rückseite sieht aus wie das Pack
+				local back = packFace(holder, "", "?", packColor, 14)
 
-	-- Überspringen-Knopf
-	local skip = false
-	local skipButton = Instance.new("TextButton")
-	skipButton.AnchorPoint = Vector2.new(0.5, 1)
-	skipButton.Position = UDim2.new(0.5, 0, 1, -24)
-	skipButton.Size = UDim2.fromOffset(220, 46)
-	skipButton.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
-	skipButton.Font = Enum.Font.FredokaOne
-	skipButton.TextScaled = true
-	skipButton.TextColor3 = Color3.fromRGB(50, 35, 10)
-	skipButton.Text = "Überspringen ⏩"
-	skipButton.ZIndex = 5
-	skipButton.Parent = dim
-	corner(skipButton, 12)
-	stroke(skipButton, Color3.new(1, 1, 1), 3).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	skipButton.Activated:Connect(function()
-		skip = true
-		skipButton.Visible = false
-	end)
-
-	for i, entry in entries do
-		makeCard(i, entry, skip)
-		if not skip then
-			local def = Config.ParseEntry(entry)
-			local rank = def and Config.RarityRank(def.Rarity) or 0
-			-- Seltene Karten: kurze Pause, damit man es feiert
-			local waitTime = if rank >= 5 then 0.9 elseif rank >= 4 then 0.45 elseif rank >= 3 then 0.25 else 0.18
-			local start = os.clock()
-			while not skip and os.clock() - start < waitTime do
-				task.wait()
+				table.insert(cards, {
+					Index = i,
+					Holder = holder,
+					Scale = scale,
+					Border = border,
+					Front = front,
+					Back = back,
+					IconScale = iconScale,
+					Rank = Config.RarityRank(def.Rarity),
+					Color = mutation.Color or rarity.Color,
+					RarityColor = rarity.Color,
+					Mutated = mutationId ~= "Normal",
+					Target = UDim2.fromOffset(col * (cardW + gap) + cardW / 2, row * (cardH + gap) + cardH / 2),
+					Flipped = false,
+				})
 			end
 		end
-	end
-	skipButton:Destroy()
-	if skip then
-		-- übersprungen: die beste Karte trotzdem einmal feiern
-		playSound(revealSoundKey(bestRank, false))
-		if isLegendary then
-			shake(5, 0.5)
-		end
-	end
-	for _, r in rays:GetChildren() do
-		if r:IsA("Frame") then
-			r.BackgroundColor3 = bestRarity.Color
-			r.BackgroundTransparency = 0.5
-		end
-	end
-	if isEpic then
-		confetti(if isLegendary then 120 else 50)
-	end
 
-	label({
-		Size = UDim2.new(0, 520, 0, 26),
-		Position = UDim2.new(0.5, -260, 1, -60),
-		TextColor3 = Color3.fromRGB(200, 200, 210),
-		Text = if soldCount > 0
-			then `Base voll: {soldCount} schwächste automatisch verkauft · Klicken zum Schließen`
-			else "Klicken zum Schließen",
-		Parent = dim,
-	})
-
-	local closeButtonOverlay = Instance.new("TextButton")
-	closeButtonOverlay.Size = UDim2.fromScale(1, 1)
-	closeButtonOverlay.BackgroundTransparency = 1
-	closeButtonOverlay.Text = ""
-	closeButtonOverlay.Parent = dim
-	local closed = false
-	local function close()
-		if closed then
-			return
+		-- Karte umdrehen. style: "quiet" (sofort, ohne Ton), "normal" oder "big" (mit Auftritt)
+		local function flip(card, style: string, order: number)
+			local holder = card.Holder
+			if style ~= "quiet" then
+				tweenIn(holder, 0.07, { Size = UDim2.fromOffset(0, cardH) })
+				task.wait(0.07)
+			end
+			card.Flipped = true
+			card.Back.Visible = false
+			card.Front.Visible = true
+			holder.Rotation = 0
+			if card.Rank >= LEGENDARY_RANK then
+				card.Border:Destroy()
+				animatedBorder(holder, card.Color, 6)
+			else
+				card.Border.Color = card.Color
+				card.Border.Thickness = if card.Rank >= EPIC_RANK then 6 else 4
+			end
+			holder.Size = UDim2.fromOffset(0, cardH)
+			tween(holder, 0.22, { Size = UDim2.fromOffset(cardW, cardH) }, Enum.EasingStyle.Back)
+			tween(card.IconScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+			if card.Rank >= EPIC_RANK or card.Mutated then
+				shineOnce(holder, 0.25)
+			end
+			if style == "quiet" then
+				card.Scale.Scale = 1
+				return
+			end
+			local center = UDim2.fromOffset(holder.AbsolutePosition.X + holder.AbsoluteSize.X / 2, holder.AbsolutePosition.Y + holder.AbsoluteSize.Y / 2)
+			if style == "big" then
+				-- großer Auftritt: Karte kommt nach vorne und bleibt kurz groß stehen
+				holder.Parent = nil
+				holder.Parent = grid
+				local hold = if card.Rank >= LEGENDARY_RANK then 0.9 else 0.35
+				card.Scale.Scale = 1.7
+				tween(card.Scale, 0.3, { Scale = 1.4 }, Enum.EasingStyle.Back)
+				task.delay(hold, function()
+					tween(card.Scale, 0.25, { Scale = 1 })
+				end)
+				playSound(stingerKey(card.Rank))
+				screenFlash(show, card.RarityColor, 0.35, 0.35)
+				if card.Rank >= LEGENDARY_RANK then
+					shake(if card.Rank >= MYTHIC_RANK then 7 else 5, 0.6)
+					confetti(80)
+					starBurst(center, card.RarityColor, 30, 320)
+				else
+					shake(2.5, 0.3)
+					starBurst(center, card.RarityColor, 16, 200)
+				end
+				return
+			end
+			card.Scale.Scale = 1.2
+			tween(card.Scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+			if card.Mutated then
+				playSound("Epic")
+				starBurst(center, card.Color, 14, 170)
+			elseif card.Rank >= RARE_RANK then
+				playSound("Rare")
+			else
+				playSound("CardFlip", 1 + order * 0.05)
+			end
 		end
-		closed = true
-		tween(blur, 0.25, { Size = 0 }).Completed:Once(function()
-			blur:Destroy()
+
+		-- Karten fliegen verdeckt aus der Mitte auf ihre Plätze
+		for k, card in cards do
+			playSound("CardDeal", 0.9 + k * 0.05)
+			tween(card.Holder, 0.3, { Position = card.Target, Rotation = 0 }, Enum.EasingStyle.Back)
+			tween(card.Scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+			task.wait(0.055)
+		end
+		task.wait(0.3)
+
+		local skipButton = Instance.new("TextButton")
+		skipButton.AnchorPoint = Vector2.new(0.5, 0.5)
+		skipButton.Position = UDim2.fromScale(0.5, 0.93)
+		skipButton.Size = UDim2.fromOffset(220, 46)
+		skipButton.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+		skipButton.Font = Enum.Font.FredokaOne
+		skipButton.TextScaled = true
+		skipButton.TextColor3 = Color3.fromRGB(50, 35, 10)
+		skipButton.Text = "Überspringen ⏩"
+		skipButton.ZIndex = 6
+		skipButton.Parent = show.Root
+		corner(skipButton, 12)
+		stroke(skipButton, WHITE, 3).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		skipButton.Activated:Connect(function()
+			show.Skip = true
 		end)
-		tween(gridScale, 0.2, { Scale = 0.01 })
-		task.wait(0.2)
-		dim:Destroy()
-		opening = false
-		updateShop()
-		shop.Visible = true
-	end
-	task.delay(0.4, function()
-		closeButtonOverlay.Activated:Connect(close)
+
+		-- Vorschau: Karten ab Episch glühen schon verdeckt in ihrer Farbe
+		local special, normal = {}, {}
+		for _, card in cards do
+			table.insert(if card.Rank >= EPIC_RANK then special else normal, card)
+		end
+		table.sort(special, function(a, b)
+			if a.Rank ~= b.Rank then
+				return a.Rank < b.Rank
+			end
+			return a.Index < b.Index
+		end)
+		if #special > 0 and not show.Skip then
+			playSound("TellStep", 1.19)
+			for _, card in special do
+				card.Border.Color = card.RarityColor
+				card.Border.Thickness = 7
+				card.Scale.Scale = 1.18
+				tween(card.Scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+				shineOnce(card.Holder, 0)
+			end
+			beat(show, 0.45)
+		end
+
+		-- Erst die normalen, schnell hintereinander und jede einen Ton höher
+		for k, card in normal do
+			if show.Skip then
+				break
+			end
+			flip(card, "normal", k)
+			beat(show, if card.Rank >= RARE_RANK or card.Mutated then 0.28 else 0.13)
+		end
+		-- Dann die besten einzeln: Karte zittert, Ticks werden schneller, dann der Auftritt
+		for _, card in special do
+			if show.Skip then
+				break
+			end
+			local wiggle = if card.Rank >= LEGENDARY_RANK then 0.75 else 0.42
+			local start, ticks = os.clock(), 0
+			while os.clock() - start < wiggle and not show.Skip do
+				local t = os.clock() - start
+				card.Holder.Rotation = math.sin(t * 42) * (3 + t * 6)
+				if t > ticks * 0.07 then
+					ticks += 1
+					playSound("Tick", 1 + t)
+				end
+				task.wait()
+			end
+			card.Holder.Rotation = 0
+			if show.Skip then
+				break
+			end
+			flip(card, "big", 0)
+			beat(show, if card.Rank >= LEGENDARY_RANK then 1.3 else 0.6)
+		end
+
+		-- Übersprungen: alles, was noch verdeckt ist, sofort aufdecken und die beste einmal feiern
+		local skipped = show.Skip
+		for _, card in cards do
+			if not card.Flipped then
+				flip(card, "quiet", 0)
+			end
+		end
+		skipButton:Destroy()
+		show.Skip = false
+		if skipped then
+			playSound(stingerKey(bestRank))
+			if bestRank >= LEGENDARY_RANK then
+				shake(5, 0.5)
+			end
+		end
+		if bestRank >= EPIC_RANK then
+			confetti(if bestRank >= LEGENDARY_RANK then 120 else 50)
+		end
+
+		-- Zusammenfassung: was bringt das alles zusammen?
+		local total = 0
+		for _, entry in entries do
+			total += Config.EntryIncome(entry)
+		end
+		task.wait(0.25)
+		local sum, sumScale = showLine(show, "Zusammen +0 $/s", Color3.fromRGB(130, 255, 130), 0.1, 0.07)
+		countIncome(sum, sumScale, 0, total, 0.5, "Zusammen ")
+		if soldCount > 0 then
+			label({
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.new(0.9, 0, 0, 24),
+				Position = UDim2.fromScale(0.5, 0.86),
+				TextColor3 = Color3.fromRGB(215, 215, 225),
+				Text = `Base voll: {soldCount} schwächste automatisch verkauft`,
+				ZIndex = 4,
+				Parent = show.Root,
+			})
+		end
+		waitForEnd(show, pack, #entries, if bestRank >= LEGENDARY_RANK then 10 else 7)
 	end)
-	task.delay(if isLegendary then 7 else 5, close)
 end
 
 Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?)
