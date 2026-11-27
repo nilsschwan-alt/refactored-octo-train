@@ -1,4 +1,4 @@
--- Wiedergeburt: Geld, Kasse und Base-Stufe gehen zurück auf Anfang, die besten Kreaturen bleiben.
+-- Wiedergeburt: Geld und Base-Stufe gehen zurück auf Anfang, die besten Kreaturen bleiben.
 -- Dafür gibt's dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop (Glück, Münz-Magnet, Klick-Kraft).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

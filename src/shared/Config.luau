@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.5.0"
+Config.Version = "0.5.1"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für das erste Holz-Pack
@@ -234,7 +234,7 @@ Config.Leaderboard = {
 }
 
 -- Wiedergeburt (Rebirth) ---------------------------------------------------------
--- Kostet Geld, setzt Geld, Kasse und Base-Stufe zurück, die besten Kreaturen bleiben.
+-- Kostet Geld, setzt Geld und Base-Stufe zurück, die besten Kreaturen bleiben.
 -- Dafür: dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop.
 Config.Rebirth = {
 	BaseCost = 15000, -- erste Wiedergeburt

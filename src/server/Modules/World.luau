@@ -73,23 +73,63 @@ local function setupLighting()
 	clouds.Parent = terrain
 end
 
+-- See hinter der unteren Reihe: mehrere runde Becken ergeben zusammen eine natürliche Form.
+-- Je Eintrag: Versatz X, Versatz Z, Radius
+local LAKE_CENTER = Vector3.new(40, 0, -240)
+local LAKE_BLOBS = {
+	{ 0, 0, 46 },
+	{ -52, 8, 34 },
+	{ 54, -6, 36 },
+	{ 18, 26, 28 },
+	{ -22, -24, 28 },
+}
+local LAKE_WATER_Y = -1 -- Wasseroberfläche (die Wiese liegt bei 0)
+
+-- Liegt ein Punkt im See oder am Ufer? (für Bäume, Felsen, Seerosen)
+local function inLake(x: number, z: number, margin: number): boolean
+	for _, blob in LAKE_BLOBS do
+		local dx = x - (LAKE_CENTER.X + blob[1])
+		local dz = z - (LAKE_CENTER.Z + blob[2])
+		if dx * dx + dz * dz < (blob[3] + margin) ^ 2 then
+			return true
+		end
+	end
+	return false
+end
+
 -- Landschaft mit Terrain: Hügel, Berge, See ---------------------------------------
-local function buildTerrain(rng: Random)
+local function buildTerrain(info, rng: Random)
 	local terrain = workspace.Terrain
-	terrain.WaterColor = Color3.fromRGB(40, 140, 190)
-	terrain.WaterTransparency = 0.6
-	terrain.WaterWaveSize = 0.15
-	terrain.WaterReflectance = 0.6
+	-- Kräftiges Blau, wenig Spiegelung: sonst spiegelt das Wasser nur den hellen Himmel und wirkt grau
+	terrain.WaterColor = Color3.fromRGB(25, 145, 215)
+	terrain.WaterTransparency = 0.35
+	terrain.WaterWaveSize = 0.2
+	terrain.WaterWaveSpeed = 8
+	terrain.WaterReflectance = 0.25
 
 	-- Flache Wiese überall (Oberkante y = 0, unter dem Spielbereich)
 	terrain:FillBlock(CFrame.new(0, -3, 0), Vector3.new(1400, 6, 1100), Enum.Material.Grass)
 
-	-- See hinter der unteren Reihe
-	local lake = CFrame.new(40, 0, -240)
-	terrain:FillBlock(lake * CFrame.new(0, -3, 0), Vector3.new(260, 6, 120), Enum.Material.Sand)
-	terrain:FillBlock(lake * CFrame.new(0, -3, 0), Vector3.new(220, 6, 90), Enum.Material.Air)
-	terrain:FillBlock(lake * CFrame.new(0, -7, 0), Vector3.new(220, 2, 90), Enum.Material.Sand)
-	terrain:FillBlock(lake * CFrame.new(0, -3.75, 0), Vector3.new(220, 4.5, 90), Enum.Material.Water)
+	-- Unter Straße, Gehwegen, Bases und Plätzen kein Terrain-Gras: dessen Halme wachsen
+	-- sonst durch die Bauteile durch. "Ground" hat keine Halme und liegt unsichtbar darunter.
+	local hardX = info.StreetHalf + 76
+	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
+	terrain:FillBlock(CFrame.new(0, -3, 0), Vector3.new(hardX * 2, 6, hardZ * 2), Enum.Material.Ground)
+
+	-- See: erst Sandufer, dann ausheben, Sandboden, Wasser rein
+	for _, blob in LAKE_BLOBS do
+		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -3, 0)), 6, blob[3] + 9, Enum.Material.Sand)
+	end
+	for _, blob in LAKE_BLOBS do
+		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -5, 0)), 10, blob[3], Enum.Material.Air)
+	end
+	for _, blob in LAKE_BLOBS do
+		local center = LAKE_CENTER + Vector3.new(blob[1], 0, blob[2])
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, -10, 0)), 4, blob[3], Enum.Material.Sand)
+		terrain:FillCylinder(CFrame.new(center + Vector3.new(0, (LAKE_WATER_Y - 8) / 2, 0)), 8 + LAKE_WATER_Y, blob[3], Enum.Material.Water)
+	end
 
 	-- Hügel im Kreis um die Map
 	for i = 0, 31 do
@@ -139,17 +179,77 @@ local function tree(info, parent: Instance, pos: Vector3, scale: number, rng: Ra
 	end
 end
 
-local function rock(info, parent: Instance, pos: Vector3, rng: Random)
-	local s = rng:NextNumber(2, 6)
-	info.Part({
-		Name = "Fels",
-		Size = Vector3.new(s * rng:NextNumber(1, 1.6), s, s * rng:NextNumber(1, 1.6)),
-		CFrame = CFrame.new(pos + Vector3.new(0, s * 0.3, 0))
-			* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, 6), rng:NextNumber(-0.3, 0.3)),
-		Color = Color3.fromRGB(120, 120, 125),
-		Material = Enum.Material.Slate,
-		Parent = parent,
-	})
+-- Felsbrocken aus Terrain: 1-3 runde Steine, halb im Boden. Sieht natürlicher aus als flache Platten.
+local function rock(pos: Vector3, rng: Random)
+	local terrain = workspace.Terrain
+	for i = 1, rng:NextInteger(1, 3) do
+		local r = rng:NextNumber(3, 5.5) / i
+		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
+		terrain:FillBall(pos + offset + Vector3.new(0, -r * 0.35, 0), math.max(r, 2.5), Enum.Material.Rock)
+	end
+end
+
+-- Seerosen und Schilf, damit man sofort sieht: das ist Wasser
+local function lakeDecor(info, parent: Instance, rng: Random)
+	local part = info.Part
+	local padColors = { Color3.fromRGB(70, 165, 70), Color3.fromRGB(95, 185, 80) }
+	local placed = 0
+	for _ = 1, 400 do
+		if placed >= 28 then
+			break
+		end
+		local x = LAKE_CENTER.X + rng:NextNumber(-100, 100)
+		local z = LAKE_CENTER.Z + rng:NextNumber(-60, 60)
+		if inLake(x, z, -8) then
+			local size = rng:NextNumber(3, 5)
+			local pad = part({
+				Name = "Seerose",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.2, size, size),
+				CFrame = CFrame.new(x, LAKE_WATER_Y + 0.1, z) * CFrame.Angles(0, rng:NextNumber(0, 6), math.rad(90)),
+				Color = padColors[rng:NextInteger(1, #padColors)],
+				CanCollide = false,
+				Parent = parent,
+			})
+			if rng:NextNumber() < 0.35 then
+				part({
+					Name = "Bluete",
+					Shape = Enum.PartType.Ball,
+					Size = Vector3.new(1.2, 1.2, 1.2),
+					CFrame = pad.CFrame * CFrame.new(0.5, 0, 0),
+					Color = Color3.fromRGB(255, 150, 200),
+					CanCollide = false,
+					Parent = parent,
+				})
+			end
+			placed += 1
+		end
+	end
+	-- Schilf am Ufer
+	for _, blob in LAKE_BLOBS do
+		for _ = 1, 6 do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local dist = blob[3] - rng:NextNumber(1, 3)
+			local x = LAKE_CENTER.X + blob[1] + math.cos(a) * dist
+			local z = LAKE_CENTER.Z + blob[2] + math.sin(a) * dist
+			-- nur am Rand, nicht mitten im See (wenn ein anderes Becken hier schon tief ist)
+			if inLake(x, z, -5) then
+				continue
+			end
+			for i = 1, 4 do
+				local h = rng:NextNumber(4, 7)
+				part({
+					Name = "Schilf",
+					Size = Vector3.new(0.3, h, 0.3),
+					CFrame = CFrame.new(x + rng:NextNumber(-1, 1), LAKE_WATER_Y - 0.5 + h / 2, z + rng:NextNumber(-1, 1))
+						* CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15)),
+					Color = if i == 1 then Color3.fromRGB(150, 110, 60) else Color3.fromRGB(90, 150, 60),
+					CanCollide = false,
+					Parent = parent,
+				})
+			end
+		end
+	end
 end
 
 local function flower(info, parent: Instance, pos: Vector3, rng: Random)
@@ -538,19 +638,25 @@ local function buildNature(info, parent: Instance, rng: Random)
 	while placed < 70 do
 		local pos = Vector3.new(rng:NextNumber(-380, 380), 0, rng:NextNumber(-280, 280))
 		local inPlayArea = math.abs(pos.X) < 285 and math.abs(pos.Z) < 165
-		local inLake = pos.Z < -170 and math.abs(pos.X - 40) < 140
-		if not inPlayArea and not inLake then
+		if not inPlayArea and not inLake(pos.X, pos.Z, 14) then
 			tree(info, parent, pos, rng:NextNumber(1, 2), rng)
 			placed += 1
 		end
 	end
 
-	-- Felsen
-	for _ = 1, 35 do
+	-- Felsen (draußen auf der Wiese, nicht im See)
+	local rocks = 0
+	while rocks < 28 do
 		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		local pos = Vector3.new(rng:NextNumber(-360, 360), 0, side * rng:NextNumber(165, 260))
-		rock(info, parent, pos, rng)
+		local pos = Vector3.new(rng:NextNumber(-360, 360), 0, side * rng:NextNumber(172, 270))
+		if not inLake(pos.X, pos.Z, 12) then
+			rock(pos, rng)
+			rocks += 1
+		end
 	end
+
+	-- Seerosen und Schilf
+	lakeDecor(info, parent, rng)
 
 	-- Blumen hinter den Bases und zwischen den Bäumen
 	for _ = 1, 90 do
@@ -563,7 +669,7 @@ end
 function World.Build(root: Instance, info)
 	local rng = Random.new(42)
 	setupLighting()
-	buildTerrain(rng)
+	buildTerrain(info, rng)
 
 	local folder = Instance.new("Folder")
 	folder.Name = "Welt"

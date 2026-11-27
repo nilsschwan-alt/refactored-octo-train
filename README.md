@@ -54,7 +54,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 - **Start:** Neue Spieler bekommen 300 $ und einen Blubbo geschenkt.
 - **Packs:** Über den **Packs-Knopf** links (oder Taste **P**) von überall öffnen. Es gibt 3 Packs mit angezeigten Chancen, jeweils als **1x, 3x oder 10x** (10x mit 10 % Rabatt). Ist die Base voll, bleiben die besten Kreaturen, die schwächsten werden automatisch verkauft. Mit Öffnungs-Animation und Pity: Nach 20 Packs ohne Legendär ist das nächste garantiert Legendär oder besser.
 - **Mutationen:** Jede Kreatur kann Gold (x2), Diamant (x3) oder Regenbogen (x5) sein.
-- **Kasse:** Deine Kreaturen füllen die grüne Kasse in deiner Base. Drüberlaufen = einsammeln.
+- **Geld:** Deine Kreaturen verdienen jede Sekunde automatisch Geld, du musst nichts einsammeln.
 - **Events** alle 3 bis 5 Minuten (das erste schon nach 45 Sekunden): Meteor (seltene Kreatur auf der Straße, wer sie heimträgt, behält sie), Goldrausch (doppeltes Geld), Diebes-Nacht (dunkel, keine Schlösser, alle schneller).
 - **Klauen:** In einer fremden Base E an einer Kreatur halten. Beim Tragen bist du langsam, kannst nicht springen und leuchtest. Erst in deiner Base gehört sie dir.
 - **Klatsche** (Taste 1): Träger hauen, dann ist die Beute weg.

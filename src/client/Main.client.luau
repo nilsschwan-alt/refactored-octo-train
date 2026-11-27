@@ -218,15 +218,41 @@ local incomeLabel = label({
 	Position = UDim2.new(0, 8, 0.6, 0),
 	TextColor3 = Color3.fromRGB(130, 255, 130),
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "+0 $/s in die Kasse",
+	Text = "+0 $/s automatisch",
 	Parent = moneyBox,
 })
 
 -- Die Zahl zählt sichtbar hoch/runter statt zu springen
 local shownMoney = player:GetAttribute("Money") or 0
 local function updateMoney()
-	incomeLabel.Text = `+{Config.FormatNumber(player:GetAttribute("Income") or 0)} $/s in die Kasse`
+	incomeLabel.Text = `+{Config.FormatNumber(player:GetAttribute("Income") or 0)} $/s automatisch`
 end
+
+-- Jedes Mal, wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf
+local lastMoney = player:GetAttribute("Money") or 0
+player:GetAttributeChangedSignal("Money"):Connect(function()
+	local now = player:GetAttribute("Money") or 0
+	local gain = now - lastMoney
+	lastMoney = now
+	if gain < 1 then
+		return
+	end
+	local gainLabel = Instance.new("TextLabel")
+	gainLabel.BackgroundTransparency = 1
+	gainLabel.Size = UDim2.fromOffset(140, 26)
+	gainLabel.Position = UDim2.new(1, 8, 0, 6) -- rechts neben der Geld-Anzeige
+	gainLabel.Font = Enum.Font.FredokaOne
+	gainLabel.TextScaled = true
+	gainLabel.TextXAlignment = Enum.TextXAlignment.Left
+	gainLabel.TextColor3 = Color3.fromRGB(130, 255, 130)
+	gainLabel.TextStrokeTransparency = 0.3
+	gainLabel.Text = `+{Config.FormatNumber(gain)} $`
+	gainLabel.Parent = moneyBox
+	tween(gainLabel, 0.9, { Position = gainLabel.Position - UDim2.fromOffset(0, 30), TextTransparency = 1, TextStrokeTransparency = 1 })
+	task.delay(1, function()
+		gainLabel:Destroy()
+	end)
+end)
 RunService.RenderStepped:Connect(function(dt)
 	local target = player:GetAttribute("Money") or 0
 	if math.abs(target - shownMoney) < 1 then
@@ -1605,7 +1631,7 @@ label({
 	TextColor3 = Color3.fromRGB(200, 200, 215),
 	TextWrapped = true,
 	Font = Enum.Font.Gotham,
-	Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld, Kasse und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`,
+	Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`,
 	Parent = rebirthPanel,
 })
 local costBar = Instance.new("Frame")
