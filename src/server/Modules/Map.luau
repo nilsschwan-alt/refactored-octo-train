@@ -381,7 +381,7 @@ function Map.BuildDecor(plot, level: number)
 		part({
 			Name = "Platz" .. slot,
 			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.4, 7, 7),
+			Size = Vector3.new(0.4, 6.4, 6.4),
 			CFrame = base * CFrame.new(0, 0.2, 0) * UPRIGHT,
 			Color = style.Pad,
 			Material = style.PadMat,
@@ -390,7 +390,7 @@ function Map.BuildDecor(plot, level: number)
 		local ring = part({
 			Name = "PlatzRing" .. slot,
 			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.25, 7.8, 7.8),
+			Size = Vector3.new(0.25, 7.2, 7.2),
 			CFrame = base * CFrame.new(0, 0.125, 0) * UPRIGHT,
 			Color = style.Ring,
 			Material = Enum.Material.Neon,

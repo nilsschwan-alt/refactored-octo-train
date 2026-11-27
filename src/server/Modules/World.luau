@@ -218,7 +218,7 @@ local function buildIsland(info, rng: Random)
 			local depth = 25 + f * 75
 			local r = rng:NextNumber(34, 44)
 			local top = -22 - TERRAIN_DROP
-			terrain:FillBall(Vector3.new(x, top - r * 0.5, z), r, Enum.Material.Rock)
+			terrain:FillBall(Vector3.new(x, top - r, z), r, Enum.Material.Rock)
 			terrain:FillBall(
 				Vector3.new(x + rng:NextNumber(-10, 10), top - depth * 0.6 - r * 0.4, z + rng:NextNumber(-10, 10)),
 				r * 0.7,
@@ -236,7 +236,7 @@ local function buildIsland(info, rng: Random)
 	for _, lobe in LOBES do
 		local r = lobe[3] * 0.8
 		local top = -22 - TERRAIN_DROP
-		terrain:FillBall(Vector3.new(lobe[1], top - r * 0.45, lobe[2]), r, Enum.Material.Rock)
+		terrain:FillBall(Vector3.new(lobe[1], top - r, lobe[2]), r, Enum.Material.Rock)
 		terrain:FillBall(
 			Vector3.new(lobe[1] + rng:NextNumber(-10, 10), top - r * 1.3, lobe[2] + rng:NextNumber(-10, 10)),
 			r * 0.5,
@@ -549,9 +549,24 @@ local function buildWaterfall(info, parent: Instance)
 	local drift = 16 -- unten so weit von der Kante weg (fällt im Bogen)
 	local mid = Vector3.new(x, (topY + bottomY) / 2, EDGE_Z - 1 - drift / 2)
 	local tilt = CFrame.Angles(math.atan(drift / height), 0, 0)
+	-- zwei leicht schräge Seitenbahnen, damit er nicht wie ein einzelnes Brett aussieht
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Wasserfallrand",
+			Size = Vector3.new(5, height * 0.92, 0.8),
+			CFrame = CFrame.new(mid + Vector3.new(side * 5, -height * 0.04, 0.6)) * CFrame.Angles(0, math.rad(side * 12), 0) * tilt,
+			Color = Color3.fromRGB(150, 220, 255),
+			Material = Enum.Material.Glass,
+			Transparency = 0.55,
+			CanCollide = false,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = parent,
+		})
+	end
 	part({
 		Name = "Wasserfall",
-		Size = Vector3.new(7, height, 1),
+		Size = Vector3.new(9, height, 1),
 		CFrame = CFrame.new(mid) * tilt,
 		Color = Color3.fromRGB(110, 205, 255),
 		Material = Enum.Material.Glass,
@@ -563,7 +578,7 @@ local function buildWaterfall(info, parent: Instance)
 	})
 	part({
 		Name = "Wasserfallschaum",
-		Size = Vector3.new(4.5, height, 0.4),
+		Size = Vector3.new(6, height, 0.4),
 		CFrame = CFrame.new(mid) * tilt * CFrame.new(0, 0, -0.8),
 		Color = Color3.fromRGB(235, 250, 255),
 		Material = Enum.Material.Neon,
@@ -576,7 +591,7 @@ local function buildWaterfall(info, parent: Instance)
 	-- fallende Tropfen oben an der Kante
 	local source = part({
 		Name = "WasserfallQuelle",
-		Size = Vector3.new(7, 0.5, 0.5),
+		Size = Vector3.new(12, 0.5, 0.5),
 		CFrame = CFrame.new(x, topY - 0.3, EDGE_Z - 1),
 		Transparency = 1,
 		CanCollide = false,
@@ -588,7 +603,7 @@ local function buildWaterfall(info, parent: Instance)
 	drops.Size = NumberSequence.new(1.5, 5)
 	drops.Transparency = NumberSequence.new(0.3, 1)
 	drops.Lifetime = NumberRange.new(2.5, 3)
-	drops.Rate = 45
+	drops.Rate = 70
 	drops.Speed = NumberRange.new(4, 7)
 	drops.SpreadAngle = Vector2.new(10, 10)
 	drops.Acceleration = Vector3.new(0, -45, 0)

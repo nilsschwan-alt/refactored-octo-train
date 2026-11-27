@@ -29,7 +29,7 @@ local function makePart(model: Model, size: Vector3, cf: CFrame, color: Color3, 
 end
 
 local MODEL_FOLDER = "KreaturenModelle"
-local AI_HEIGHT_FACTOR = 1.3 -- KI-Modell ist so hoch wie Seltenheits-Größe x 1.3
+local AI_HEIGHT_FACTOR = 1.5 -- KI-Modell ist so hoch wie Seltenheits-Größe x 1.5
 
 -- KI-Modell aus ReplicatedStorage.KreaturenModelle (falls in Studio angelegt)
 local function findAiModel(id: string): Model?
