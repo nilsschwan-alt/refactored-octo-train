@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.8.0"
+Config.Version = "0.9.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -88,7 +88,7 @@ Config.Creatures = {
 	{ Id = "Kronenloewe", Name = "Kronenlöwe", Pack = "Gold", Rarity = "Legendary", Price = 30_000, Income = 500,
 		Color = Color3.fromRGB(240, 170, 50), Accent = Color3.fromRGB(255, 235, 120), Extra = "Krone" },
 	-- Kristall-Kiste
-	{ Id = "Splitterspatz", Name = "Splitterspatz", Pack = "Kristall", Rarity = "Common", Price = 20_000, Income = 60,
+	{ Id = "Splitterspatz", Name = "Splitter-Spatz", Pack = "Kristall", Rarity = "Common", Price = 20_000, Income = 60,
 		Color = Color3.fromRGB(190, 150, 255), Accent = Color3.fromRGB(120, 240, 255), Extra = "Fuehler" },
 	{ Id = "QuarzQualle", Name = "Quarz-Qualle", Pack = "Kristall", Rarity = "Uncommon", Price = 50_000, Income = 150,
 		Color = Color3.fromRGB(255, 170, 230), Accent = Color3.fromRGB(200, 240, 255), Extra = "Tentakel" },
@@ -135,7 +135,7 @@ Config.Creatures = {
 		Color = Color3.fromRGB(150, 80, 220), Accent = Color3.fromRGB(255, 150, 230), Extra = "Hoerner" },
 	{ Id = "SaturnSchildkroete", Name = "Saturn-Schildkröte", Pack = "Galaxie", Rarity = "Epic", Price = 3_000_000_000, Income = 580_000,
 		Color = Color3.fromRGB(70, 90, 170), Accent = Color3.fromRGB(255, 200, 110), Extra = "Panzer" },
-	{ Id = "Sternenschnecke", Name = "Sternenschnecke", Pack = "Galaxie", Rarity = "Legendary", Price = 8_000_000_000, Income = 1_900_000,
+	{ Id = "Sternenschnecke", Name = "Sternen-Schnecke", Pack = "Galaxie", Rarity = "Legendary", Price = 8_000_000_000, Income = 1_900_000,
 		Color = Color3.fromRGB(40, 30, 90), Accent = Color3.fromRGB(255, 220, 90), Extra = "Panzer" },
 	{ Id = "KosmoKrake", Name = "Kosmo-Krake", Pack = "Galaxie", Rarity = "Mythic", Price = 30_000_000_000, Income = 8_000_000,
 		Color = Color3.fromRGB(110, 40, 200), Accent = Color3.fromRGB(0, 255, 255), Extra = "Tentakel" },

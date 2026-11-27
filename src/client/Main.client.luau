@@ -1115,22 +1115,31 @@ local function buildDetail(pack)
 		task.delay(i * 0.04, function()
 			tween(iconScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
 		end)
-		label({
-			Size = UDim2.new(1, -8, 0, 34),
-			Position = UDim2.fromOffset(4, 98),
+		-- Lange Namen brechen am Bindestrich um, statt winzig zu werden
+		local nameLabel = label({
+			Size = UDim2.new(1, -6, 0, 38),
+			Position = UDim2.fromOffset(3, 96),
 			Font = Enum.Font.FredokaOne,
 			TextWrapped = true,
-			Text = def.Name,
+			Text = (string.gsub(def.Name, "%-", "-\n", 1)),
 			Parent = tile,
 		})
-		label({
-			Size = UDim2.new(1, -8, 0, 16),
-			Position = UDim2.fromOffset(4, 136),
+		local nameLimit = Instance.new("UITextSizeConstraint")
+		nameLimit.MinTextSize = 12
+		nameLimit.MaxTextSize = 17
+		nameLimit.Parent = nameLabel
+		local rarityLabel = label({
+			Size = UDim2.new(1, -6, 0, 18),
+			Position = UDim2.fromOffset(3, 136),
 			Font = Enum.Font.GothamBold,
 			TextColor3 = rarity.Color,
 			Text = rarity.Name,
 			Parent = tile,
 		})
+		local rarityLimit = Instance.new("UITextSizeConstraint")
+		rarityLimit.MinTextSize = 11
+		rarityLimit.MaxTextSize = 15
+		rarityLimit.Parent = rarityLabel
 		local chance = label({
 			Size = UDim2.new(1, -8, 0, 24),
 			Position = UDim2.fromOffset(4, 156),
@@ -3413,8 +3422,8 @@ label({
 })
 
 local rebirthPanel = Instance.new("Frame")
-rebirthPanel.Size = UDim2.fromOffset(620, 450)
-rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -225)
+rebirthPanel.Size = UDim2.fromOffset(620, 500)
+rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -250)
 rebirthPanel.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
 rebirthPanel.Visible = false
 rebirthPanel.Parent = gui
@@ -3451,12 +3460,25 @@ local rebirthInfo = label({
 	Text = "",
 	Parent = rebirthPanel,
 })
+-- Eigene, große Zeile dafür, was die nächste Wiedergeburt freischaltet
+local rebirthUnlock = label({
+	Size = UDim2.new(1, -32, 0, 30),
+	Position = UDim2.fromOffset(16, 84),
+	Font = Enum.Font.FredokaOne,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = Color3.fromRGB(255, 225, 120),
+	Text = "",
+	Parent = rebirthPanel,
+})
+stroke(rebirthUnlock, BLACK, 1.5)
 local rebirthDesc = label({
-	Size = UDim2.new(1, -32, 0, 38),
-	Position = UDim2.fromOffset(16, 82),
+	Size = UDim2.new(1, -32, 0, 44),
+	Position = UDim2.fromOffset(16, 118),
 	TextXAlignment = Enum.TextXAlignment.Left,
 	TextYAlignment = Enum.TextYAlignment.Top,
 	TextColor3 = Color3.fromRGB(200, 200, 215),
+	TextScaled = false,
+	TextSize = 17,
 	TextWrapped = true,
 	Font = Enum.Font.Gotham,
 	Text = "",
@@ -3464,7 +3486,7 @@ local rebirthDesc = label({
 })
 local costBar = Instance.new("Frame")
 costBar.Size = UDim2.new(1, -32, 0, 26)
-costBar.Position = UDim2.fromOffset(16, 124)
+costBar.Position = UDim2.fromOffset(16, 170)
 costBar.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 costBar.Parent = rebirthPanel
 corner(costBar, 10)
@@ -3482,7 +3504,7 @@ local costText = label({
 })
 local doRebirth = Instance.new("TextButton")
 doRebirth.Size = UDim2.new(1, -32, 0, 52)
-doRebirth.Position = UDim2.fromOffset(16, 158)
+doRebirth.Position = UDim2.fromOffset(16, 204)
 doRebirth.BackgroundColor3 = PURPLE
 doRebirth.TextColor3 = Color3.new(1, 1, 1)
 doRebirth.Font = Enum.Font.FredokaOne
@@ -3492,7 +3514,7 @@ doRebirth.Parent = rebirthPanel
 corner(doRebirth, 12)
 local tokenLabel = label({
 	Size = UDim2.new(1, -32, 0, 28),
-	Position = UDim2.fromOffset(16, 220),
+	Position = UDim2.fromOffset(16, 266),
 	Font = Enum.Font.FredokaOne,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	TextColor3 = Color3.fromRGB(120, 220, 255),
@@ -3502,7 +3524,7 @@ local tokenLabel = label({
 
 local upgradeRow = Instance.new("Frame")
 upgradeRow.Size = UDim2.new(1, -24, 0, 180)
-upgradeRow.Position = UDim2.fromOffset(12, 256)
+upgradeRow.Position = UDim2.fromOffset(12, 304)
 upgradeRow.BackgroundTransparency = 1
 upgradeRow.Parent = rebirthPanel
 local upgradeLayout = Instance.new("UIListLayout")
@@ -3565,13 +3587,13 @@ local function updateRebirth()
 	local cost = Config.RebirthCost(rebirths)
 	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
 	local unlock = Config.RebirthUnlock(rebirths)
-	local keep = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe gehen zurück auf Anfang. Dafür: für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`
+	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`
 	if unlock then
-		rebirthDesc.Text = `🎁 Schaltet die {unlock.Name} frei, mit neuen, viel stärkeren Kreaturen! {keep}`
-		rebirthDesc.TextColor3 = Color3.fromRGB(255, 225, 120)
+		rebirthUnlock.Text = `🎁 Schaltet frei: {unlock.Name} mit neuen, stärkeren Kreaturen!`
+		rebirthUnlock.TextColor3 = unlock.Color:Lerp(WHITE, 0.35)
 	else
-		rebirthDesc.Text = keep
-		rebirthDesc.TextColor3 = Color3.fromRGB(200, 200, 215)
+		rebirthUnlock.Text = "⭐ Alle Kisten freigeschaltet. Jede Wiedergeburt macht dich weiter reicher!"
+		rebirthUnlock.TextColor3 = Color3.fromRGB(255, 225, 120)
 	end
 	costFill.Size = UDim2.fromScale(math.clamp(money / cost, 0, 1), 1)
 	costText.Text = `{Config.FormatNumber(money)} / {Config.FormatNumber(cost)} $`
@@ -3635,7 +3657,7 @@ local function toggleRebirth()
 		local camera = workspace.CurrentCamera
 		if camera then
 			local size = camera.ViewportSize
-			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 490)
+			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 540)
 		end
 		rebirthScale.Scale *= 0.8
 		tween(rebirthScale, 0.25, { Scale = rebirthScale.Scale / 0.8 }, Enum.EasingStyle.Back)

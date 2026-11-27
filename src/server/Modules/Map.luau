@@ -630,15 +630,36 @@ function Map.Build()
 			Parent = root,
 		})
 	end
+	-- Auf der Theke stehen die Kisten: als 3D-Modell (ReplicatedStorage.PackModelle), sonst als Würfel
+	local packModels = ReplicatedStorage:FindFirstChild("PackModelle")
 	for i, pack in Config.Packs do
-		part({
-			Name = pack.Id .. "Pack",
-			Size = Vector3.new(2, 2.4, 2),
-			CFrame = CFrame.new(shopPos + Vector3.new(0, 5.2, (i - (#Config.Packs + 1) / 2) * 2.8)) * CFrame.Angles(0, math.rad(20), 0),
-			Color = pack.Color,
-			Material = Enum.Material.Neon,
-			Parent = root,
-		})
+		local offset = Vector3.new(-3, 4, (i - (#Config.Packs + 1) / 2) * 2.5)
+		local template = packModels and packModels:FindFirstChild(pack.Id)
+		if template and template:IsA("Model") then
+			local chest = template:Clone()
+			chest.Name = pack.Id .. "Pack"
+			for _, d in chest:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+					d.CanCollide = false
+					d.CanTouch = false
+					d.CanQuery = false
+				end
+			end
+			chest:ScaleTo(0.58)
+			-- Vorderseite der Modelle zeigt nach -Z, die Spieler kommen von -X
+			chest:PivotTo(CFrame.new(shopPos + offset) * CFrame.Angles(0, math.rad(90), 0))
+			chest.Parent = root
+		else
+			part({
+				Name = pack.Id .. "Pack",
+				Size = Vector3.new(2, 2.4, 2),
+				CFrame = CFrame.new(shopPos + offset + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, math.rad(20), 0),
+				Color = pack.Color,
+				Material = Enum.Material.Neon,
+				Parent = root,
+			})
+		end
 	end
 	local _, shopLabels = billboard(counter, UDim2.fromOffset(320, 90), Vector3.new(0, 12, 0), 2, 500)
 	shopLabels[1].Text = "KISTEN-SHOP"
