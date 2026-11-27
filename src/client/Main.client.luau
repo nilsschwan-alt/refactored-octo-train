@@ -28,6 +28,9 @@ overlayGui.IgnoreGuiInset = true
 overlayGui.Parent = player.PlayerGui
 
 -- Hilfsfunktionen --------------------------------------------------------------
+local WHITE = Color3.new(1, 1, 1)
+local BLACK = Color3.new(0, 0, 0)
+
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, radius or 10)
@@ -515,105 +518,331 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- Vorderseite eines Packs: Folie, Streifen, Name, "?" und ein Glanz, der drüberläuft.
+-- Wird fürs 3D-Pack und für die Rückseiten der Karten benutzt.
+local function packFace(parent: Instance, title: string, bigText: string, packColor: Color3, radius: number?): Frame
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = packColor
+	bg.BorderSizePixel = 0
+	bg.ClipsDescendants = true
+	bg.Parent = parent
+	if radius then
+		corner(bg, radius)
+	end
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new(WHITE, packColor:Lerp(BLACK, 0.4))
+	gradient.Rotation = 90
+	gradient.Parent = bg
+	if not radius then
+		-- helle Streifen oben und unten (nur beim eckigen 3D-Pack, bei runden Karten stehen sie über)
+		for _, yScale in { 0, 1 } do
+			local strip = Instance.new("Frame")
+			strip.AnchorPoint = Vector2.new(0, yScale)
+			strip.Position = UDim2.fromScale(0, yScale)
+			strip.Size = UDim2.fromScale(1, 0.06)
+			strip.BackgroundColor3 = WHITE
+			strip.BackgroundTransparency = 0.35
+			strip.BorderSizePixel = 0
+			strip.Parent = bg
+		end
+	end
+	if title ~= "" then
+		label({
+			Size = UDim2.fromScale(0.9, 0.16),
+			Position = UDim2.fromScale(0.05, 0.09),
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0.3,
+			Text = title,
+			Parent = bg,
+		})
+	end
+	local circle = Instance.new("Frame")
+	circle.AnchorPoint = Vector2.new(0.5, 0.5)
+	circle.Position = UDim2.fromScale(0.5, 0.58)
+	circle.Size = UDim2.fromScale(0.62, 0.62)
+	circle.SizeConstraint = Enum.SizeConstraint.RelativeXX
+	circle.BackgroundColor3 = WHITE
+	circle.BackgroundTransparency = 0.8
+	circle.BorderSizePixel = 0
+	circle.Parent = bg
+	corner(circle, 2000)
+	stroke(circle, WHITE, 3)
+	label({
+		Size = UDim2.fromScale(1, 0.42),
+		Position = UDim2.fromScale(0, 0.37),
+		Font = Enum.Font.FredokaOne,
+		TextStrokeTransparency = 0.3,
+		Text = bigText,
+		ZIndex = 2,
+		Parent = bg,
+	})
+	local shine = Instance.new("Frame")
+	shine.Size = UDim2.fromScale(1, 1)
+	shine.BackgroundColor3 = WHITE
+	shine.BorderSizePixel = 0
+	shine.ZIndex = 3
+	shine.Parent = bg
+	local shineGradient = Instance.new("UIGradient")
+	shineGradient.Rotation = 25
+	shineGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.44, 1),
+		NumberSequenceKeypoint.new(0.5, 0.5),
+		NumberSequenceKeypoint.new(0.56, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	shineGradient.Offset = Vector2.new(-1, 0)
+	shineGradient.Parent = shine
+	task.spawn(function()
+		while shine.Parent do
+			shineGradient.Offset = Vector2.new(-1, 0)
+			tween(shineGradient, 0.8, { Offset = Vector2.new(1, 0) })
+			task.wait(1.1)
+		end
+	end)
+	return bg
+end
+
 -- Pack-Shop ---------------------------------------------------------------------
 local shop = Instance.new("Frame")
-shop.Size = UDim2.new(0, 760, 0, 420)
-shop.Position = UDim2.new(0.5, -380, 0.5, -210)
-shop.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+shop.AnchorPoint = Vector2.new(0.5, 0.5)
+shop.Size = UDim2.fromOffset(840, 500)
+shop.Position = UDim2.fromScale(0.5, 0.5)
+shop.BackgroundColor3 = WHITE
 shop.Visible = false
 shop.Parent = gui
-corner(shop, 14)
+corner(shop, 22)
+stroke(shop, WHITE, 4)
+local shopGradient = Instance.new("UIGradient")
+shopGradient.Color = ColorSequence.new(Color3.fromRGB(72, 54, 140), Color3.fromRGB(26, 22, 52))
+shopGradient.Rotation = 90
+shopGradient.Parent = shop
 local shopScale = Instance.new("UIScale")
 shopScale.Parent = shop
 
 label({
-	Size = UDim2.new(1, -60, 0, 40),
-	Position = UDim2.fromOffset(16, 8),
+	Size = UDim2.fromOffset(300, 44),
+	Position = UDim2.fromOffset(22, 12),
 	Font = Enum.Font.FredokaOne,
-	TextColor3 = Color3.fromRGB(255, 220, 60),
+	TextColor3 = Color3.fromRGB(255, 225, 80),
+	TextStrokeTransparency = 0.3,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "Pack-Shop",
-	Parent = shop,
-})
-local pityLabel = label({
-	Size = UDim2.new(1, -32, 0, 22),
-	Position = UDim2.fromOffset(16, 48),
-	TextColor3 = Color3.fromRGB(255, 190, 40),
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "",
+	Text = "✨ PACK-SHOP",
 	Parent = shop,
 })
 
+-- Glücks-Garantie als Balken: füllt sich mit jedem Pack ohne Legendär
+local pityBar = Instance.new("Frame")
+pityBar.Size = UDim2.fromOffset(400, 30)
+pityBar.Position = UDim2.new(1, -470, 0, 19)
+pityBar.BackgroundColor3 = Color3.fromRGB(20, 16, 40)
+pityBar.Parent = shop
+corner(pityBar, 15)
+stroke(pityBar, Color3.fromRGB(255, 200, 60), 2)
+local pityFill = Instance.new("Frame")
+pityFill.Size = UDim2.fromScale(0, 1)
+pityFill.BackgroundColor3 = Color3.fromRGB(255, 190, 40)
+pityFill.Parent = pityBar
+corner(pityFill, 15)
+local pityFillGradient = Instance.new("UIGradient")
+pityFillGradient.Color = ColorSequence.new(Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 150, 30))
+pityFillGradient.Rotation = 90
+pityFillGradient.Parent = pityFill
+local pityLabel = label({
+	Size = UDim2.new(1, -16, 1, -8),
+	Position = UDim2.fromOffset(8, 4),
+	Font = Enum.Font.FredokaOne,
+	TextStrokeTransparency = 0.2,
+	Text = "",
+	ZIndex = 2,
+	Parent = pityBar,
+})
+
 local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.fromOffset(40, 40)
-closeButton.Position = UDim2.new(1, -50, 0, 10)
-closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+closeButton.Size = UDim2.fromOffset(42, 42)
+closeButton.Position = UDim2.new(1, -56, 0, 13)
+closeButton.BackgroundColor3 = Color3.fromRGB(235, 70, 80)
 closeButton.Text = "X"
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
+closeButton.TextColor3 = WHITE
+closeButton.Font = Enum.Font.FredokaOne
 closeButton.TextScaled = true
 closeButton.Parent = shop
-corner(closeButton, 8)
+corner(closeButton, 21)
+stroke(closeButton, WHITE, 3).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 closeButton.Activated:Connect(function()
 	shop.Visible = false
 end)
 
-local packRow = Instance.new("Frame")
-packRow.Size = UDim2.new(1, -24, 1, -90)
-packRow.Position = UDim2.fromOffset(12, 80)
-packRow.BackgroundTransparency = 1
-packRow.Parent = shop
-local rowLayout = Instance.new("UIListLayout")
-rowLayout.FillDirection = Enum.FillDirection.Horizontal
-rowLayout.Padding = UDim.new(0, 12)
-rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-rowLayout.Parent = packRow
+-- Vorschau eines Packs: das 3D-Modell dreht sich langsam. Gibt es (noch) kein Modell,
+-- sieht man eine schräge Pack-Tafel, die wippt.
+local function packPreview(parent: GuiObject, pack, size: number, centerY: number)
+	local glow = Instance.new("Frame")
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.Position = UDim2.new(0.5, 0, 0, centerY)
+	glow.Size = UDim2.fromOffset(size * 0.9, size * 0.9)
+	glow.BackgroundColor3 = pack.Color
+	glow.BackgroundTransparency = 0.7
+	glow.BorderSizePixel = 0
+	glow.Parent = parent
+	corner(glow, size)
+	local rays = sunburst(parent, pack.Color, size * 1.1)
+	rays.Position = UDim2.new(0.5, 0, 0, centerY)
+	for _, r in rays:GetChildren() do
+		if r:IsA("Frame") then
+			r.Size = UDim2.new(0, 12, 1, 0)
+			r.BackgroundTransparency = 0.8
+		end
+	end
+
+	local folder = ReplicatedStorage:FindFirstChild("PackModelle")
+	local template = folder and folder:FindFirstChild(pack.Id)
+	if template and template:IsA("Model") then
+		local vp = Instance.new("ViewportFrame")
+		vp.AnchorPoint = Vector2.new(0.5, 0.5)
+		vp.Position = UDim2.new(0.5, 0, 0, centerY)
+		vp.Size = UDim2.fromOffset(size, size)
+		vp.BackgroundTransparency = 1
+		vp.Ambient = Color3.fromRGB(170, 170, 185)
+		vp.LightColor = WHITE
+		vp.LightDirection = Vector3.new(-0.3, -0.8, 1)
+		local model = template:Clone()
+		model:PivotTo(CFrame.new())
+		model.Parent = vp
+		local camera = Instance.new("Camera")
+		camera.FieldOfView = 30
+		camera.Parent = vp
+		vp.CurrentCamera = camera
+		local boxCF, boxSize = model:GetBoundingBox()
+		local center = boxCF.Position
+		local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.68
+		local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
+		camera.CFrame = CFrame.lookAt(center + Vector3.new(0, boxSize.Y * 0.35, -dist), center)
+		vp.Parent = parent
+		task.spawn(function()
+			while vp.Parent do
+				if shop.Visible then
+					local t = os.clock()
+					model:PivotTo(CFrame.new(0, math.sin(t * 2) * boxSize.Y * 0.04, 0) * CFrame.Angles(0, t * 0.9, 0))
+				end
+				RunService.RenderStepped:Wait()
+			end
+		end)
+		return
+	end
+
+	local holder = Instance.new("Frame")
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.new(0.5, 0, 0, centerY)
+	holder.Size = UDim2.fromOffset(size * 0.6, size * 0.82)
+	holder.BackgroundTransparency = 1
+	holder.Rotation = -7
+	holder.Parent = parent
+	packFace(holder, "", "?", pack.Color, 10)
+	stroke(holder, WHITE, 3)
+	corner(holder, 10)
+	task.spawn(function()
+		while holder.Parent do
+			if shop.Visible then
+				local t = os.clock()
+				holder.Position = UDim2.new(0.5, 0, 0, centerY + math.sin(t * 2) * 4)
+				holder.Rotation = -7 + math.sin(t * 1.3) * 3
+			end
+			RunService.RenderStepped:Wait()
+		end
+	end)
+end
 
 local packButtons = {}
-for _, pack in Config.Packs do
+local SHOP_CARD_W, SHOP_CARD_H, SHOP_GAP = 258, 410, 14
+for index, pack in Config.Packs do
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1 / #Config.Packs, -10, 1, 0)
-	card.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-	card.Parent = packRow
-	corner(card, 12)
-	stroke(card, pack.Color, 3)
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Size = UDim2.fromOffset(SHOP_CARD_W, SHOP_CARD_H)
+	card.Position = UDim2.new(0.5, (index - (#Config.Packs + 1) / 2) * (SHOP_CARD_W + SHOP_GAP), 0, 72 + SHOP_CARD_H / 2)
+	card.BackgroundColor3 = WHITE
+	card.Parent = shop
+	corner(card, 16)
+	local cardStroke = stroke(card, pack.Color, 3)
+	local cardGradient = Instance.new("UIGradient")
+	cardGradient.Color = ColorSequence.new(pack.Color:Lerp(Color3.fromRGB(30, 26, 60), 0.45), Color3.fromRGB(30, 26, 60))
+	cardGradient.Rotation = 90
+	cardGradient.Parent = card
+	local cardScale = Instance.new("UIScale")
+	cardScale.Parent = card
+	-- Karte wird etwas größer, wenn die Maus drüber ist
+	card.MouseEnter:Connect(function()
+		tween(cardScale, 0.15, { Scale = 1.04 })
+		cardStroke.Thickness = 5
+	end)
+	card.MouseLeave:Connect(function()
+		tween(cardScale, 0.15, { Scale = 1 })
+		cardStroke.Thickness = 3
+	end)
+
+	packPreview(card, pack, 132, 74)
 
 	label({
-		Size = UDim2.new(1, -16, 0, 34),
-		Position = UDim2.fromOffset(8, 8),
+		Size = UDim2.new(1, -16, 0, 32),
+		Position = UDim2.fromOffset(8, 142),
 		Font = Enum.Font.FredokaOne,
-		TextColor3 = pack.Color,
+		TextColor3 = WHITE,
+		TextStrokeTransparency = 0.2,
+		TextStrokeColor3 = pack.Color:Lerp(BLACK, 0.6),
 		Text = pack.Name,
+		ZIndex = 2,
 		Parent = card,
 	})
 
-	-- Chancen anzeigen (werden mit Glück aus dem Rebirth-Shop aktualisiert)
-	local y = 48
+	-- Chancen: Farbpunkt, Name, Prozent (werden mit Glück aus dem Rebirth-Shop aktualisiert)
+	local chanceBox = Instance.new("Frame")
+	chanceBox.Size = UDim2.new(1, -20, 0, 142)
+	chanceBox.Position = UDim2.fromOffset(10, 180)
+	chanceBox.BackgroundColor3 = Color3.fromRGB(18, 15, 36)
+	chanceBox.BackgroundTransparency = 0.25
+	chanceBox.Parent = card
+	corner(chanceBox, 10)
+	local y = 7
 	local chanceLabels = {}
 	for _, rarityKey in Config.RarityOrder do
 		if (pack.Weights[rarityKey] or 0) > 0 then
 			local rarity = Config.Rarities[rarityKey]
-			chanceLabels[rarityKey] = label({
-				Size = UDim2.new(1, -24, 0, 20),
-				Position = UDim2.fromOffset(12, y),
+			local dot = Instance.new("Frame")
+			dot.Size = UDim2.fromOffset(12, 12)
+			dot.Position = UDim2.fromOffset(10, y + 4)
+			dot.BackgroundColor3 = rarity.Color
+			dot.Parent = chanceBox
+			corner(dot, 6)
+			label({
+				Size = UDim2.new(1, -96, 0, 20),
+				Position = UDim2.fromOffset(30, y),
+				Font = Enum.Font.GothamBold,
 				TextColor3 = rarity.Color,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = "",
-				Parent = card,
+				Text = rarity.Name,
+				Parent = chanceBox,
 			})
-			y += 24
+			chanceLabels[rarityKey] = label({
+				Size = UDim2.fromOffset(64, 20),
+				Position = UDim2.new(1, -72, 0, y),
+				Font = Enum.Font.GothamBold,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				Text = "",
+				Parent = chanceBox,
+			})
+			y += 22
 		end
 	end
 
 	-- 1x / 3x / 10x
 	local buttonRow = Instance.new("Frame")
-	buttonRow.Size = UDim2.new(1, -16, 0, 58)
-	buttonRow.Position = UDim2.new(0, 8, 1, -66)
+	buttonRow.Size = UDim2.new(1, -20, 0, 62)
+	buttonRow.Position = UDim2.new(0, 10, 1, -74)
 	buttonRow.BackgroundTransparency = 1
 	buttonRow.Parent = card
 	local buttonLayout = Instance.new("UIListLayout")
 	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
-	buttonLayout.Padding = UDim.new(0, 5)
+	buttonLayout.Padding = UDim.new(0, 6)
 	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	buttonLayout.Parent = buttonRow
 	local buttons = {}
@@ -622,23 +851,28 @@ for _, pack in Config.Packs do
 		local buy = Instance.new("TextButton")
 		buy.Size = UDim2.new(1 / #Config.PackCounts, -4, 1, 0)
 		buy.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
-		buy.TextColor3 = Color3.new(1, 1, 1)
+		buy.TextColor3 = WHITE
 		buy.Font = Enum.Font.FredokaOne
 		buy.TextScaled = true
-		buy.TextStrokeTransparency = 0.5
+		buy.TextStrokeTransparency = 0.4
 		buy.Text = `{option.Count}x\n{Config.FormatNumber(cost)} $`
 		buy.Parent = buttonRow
-		corner(buy, 10)
+		corner(buy, 12)
+		stroke(buy, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		local buyGradient = Instance.new("UIGradient")
+		buyGradient.Color = ColorSequence.new(WHITE, Color3.fromRGB(190, 190, 190))
+		buyGradient.Rotation = 90
+		buyGradient.Parent = buy
 		local pad = Instance.new("UIPadding")
-		pad.PaddingTop = UDim.new(0, 4)
-		pad.PaddingBottom = UDim.new(0, 4)
-		pad.PaddingLeft = UDim.new(0, 3)
-		pad.PaddingRight = UDim.new(0, 3)
+		pad.PaddingTop = UDim.new(0, 5)
+		pad.PaddingBottom = UDim.new(0, 5)
+		pad.PaddingLeft = UDim.new(0, 4)
+		pad.PaddingRight = UDim.new(0, 4)
 		pad.Parent = buy
 		if option.Discount < 1 then
 			local tag = label({
-				Size = UDim2.fromOffset(46, 18),
-				Position = UDim2.new(1, -40, 0, -14),
+				Size = UDim2.fromOffset(50, 20),
+				Position = UDim2.new(1, -42, 0, -14),
 				BackgroundTransparency = 0,
 				BackgroundColor3 = Color3.fromRGB(255, 60, 90),
 				Font = Enum.Font.FredokaOne,
@@ -667,35 +901,46 @@ local function updateShop()
 	local luck = player:GetAttribute("Up_Luck") or 0
 	for _, entry in packButtons do
 		for _, b in entry.Buttons do
-			b.Button.BackgroundColor3 = if money >= b.Price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(90, 90, 100)
+			b.Button.BackgroundColor3 = if money >= b.Price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(105, 100, 125)
 		end
 		local weights = Config.PackWeights(entry.Pack, luck)
 		for rarityKey, l in entry.Chances do
-			local rarity = Config.Rarities[rarityKey]
-			l.Text = `{rarity.Name}: {percentText(Config.Percent(weights, rarityKey))}`
+			l.Text = percentText(Config.Percent(weights, rarityKey))
 		end
 	end
-	local left = Config.PityThreshold - (player:GetAttribute("Pity") or 0)
-	pityLabel.Text = `Garantiert Legendär oder besser in spätestens {math.max(1, left)} Packs`
+	local pity = player:GetAttribute("Pity") or 0
+	local left = math.max(1, Config.PityThreshold - pity)
+	pityLabel.Text = `Garantie: Legendär oder besser in spätestens {left} Packs`
+	pityFill.Size = UDim2.fromScale(math.clamp(pity / Config.PityThreshold, 0.08, 1), 1)
 end
 player:GetAttributeChangedSignal("Money"):Connect(updateShop)
 player:GetAttributeChangedSignal("Pity"):Connect(updateShop)
 player:GetAttributeChangedSignal("Up_Luck"):Connect(updateShop)
 updateShop()
 
-local function fitShop()
+local function fitShop(): number
 	local camera = workspace.CurrentCamera
+	local scale = 1
 	if camera then
 		local size = camera.ViewportSize
-		shopScale.Scale = math.min(1, size.X / 800, size.Y / 480)
+		scale = math.min(1, size.X / 880, size.Y / 540)
 	end
+	shopScale.Scale = scale
+	return scale
 end
 
-Remotes.OpenPacks.OnClientEvent:Connect(function()
+-- Shop aufmachen: ploppt kurz auf
+local function showShop()
 	updateShop()
-	fitShop()
+	local scale = fitShop()
+	if not shop.Visible then
+		shopScale.Scale = scale * 0.8
+		tween(shopScale, 0.22, { Scale = scale }, Enum.EasingStyle.Back)
+	end
 	shop.Visible = true
-end)
+end
+
+Remotes.OpenPacks.OnClientEvent:Connect(showShop)
 
 -- Packs-Knopf: öffnet den Shop von überall (auch Taste P)
 local opening = false -- läuft gerade eine Pack-Öffnung?
@@ -734,9 +979,7 @@ local function toggleShop()
 	if shop.Visible then
 		shop.Visible = false
 	else
-		updateShop()
-		fitShop()
-		shop.Visible = true
+		showShop()
 	end
 	playSound("Click")
 end
@@ -983,8 +1226,6 @@ end
 -- Die Bühne --------------------------------------------------------------------------
 -- Ein dunkler Raum hoch über der Insel. Dort steht ein Podest, auf dem das Pack landet.
 -- Die Kamera gehört während der Öffnung dem Skript und fährt wie in einem Film mit.
-local WHITE = Color3.new(1, 1, 1)
-local BLACK = Color3.new(0, 0, 0)
 local STAGE = CFrame.new(0, 3000, 0) -- Mitte des Bühnenbodens
 local PEDESTAL_TOP = 0.6 -- Höhe des Podests
 local PACK_Y = 2.95 -- so hoch ist die Mitte des Packs, wenn es auf dem Podest steht
@@ -1477,132 +1718,98 @@ local function runShow(pack, count: number, play)
 	if show.Again and pack then
 		Remotes.BuyPack:FireServer(pack.Id, count)
 	else
-		updateShop()
-		shop.Visible = true
+		showShop()
 	end
 end
 
--- Vorderseite eines Packs: Folie, Streifen, Name, "?" und ein Glanz, der drüberläuft.
--- Wird fürs 3D-Pack und für die Rückseiten der Karten benutzt.
-local function packFace(parent: Instance, title: string, bigText: string, packColor: Color3, radius: number?): Frame
-	local bg = Instance.new("Frame")
-	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = packColor
-	bg.BorderSizePixel = 0
-	bg.ClipsDescendants = true
-	bg.Parent = parent
-	if radius then
-		corner(bg, radius)
-	end
-	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new(WHITE, packColor:Lerp(BLACK, 0.4))
-	gradient.Rotation = 90
-	gradient.Parent = bg
-	if not radius then
-		-- helle Streifen oben und unten (nur beim eckigen 3D-Pack, bei runden Karten stehen sie über)
-		for _, yScale in { 0, 1 } do
-			local strip = Instance.new("Frame")
-			strip.AnchorPoint = Vector2.new(0, yScale)
-			strip.Position = UDim2.fromScale(0, yScale)
-			strip.Size = UDim2.fromScale(1, 0.06)
-			strip.BackgroundColor3 = WHITE
-			strip.BackgroundTransparency = 0.35
-			strip.BorderSizePixel = 0
-			strip.Parent = bg
+-- Das Pack als 3D-Modell. Liegt in ReplicatedStorage.PackModelle ein Modell mit der Id des
+-- Packs (z.B. "Holz"), wird das genommen. Sonst gibt es eine Folien-Tafel mit Bild vorne.
+local PACK_HEIGHT = 4.2 -- Höhe des 3D-Modells auf der Bühne
+local function buildPack(show, pack, bigText: string)
+	local packColor = pack and pack.Color or WHITE
+	local folder = ReplicatedStorage:FindFirstChild("PackModelle")
+	local template = pack and folder and folder:FindFirstChild(pack.Id)
+	local model: Model? = nil
+	local baseScale = 1
+	if template and template:IsA("Model") then
+		local clone = template:Clone()
+		for _, d in clone:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide = false
+				d.CanTouch = false
+				d.CanQuery = false
+				d.CastShadow = false
+			elseif d:IsA("LuaSourceContainer") then
+				d:Destroy()
+			end
+		end
+		local height = clone:GetExtentsSize().Y
+		if height > 0.05 then
+			model = clone
+			baseScale = clone:GetScale() * PACK_HEIGHT / height
+			clone:ScaleTo(baseScale)
+			clone:PivotTo(CFrame.new())
+		else
+			clone:Destroy()
 		end
 	end
-	if title ~= "" then
-		label({
-			Size = UDim2.fromScale(0.9, 0.16),
-			Position = UDim2.fromScale(0.05, 0.09),
-			Font = Enum.Font.FredokaOne,
-			TextStrokeTransparency = 0.3,
-			Text = title,
-			Parent = bg,
-		})
-	end
-	local circle = Instance.new("Frame")
-	circle.AnchorPoint = Vector2.new(0.5, 0.5)
-	circle.Position = UDim2.fromScale(0.5, 0.58)
-	circle.Size = UDim2.fromScale(0.62, 0.62)
-	circle.SizeConstraint = Enum.SizeConstraint.RelativeXX
-	circle.BackgroundColor3 = WHITE
-	circle.BackgroundTransparency = 0.8
-	circle.BorderSizePixel = 0
-	circle.Parent = bg
-	corner(circle, 2000)
-	stroke(circle, WHITE, 3)
-	label({
-		Size = UDim2.fromScale(1, 0.42),
-		Position = UDim2.fromScale(0, 0.37),
-		Font = Enum.Font.FredokaOne,
-		TextStrokeTransparency = 0.3,
-		Text = bigText,
-		ZIndex = 2,
-		Parent = bg,
-	})
-	local shine = Instance.new("Frame")
-	shine.Size = UDim2.fromScale(1, 1)
-	shine.BackgroundColor3 = WHITE
-	shine.BorderSizePixel = 0
-	shine.ZIndex = 3
-	shine.Parent = bg
-	local shineGradient = Instance.new("UIGradient")
-	shineGradient.Rotation = 25
-	shineGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.44, 1),
-		NumberSequenceKeypoint.new(0.5, 0.5),
-		NumberSequenceKeypoint.new(0.56, 1),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	shineGradient.Offset = Vector2.new(-1, 0)
-	shineGradient.Parent = shine
-	task.spawn(function()
-		while shine.Parent do
-			shineGradient.Offset = Vector2.new(-1, 0)
-			tween(shineGradient, 0.8, { Offset = Vector2.new(1, 0) })
-			task.wait(1.1)
-		end
-	end)
-	return bg
-end
 
--- Das Pack als 3D-Modell: Folien-Tafel mit geriffelten Rändern, Bild auf der Vorderseite,
--- Licht und Funken im Inneren
-local function buildPack(show, title: string, bigText: string, packColor: Color3)
-	local model = Instance.new("Model")
-	model.Name = "Pack"
-	local body = stagePart({
-		Name = "Body",
-		Size = Vector3.new(2.8, 3.8, 0.5),
-		Color = packColor,
-		Material = Enum.Material.Foil,
-		Parent = model,
-	})
-	model.PrimaryPart = body
-	for _, dir in { 1, -1 } do
-		stagePart({
-			Name = "Rand",
-			Size = Vector3.new(2.8, 0.38, 0.16),
-			CFrame = CFrame.new(0, dir * 2.09, 0),
-			Color = packColor:Lerp(WHITE, 0.5),
-			Material = Enum.Material.Metal,
+	local body: Part? = nil
+	local face: SurfaceGui? = nil
+	local sparkHost: BasePart
+	local coreCF: CFrame
+	local facing = CFrame.identity
+	local restY, centerOffset = PACK_Y, 0
+	if model then
+		-- KI-Modell: Pivot unten in der Mitte, Vorderseite zeigt nach -Z (also umdrehen)
+		local boxCF, boxSize = model:GetBoundingBox()
+		sparkHost = stagePart({
+			Name = "Huelle",
+			Size = boxSize,
+			CFrame = boxCF,
+			Transparency = 1,
 			Parent = model,
 		})
+		coreCF = CFrame.new(boxCF.Position) * CFrame.new(0, 0, boxSize.Z / 2 + 0.3)
+		facing = CFrame.Angles(0, math.pi, 0)
+		restY, centerOffset = PEDESTAL_TOP, PACK_HEIGHT / 2
+	else
+		local slab = Instance.new("Model")
+		slab.Name = "Pack"
+		local slabBody = stagePart({
+			Name = "Body",
+			Size = Vector3.new(2.8, 3.8, 0.5),
+			Color = packColor,
+			Material = Enum.Material.Foil,
+			Parent = slab,
+		})
+		slab.PrimaryPart = slabBody
+		for _, dir in { 1, -1 } do
+			stagePart({
+				Name = "Rand",
+				Size = Vector3.new(2.8, 0.38, 0.16),
+				CFrame = CFrame.new(0, dir * 2.09, 0),
+				Color = packColor:Lerp(WHITE, 0.5),
+				Material = Enum.Material.Metal,
+				Parent = slab,
+			})
+		end
+		local slabFace = Instance.new("SurfaceGui")
+		slabFace.Face = Enum.NormalId.Back -- die Seite, die zur Kamera zeigt
+		slabFace.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+		slabFace.CanvasSize = Vector2.new(280, 380)
+		slabFace.LightInfluence = 0
+		slabFace.Parent = slabBody
+		packFace(slabFace, pack and pack.Name or "Pack", bigText, packColor)
+		model, body, face, sparkHost = slab, slabBody, slabFace, slabBody
+		coreCF = CFrame.new(0, 0, -0.6)
 	end
-	local face = Instance.new("SurfaceGui")
-	face.Face = Enum.NormalId.Back -- die Seite, die zur Kamera zeigt
-	face.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-	face.CanvasSize = Vector2.new(280, 380)
-	face.LightInfluence = 0
-	face.Parent = body
-	packFace(face, title, bigText, packColor)
 
 	local core = stagePart({
 		Name = "Kern",
 		Size = Vector3.new(0.4, 0.4, 0.4),
-		CFrame = CFrame.new(0, 0, -0.6),
+		CFrame = coreCF,
 		Transparency = 1,
 		Parent = model,
 	})
@@ -1611,20 +1818,56 @@ local function buildPack(show, title: string, bigText: string, packColor: Color3
 	light.Brightness = 0
 	light.Parent = core
 
-	local p = makePuppet(show, model, 1, CFrame.identity)
+	local p = makePuppet(show, model :: Model, baseScale, facing)
 	p.Body = body
 	p.Face = face
+	p.Core = core
+	p.Color = packColor
+	p.RestY = restY -- so hoch steht das Pack auf dem Podest (Höhe seines Pivots)
+	p.CenterOffset = centerOffset -- so weit liegt seine Mitte über dem Pivot
 	p.Cracks = {}
 	p.Glow = glowEmitter(core, 4.5)
 	p.Light = light
-	p.Sparks = sparkEmitter(body, WHITE, 0.55, 16)
+	p.Sparks = sparkEmitter(sparkHost, WHITE, 0.55, 16)
+	if not body and bigText ~= "?" then
+		-- Beim 3D-Modell schwebt die Anzahl ("10x") als Schild vor dem Pack
+		local badge = Instance.new("BillboardGui")
+		badge.Size = UDim2.fromScale(3.4, 1.7)
+		badge.AlwaysOnTop = true
+		badge.Adornee = sparkHost
+		badge.Parent = sparkHost
+		label({
+			Size = UDim2.fromScale(1, 1),
+			Font = Enum.Font.FredokaOne,
+			TextStrokeTransparency = 0,
+			Text = bigText,
+			Parent = badge,
+		})
+		p.Badge = badge
+	end
 	return p
 end
 
--- Ein leuchtender Riss auf der Vorderseite: 3 Zacken von einem zufälligen Punkt aus
+-- Licht bricht aus dem Pack. Bei der Folien-Tafel als gezackter Riss auf der Vorderseite,
+-- beim 3D-Modell als Lichtstrahl, der hinter dem Pack hervorschießt.
 local function addCrack(p, seed: number, color: Color3)
 	local rng = Random.new(seed)
 	local body = p.Body
+	if not body then
+		local k = p.Model:GetScale() / p.BaseScale -- aktuelle Größe des Packs
+		local len = rng:NextNumber(3.4, 5.2) * k
+		local ray = stagePart({
+			Name = "Riss",
+			Size = Vector3.new(len, 0.16 * k, 0.16 * k),
+			CFrame = p.Core.CFrame * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi * 2)) * CFrame.new(len / 2, 0, 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.1,
+			Parent = p.Model,
+		})
+		table.insert(p.Cracks, ray)
+		return
+	end
 	local k = body.Size.X / 2.8 -- aktuelle Größe des Packs
 	local halfX, halfY = body.Size.X * 0.44, body.Size.Y * 0.44
 	local x, y = rng:NextNumber(-0.3, 0.3) * body.Size.X, rng:NextNumber(-0.32, 0.32) * body.Size.Y
@@ -1653,9 +1896,9 @@ end
 
 -- 1. Akt: Kamera fährt ran, das Pack fällt von oben und knallt aufs Podest
 local function enterPack(show, pack, bigText: string)
-	local packColor = pack and pack.Color or WHITE
-	local p = buildPack(show, pack and pack.Name or "Pack", bigText, packColor)
-	p.Pos.Value = Vector3.new(0, 17, 0)
+	local p = buildPack(show, pack, bigText)
+	local rest = p.RestY
+	p.Pos.Value = Vector3.new(0, rest + 14, 0)
 	p.Tilt.Value = Vector3.new(0, -360, 20)
 	updatePuppet(p)
 	p.Model.Parent = show.Folder
@@ -1664,7 +1907,7 @@ local function enterPack(show, pack, bigText: string)
 
 	local fall = 0.42
 	playSound("PackDrop")
-	tweenIn(p.Pos, fall, { Value = Vector3.new(0, PACK_Y, 0) })
+	tweenIn(p.Pos, fall, { Value = Vector3.new(0, rest, 0) })
 	tween(p.Tilt, fall, { Value = Vector3.zero }, Enum.EasingStyle.Linear)
 	task.wait(fall)
 
@@ -1675,8 +1918,8 @@ local function enterPack(show, pack, bigText: string)
 	stageRing(show, WHITE, 15, 0.45)
 	p.Size.Value = 0.8
 	tween(p.Size, 0.45, { Value = 1 }, Enum.EasingStyle.Elastic)
-	p.Pos.Value = Vector3.new(0, PACK_Y - 0.25, 0)
-	tween(p.Pos, 0.3, { Value = Vector3.new(0, PACK_Y, 0) }, Enum.EasingStyle.Back)
+	p.Pos.Value = Vector3.new(0, rest - 0.25, 0)
+	tween(p.Pos, 0.3, { Value = Vector3.new(0, rest, 0) }, Enum.EasingStyle.Back)
 	return p
 end
 
@@ -1712,8 +1955,8 @@ local function chargePack(show, p, hits: number, rank: number): boolean
 		tween(p.Tilt, gap * 0.85, { Value = Vector3.zero }, Enum.EasingStyle.Elastic)
 		p.Size.Value = 1.12 + t * 0.12
 		tween(p.Size, gap * 0.7, { Value = 1 + t * 0.06 }, Enum.EasingStyle.Back)
-		p.Pos.Value = Vector3.new(0, PACK_Y + 0.35 + t * 0.4, 0)
-		tween(p.Pos, gap * 0.6, { Value = Vector3.new(0, PACK_Y, 0) }, Enum.EasingStyle.Bounce)
+		p.Pos.Value = Vector3.new(0, p.RestY + 0.35 + t * 0.4, 0)
+		tween(p.Pos, gap * 0.6, { Value = Vector3.new(0, p.RestY, 0) }, Enum.EasingStyle.Bounce)
 		addCrack(p, i * 17 + hits, WHITE)
 		p.Sparks:Emit(6 + i * 4)
 		p.Light.Brightness = t * 3
@@ -1737,10 +1980,11 @@ local function tellRarity(show, p, rank: number): boolean
 	local steps = rank - RARE_RANK + 1
 	local stepTime = if steps == 1 then 0.4 else 0.46
 	local total = steps * stepTime
-	local lift = Vector3.new(0, PACK_Y + 0.5 + steps * 0.25, 0)
+	local lift = Vector3.new(0, p.RestY + 0.5 + steps * 0.25, 0)
+	local lookY = lift.Y + p.CenterOffset -- die Kamera schaut auf die Mitte des Packs
 	tween(p.Pos, total, { Value = lift }, Enum.EasingStyle.Sine)
-	tween(show.CamLook, total, { Value = Vector3.new(0, lift.Y, 0) }, Enum.EasingStyle.Sine)
-	tween(show.CamPos, total, { Value = Vector3.new(0, lift.Y + 0.6, 10 - steps * 0.3) }, Enum.EasingStyle.Sine)
+	tween(show.CamLook, total, { Value = Vector3.new(0, lookY, 0) }, Enum.EasingStyle.Sine)
+	tween(show.CamPos, total, { Value = Vector3.new(0, lookY + 0.6, 10 - steps * 0.3) }, Enum.EasingStyle.Sine)
 	tween(show.CamFov, total, { Value = 46 })
 	setRays(show, 0.5, total)
 	local skipped = false
@@ -1788,42 +2032,71 @@ local function burstPack(show, p, rank: number, color: Color3)
 		playSound("PackBurstBig")
 	end
 	show.Puppets[p] = nil -- ab jetzt fliegen die Teile einzeln
-	local center = body.Position
-	local bodyCF, bodySize, bodyColor = body.CFrame, body.Size, body.Color
-	p.Face:Destroy()
-	body.Transparency = 1
+	local center = p.Core.Position
+	if p.Badge then
+		p.Badge:Destroy()
+	end
 	p.Glow.Rate = 0
 	tween(p.Light, 0.4, { Brightness = 0 })
-	-- zwei Hälften reißen auseinander
-	for _, dir in { -1, 1 } do
-		local half = stagePart({
-			Size = Vector3.new(bodySize.X / 2, bodySize.Y, bodySize.Z),
-			CFrame = bodyCF * CFrame.new(dir * bodySize.X / 4, 0, 0),
-			Color = bodyColor,
+	if body then
+		-- Folien-Tafel: zwei Hälften reißen auseinander
+		local bodyCF, bodySize, bodyColor = body.CFrame, body.Size, body.Color
+		p.Face:Destroy()
+		body.Transparency = 1
+		for _, dir in { -1, 1 } do
+			local half = stagePart({
+				Size = Vector3.new(bodySize.X / 2, bodySize.Y, bodySize.Z),
+				CFrame = bodyCF * CFrame.new(dir * bodySize.X / 4, 0, 0),
+				Color = bodyColor,
+				Material = Enum.Material.Foil,
+				Parent = show.Folder,
+			})
+			tween(half, 0.6, {
+				CFrame = bodyCF * CFrame.new(dir * 9, 2.5, 1) * CFrame.Angles(math.rad(40), dir * math.rad(70), dir * math.rad(-120)),
+				Transparency = 1,
+			})
+			task.delay(0.65, function()
+				half:Destroy()
+			end)
+		end
+	end
+	for _, part in p.Model:GetDescendants() do
+		if part:IsA("BasePart") and part ~= body and part.Name ~= "Kern" and part.Name ~= "Huelle" then
+			if part.Name == "Riss" or part.Name == "Rand" then
+				-- Ränder, Risse und Lichtstrahlen fliegen als Scherben weg
+				local away = part.Position - center
+				if away.Magnitude < 0.1 then
+					away = Vector3.new(math.random() - 0.5, math.random() - 0.5, 0.2)
+				end
+				local target = part.Position + away.Unit * (5 + math.random() * 6) + Vector3.new(0, math.random() * 2, math.random() * 3)
+				tween(part, 0.5, {
+					CFrame = CFrame.new(target) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+					Transparency = 1,
+				})
+			else
+				-- 3D-Modell: bläht sich kurz auf und ist weg
+				tween(part, 0.16, { Size = part.Size * 1.35, Transparency = 1 })
+			end
+		end
+	end
+	-- Scherben in der Farbe des Packs fliegen in alle Richtungen
+	for i = 1, 16 do
+		local s = 0.3 + math.random() * 0.6
+		local shard = stagePart({
+			Size = Vector3.new(s, s * 1.4, 0.12),
+			CFrame = CFrame.new(center) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+			Color = if i % 3 == 0 then WHITE else p.Color,
 			Material = Enum.Material.Foil,
 			Parent = show.Folder,
 		})
-		tween(half, 0.6, {
-			CFrame = bodyCF * CFrame.new(dir * 9, 2.5, 1) * CFrame.Angles(math.rad(40), dir * math.rad(70), dir * math.rad(-120)),
+		local dir = Vector3.new(math.random() - 0.5, math.random() - 0.3, math.random() - 0.5).Unit
+		tween(shard, 0.55 + math.random() * 0.25, {
+			CFrame = CFrame.new(center + dir * (6 + math.random() * 7)) * CFrame.Angles(math.random() * 9, math.random() * 9, math.random() * 9),
 			Transparency = 1,
 		})
-		task.delay(0.65, function()
-			half:Destroy()
+		task.delay(0.9, function()
+			shard:Destroy()
 		end)
-	end
-	-- Ränder und Risse fliegen als Scherben weg
-	for _, part in p.Model:GetChildren() do
-		if part:IsA("BasePart") and part ~= body and part.Name ~= "Kern" then
-			local away = part.Position - center
-			if away.Magnitude < 0.1 then
-				away = Vector3.new(math.random() - 0.5, math.random() - 0.5, 0.2)
-			end
-			local target = part.Position + away.Unit * (5 + math.random() * 6) + Vector3.new(0, math.random() * 2, math.random() * 3)
-			tween(part, 0.5, {
-				CFrame = CFrame.new(target) * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
-				Transparency = 1,
-			})
-		end
 	end
 	task.delay(0.7, function()
 		p.Model:Destroy()
