@@ -79,6 +79,16 @@ local function playSound(key: string?, pitch: number?)
 				sound.Ended:Once(function()
 					sound:Destroy()
 				end)
+				if note[5] then
+					-- lange Sounds nach ihrer kräftigen Stelle ausblenden
+					task.delay(note[5], function()
+						if sound.Parent then
+							TweenService:Create(sound, TweenInfo.new(0.35), { Volume = 0 }):Play()
+							task.wait(0.4)
+							sound:Destroy()
+						end
+					end)
+				end
 				task.delay(8, function()
 					if sound.Parent then
 						sound:Destroy()
@@ -1950,25 +1960,23 @@ local function chargePack(show, p, hits: number, rank: number): boolean
 			return true
 		end
 		if i == 1 and rank >= EPIC_RANK then
-			-- Ab Episch läuft unter allem ein Ton, der immer höher steigt. Er wird so schnell
-			-- abgespielt, dass seine lauteste Stelle genau auf den Knall fällt.
+			-- Ab Episch schwillt unter allem ein Becken an. Es startet so, dass seine lauteste
+			-- Stelle genau auf den Knall fällt.
 			local left = 0
 			for k = 1, hits do
 				left += gap * 0.86 ^ k
 			end
 			left += (rank - RARE_RANK + 1) * 0.46
-			local riser = startSound("Riser", 0.2, math.clamp(Config.RiserPeak / left, 0.75, 1.6))
-			if riser then
-				tween(riser, left, { Volume = 0.6 }, Enum.EasingStyle.Linear)
-			end
-			show.Riser = riser
+			local speed = math.clamp(Config.RiserPeak / left, 0.8, 1.5)
+			task.delay(math.max(0, left - Config.RiserPeak / speed), function()
+				if show.Puppets[p] and not show.Skip then
+					show.Riser = startSound("Riser", 0.8, speed)
+				end
+			end)
 		end
 		local t = i / hits
 		local side = if i % 2 == 0 then 1 else -1
 		playSound("PackHit", 2 ^ ((i - 1) * 2 / 12)) -- jeder Schlag einen Ganzton höher
-		if i > 1 then
-			playSound("PackCrackle", 0.9 + t * 0.4)
-		end
 		p.Tilt.Value = Vector3.new(0, side * 12, side * (10 + t * 14))
 		tween(p.Tilt, gap * 0.85, { Value = Vector3.zero }, Enum.EasingStyle.Elastic)
 		p.Size.Value = 1.12 + t * 0.12
