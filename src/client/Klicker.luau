@@ -271,8 +271,9 @@ return function(ctx)
 		local amount = `+{Config.FormatNumber(value)} $`
 		if kind == "auto" then
 			-- Auto-Klicker: kleine Zahl neben der Geld-Anzeige
-			local view = fx.AbsoluteSize
-			floatText(Vector2.new(330, view.Y / 2 + 36), `🤖 {amount}`, Color3.fromRGB(150, 220, 255), 22, 18, 0.9)
+			local box: GuiObject? = ctx.MoneyBox
+			local at = if box then box.AbsolutePosition + Vector2.new(box.AbsoluteSize.X + 90, box.AbsoluteSize.Y * 0.8) else Vector2.new(330, fx.AbsoluteSize.Y / 2)
+			floatText(at, `🤖 {amount}`, Color3.fromRGB(150, 220, 255), 22, 18, 0.9)
 			return
 		end
 		showCombo(count, step, mult)
