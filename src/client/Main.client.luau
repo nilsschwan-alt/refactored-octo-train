@@ -254,7 +254,7 @@ local incomeLabel = label({
 -- Die Zahl zählt sichtbar hoch/runter statt zu springen
 local shownMoney = player:GetAttribute("Money") or 0
 local function updateMoney()
-	incomeLabel.Text = `+{Config.FormatNumber(player:GetAttribute("Income") or 0)} $/s automatisch`
+	incomeLabel.Text = `+{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s automatisch`
 end
 
 -- Jedes Mal, wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf
@@ -3369,7 +3369,7 @@ local questLayout = Instance.new("UIListLayout")
 questLayout.Padding = UDim.new(0, 6)
 questLayout.SortOrder = Enum.SortOrder.LayoutOrder
 questLayout.Parent = questBox
-local questTitle = label({
+label({
 	Size = UDim2.new(1, 0, 0, 24),
 	Font = Enum.Font.FredokaOne,
 	TextColor3 = Color3.fromRGB(255, 220, 60),
@@ -3378,14 +3378,15 @@ local questTitle = label({
 	LayoutOrder = 0,
 	Parent = questBox,
 })
--- rechts daneben: wann es das nächste Token für den Skill-Baum gibt
+-- ganz unten: wann es das nächste Token für den Skill-Baum gibt
 local questToken = label({
-	Size = UDim2.new(0.58, 0, 0, 18),
-	Position = UDim2.new(0.42, 0, 0, 3),
+	Size = UDim2.new(1, 0, 0, 20),
+	Font = Enum.Font.FredokaOne,
 	TextColor3 = Color3.fromRGB(120, 220, 255),
-	TextXAlignment = Enum.TextXAlignment.Right,
+	TextXAlignment = Enum.TextXAlignment.Left,
 	Text = "",
-	Parent = questTitle,
+	LayoutOrder = 99,
+	Parent = questBox,
 })
 local questRows = {}
 local lastProgress = {}

@@ -52,7 +52,7 @@ function Bases.AnnounceIfRare(player: Player, entry: string, how: string)
 	if rank >= Config.RarityRank("Legendary") or mutation == "Regenbogen" then
 		local rarity = Config.Rarities[def.Rarity]
 		Bases.Announce(
-			`{player.DisplayName} hat {how}: {string.upper(rarity.Name)} {Config.EntryName(entry)}!`,
+			`{player.DisplayName} hat {how}: {Config.Upper(rarity.Name)} {Config.EntryName(entry)}!`,
 			rarity.Color
 		)
 	end
@@ -408,7 +408,7 @@ local function mergeSlots(state, entry: string, slots: { number }, quiet: boolea
 		else
 			Bases.BigText(player, `VERSCHMOLZEN! {Config.StarText(newStars)}`, color, if newStars >= 3 then "MergeBig" else "Merge")
 		end
-		Bases.Notify(player, `{name} macht jetzt +{Config.FormatNumber(Config.EntryIncome(result))} $/s.`, color)
+		Bases.Notify(player, `{name} macht jetzt +{Config.FormatRate(Config.EntryIncome(result))} $/s.`, color)
 		if newStars >= Config.Stars.AnnounceFrom then
 			Bases.Announce(`{player.DisplayName} hat verschmolzen: {name}!`, color)
 		end
@@ -491,7 +491,7 @@ function Bases.RefreshPlot(plot)
 	local level = state.Data.BaseLevel
 	local levelInfo = Config.BaseLevels[level]
 	labels[1].Text = `Base von {owner.DisplayName}`
-	labels[2].Text = `Stufe {level}: {levelInfo.Name} · +{Config.FormatNumber(Bases.Income(state))} $/s`
+	labels[2].Text = `Stufe {level}: {levelInfo.Name} · +{Config.FormatRate(Bases.Income(state))} $/s`
 	labels[2].TextColor3 = Color3.fromRGB(255, 220, 90)
 
 	local now = os.clock()
@@ -654,7 +654,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	Bases.RenderAll(state) -- das größere Haus ordnet die Plätze neu an
 	Bases.RefreshRings(state)
 	Bases.RefreshPlot(state.Plot)
-	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
+	Bases.BigText(player, `BASE-UPGRADE: {Config.Upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
 	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)
 	FX.Ring(center, Color3.fromRGB(80, 255, 120), 50)
 	for _, offset in { Vector3.new(-18, 6, -28), Vector3.new(18, 6, -28), Vector3.new(-12, 4, -8), Vector3.new(12, 4, -8) } do

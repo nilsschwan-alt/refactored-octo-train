@@ -326,7 +326,7 @@ function CreatureModels.Build(def, opts): Model
 		info.TextScaled = true
 		info.TextColor3 = Color3.fromRGB(120, 255, 120)
 		info.TextStrokeTransparency = 0.3
-		info.Text = `{rarity.Name} · +{Config.FormatNumber(def.Income * mutation.Multiplier * Config.StarMultiplier(stars))} $/s`
+		info.Text = `{rarity.Name} · +{Config.FormatRate(def.Income * mutation.Multiplier * Config.StarMultiplier(stars))} $/s`
 		info.Parent = gui
 
 		if opts.PriceText then

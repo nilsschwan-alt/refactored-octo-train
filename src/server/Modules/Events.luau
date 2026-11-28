@@ -148,7 +148,7 @@ local function runMeteor()
 	local rarity = def.Rarity
 	local entry = Config.MakeEntry(def.Id, Config.RollWeighted(cfg.MutationWeights))
 	placeWild(entry, target, cfg.Duration)
-	Bases.Announce(`☄️ Meteor gelandet: {string.upper(Config.Rarities[rarity].Name)} {Config.EntryName(entry)}! Schnell hin!`,
+	Bases.Announce(`☄️ Meteor gelandet: {Config.Upper(Config.Rarities[rarity].Name)} {Config.EntryName(entry)}! Schnell hin!`,
 		Config.Rarities[rarity].Color)
 	setPhase("Meteor", "active", cfg.Duration)
 	task.wait(cfg.Duration)
