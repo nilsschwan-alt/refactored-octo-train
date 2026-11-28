@@ -482,6 +482,7 @@ function Bases.StarUpAll(player: Player)
 		return
 	end
 	local count, bestStars, bestEntry = 0, 0, nil -- bestEntry = die stärkste, die einen Stern bekam
+	local starEntry = nil -- die mit den meisten Sternen (für die Ansage an alle)
 	for _ = 1, 300 do
 		local targets = {}
 		for slot = 1, Bases.Level(state).Slots do
@@ -509,7 +510,9 @@ function Bases.StarUpAll(player: Player)
 			if result then
 				local _, _, stars = Config.ParseEntry(result)
 				count += 1
-				bestStars = math.max(bestStars, stars)
+				if stars > bestStars then
+					bestStars, starEntry = stars, result
+				end
 				if not bestEntry or Config.EntryIncome(result) > Config.EntryIncome(bestEntry) then
 					bestEntry = result
 				end
@@ -527,8 +530,8 @@ function Bases.StarUpAll(player: Player)
 	end
 	Bases.BigText(player, `{count} {if count == 1 then "NEUER STERN" else "NEUE STERNE"}!`, STAR_COLOR, if bestStars >= 3 then "MergeBig" else "Merge")
 	Bases.Notify(player, `⭐ {count}x verbessert. Am besten: {Config.EntryName(bestEntry)} mit +{Config.FormatRate(Config.EntryIncome(bestEntry))} $/s.`, STAR_COLOR)
-	if bestStars >= Config.Stars.AnnounceFrom then
-		Bases.Announce(`{player.DisplayName} hat einen neuen Stern: {Config.EntryName(bestEntry)}!`, STAR_COLOR)
+	if starEntry and bestStars >= Config.Stars.AnnounceFrom then
+		Bases.Announce(`{player.DisplayName} hat einen neuen Stern: {Config.EntryName(starEntry)}!`, STAR_COLOR)
 	end
 end
 
