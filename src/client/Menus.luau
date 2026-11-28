@@ -59,7 +59,8 @@ return function(ctx)
 			Parent = button,
 		})
 		corner(badge, 13)
-		stroke(badge, WHITE, 2)
+		-- Rand um die Plakette, nicht um die Schrift
+		stroke(badge, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		return button, scale, badge
 	end
 
@@ -119,7 +120,7 @@ return function(ctx)
 	local HEX_X, HEX_Y = 248, 270 -- Mitte des Netzes im Fenster
 	local SKILL_COLOR = Color3.fromRGB(90, 160, 255)
 
-	local skillButton, skillButtonScale, skillBadge = hudButton(172, SKILL_COLOR, "💠", "Skills")
+	local skillButton, skillButtonScale, skillBadge = hudButton(172, SKILL_COLOR, "🧠", "Skills")
 	local skillPanel, showSkillPanel = window(880, 560, SKILL_COLOR, "💠 Skill-Baum")
 	local tokenTitle = label({
 		Size = UDim2.fromOffset(330, 34),
@@ -499,7 +500,7 @@ return function(ctx)
 	local mergeButton, mergeButtonScale, mergeBadge = hudButton(252, Color3.fromRGB(235, 150, 40), "✨", "Fusion")
 	local mergePanel, showMergePanel = window(600, 500, MERGE_COLOR, "✨ Fusion")
 	label({
-		Size = UDim2.new(1, -32, 0, 44),
+		Size = UDim2.new(1, -32, 0, 64),
 		Position = UDim2.fromOffset(16, 52),
 		TextScaled = false,
 		TextSize = 17,
@@ -512,8 +513,8 @@ return function(ctx)
 		Parent = mergePanel,
 	})
 	local mergeScroll = Instance.new("ScrollingFrame")
-	mergeScroll.Size = UDim2.new(1, -24, 1, -122)
-	mergeScroll.Position = UDim2.fromOffset(12, 110)
+	mergeScroll.Size = UDim2.new(1, -24, 1, -136)
+	mergeScroll.Position = UDim2.fromOffset(12, 124)
 	mergeScroll.BackgroundTransparency = 1
 	mergeScroll.BorderSizePixel = 0
 	mergeScroll.ScrollBarThickness = 8
@@ -601,7 +602,7 @@ return function(ctx)
 				Text = `x{item.Count}`,
 				Parent = row,
 			})
-			label({ Size = UDim2.fromOffset(26, 30), Position = UDim2.fromOffset(86, 29), TextColor3 = GOLD, Text = "➜", Parent = row })
+			label({ Size = UDim2.fromOffset(26, 30), Position = UDim2.fromOffset(86, 29), TextColor3 = GOLD, Font = Enum.Font.FredokaOne, Text = ">", Parent = row })
 			entryIcon(row, 116, item.Result)
 			local before = Config.EntryIncome(item.Entry) * Config.Stars.Need
 			local after = Config.EntryIncome(item.Result)
@@ -618,7 +619,7 @@ return function(ctx)
 				Position = UDim2.fromOffset(202, 36),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = Color3.fromRGB(130, 255, 150),
-				Text = `+{Config.FormatNumber(after)} $/s`,
+				Text = `+{Config.FormatRate(after)} $/s`,
 				Parent = row,
 			})
 			label({
@@ -627,7 +628,7 @@ return function(ctx)
 				Font = Enum.Font.Gotham,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = Color3.fromRGB(190, 185, 215),
-				Text = `statt +{Config.FormatNumber(before)} $/s für {Config.Stars.Need} Stück`,
+				Text = `statt +{Config.FormatRate(before)} $/s für {Config.Stars.Need} Stück`,
 				Parent = row,
 			})
 			local go = Instance.new("TextButton")

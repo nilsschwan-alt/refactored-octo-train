@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.10.0"
+Config.Version = "0.11.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -780,6 +780,19 @@ function Config.FormatNumber(n: number): string
 		end
 	end
 	return tostring(n)
+end
+
+-- Wie FormatNumber, aber kleine krumme Werte mit einer Nachkommastelle (für "+3.2 $/s")
+function Config.FormatRate(n: number): string
+	if n < 100 and math.abs(n - math.floor(n + 0.5)) > 0.04 then
+		return string.format("%.1f", n)
+	end
+	return Config.FormatNumber(n + 0.04)
+end
+
+-- GROSSBUCHSTABEN, auch für ä, ö, ü (string.upper lässt die klein)
+function Config.Upper(text: string): string
+	return (string.upper(text):gsub("ä", "Ä"):gsub("ö", "Ö"):gsub("ü", "Ü"))
 end
 
 return Config

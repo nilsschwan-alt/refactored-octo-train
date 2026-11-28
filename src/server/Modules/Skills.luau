@@ -42,7 +42,7 @@ function Skills.Buy(player: Player, id: string)
 	end
 	Bases.RefreshPlot(state.Plot) -- Schild mit dem Einkommen
 	local color = Config.Skills.Branches[skill.Branch].Color
-	local text = if skill.Max > 1 then `{skill.Icon} {string.upper(skill.Name)} STUFE {level + 1}!` else `{skill.Icon} {string.upper(skill.Name)} GELERNT!`
+	local text = if skill.Max > 1 then `{skill.Icon} {Config.Upper(skill.Name)} STUFE {level + 1}!` else `{skill.Icon} {Config.Upper(skill.Name)} GELERNT!`
 	Bases.BigText(player, text, color, "Skill")
 	Bases.Notify(player, `{skill.Icon} {Config.SkillText(skill, level + 1)}`, color)
 end

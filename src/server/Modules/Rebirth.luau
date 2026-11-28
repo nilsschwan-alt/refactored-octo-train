@@ -64,7 +64,7 @@ function Rebirth.Do(player: Player)
 		-- kurz nach dem großen Schriftzug: die neue Kiste ankündigen
 		task.delay(2.6, function()
 			if player.Parent then
-				Bases.BigText(player, `NEU: {string.upper(unlocked.Name)}!`, unlocked.Color, "Upgrade", false)
+				Bases.BigText(player, `NEU: {Config.Upper(unlocked.Name)}!`, unlocked.Color, "Upgrade", false)
 				Bases.Notify(player, `Die {unlocked.Name} ist jetzt im Shop, mit neuen, viel stärkeren Kreaturen!`, unlocked.Color)
 			end
 		end)
