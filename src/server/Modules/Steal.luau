@@ -20,6 +20,7 @@ Steal.CarrySpeed = Config.Steal.CarrySpeed
 
 local carrying = {} -- [thief] = info
 local lastHit = {} -- [player] = os.clock()
+local shielded = {} -- [player] = os.clock(), bis wann die Klatsche nicht trifft
 
 local RED = Color3.fromRGB(255, 90, 90)
 local YELLOW = Color3.fromRGB(255, 220, 90)
@@ -37,6 +38,26 @@ end
 
 function Steal.IsCarrying(player: Player): boolean
 	return carrying[player] ~= nil
+end
+
+-- Was trägt der Spieler gerade? "base" (geklaut), "wild" (Meteor oder Welt) oder nil
+function Steal.CarrySource(player: Player): string?
+	local info = carrying[player]
+	return info and info.Source
+end
+
+-- Kurzer Schutz vor der Klatsche (z.B. direkt nach dem Portal), mit sichtbarer Schutzblase
+function Steal.Shield(player: Player, seconds: number)
+	shielded[player] = os.clock() + seconds
+	local char = player.Character
+	if char then
+		local field = Instance.new("ForceField")
+		field.Name = "PortalSchutz"
+		field.Parent = char
+		task.delay(seconds, function()
+			field:Destroy()
+		end)
+	end
 end
 
 -- Tempo mit Beute für diesen Spieler (Fähigkeit "Schnelle Beine" macht schneller)
@@ -169,8 +190,9 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 	Bases.Notify(owner, `{thief.DisplayName} klaut deinen {name}! Hau den Dieb mit der Klatsche!`, RED)
 end
 
--- Wilde Kreatur (Meteor) schnappen. onDrop(position) wird aufgerufen, wenn sie wieder runterfällt.
-function Steal.StartWild(thief: Player, entry: string, onDrop): boolean
+-- Wilde Kreatur (Meteor, Welt) schnappen. onDrop(position) wird aufgerufen, wenn sie wieder runterfällt.
+-- how = Text für die große Ansage bei seltenen Funden (z.B. "im Lava-Krater gefangen")
+function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): boolean
 	local tState = Bases.GetState(thief)
 	if not tState or carrying[thief] then
 		return false
@@ -179,7 +201,7 @@ function Steal.StartWild(thief: Player, entry: string, onDrop): boolean
 		Bases.Notify(thief, "Deine Base ist voll!", RED)
 		return false
 	end
-	local ok = startCarry(thief, entry, { Source = "wild", OnDrop = onDrop })
+	local ok = startCarry(thief, entry, { Source = "wild", OnDrop = onDrop, How = how })
 	if ok then
 		Bases.Notify(thief, `Du hast {Config.EntryName(entry)}! Bring es nach Hause!`, YELLOW)
 	end
@@ -269,7 +291,7 @@ function Steal.Deliver(thief: Player)
 		cleanup(thief, info)
 		Bases.GiveCreature(tState, entry)
 		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
-		Bases.AnnounceIfRare(thief, entry, "den Meteor geschnappt")
+		Bases.AnnounceIfRare(thief, entry, info.How or "den Meteor geschnappt")
 	end
 end
 
@@ -303,7 +325,7 @@ function Steal.Hit(hitter: Player): boolean
 	local range = Config.Steal.HitRange + (if hState then Bases.Skill(hState, "HitRange") else 0)
 	local hitSomeone = false
 	for thief, _ in carrying do
-		if thief ~= hitter then
+		if thief ~= hitter and not (shielded[thief] and now < shielded[thief]) then
 			local hum, root = getHumanoid(thief)
 			if hum and (root.Position - myRoot.Position).Magnitude <= range then
 				Steal.Return(thief, "hit")
@@ -339,6 +361,7 @@ function Steal.OnPlayerLeaving(player: Player)
 		end
 	end
 	lastHit[player] = nil
+	shielded[player] = nil
 end
 
 return Steal

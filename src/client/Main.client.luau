@@ -3699,6 +3699,16 @@ skillLink.Activated:Connect(function()
 	menus.ToggleSkills()
 end)
 
+-- Welten: Portale, Licht-Stimmung, Reise-Blitz und Knopf "Heim" (eigene Datei: Welten.luau)
+require(script.Parent:WaitForChild("Welten"))({
+	Gui = gui,
+	Corner = corner,
+	Label = label,
+	Stroke = stroke,
+	Tween = tween,
+	PlaySound = playSound,
+})
+
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
 do
 	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.MergePanel }

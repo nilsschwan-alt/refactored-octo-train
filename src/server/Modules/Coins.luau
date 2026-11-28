@@ -1,6 +1,7 @@
--- Münzen auf der Straße: einfach drüberlaufen und einsammeln.
+-- Münzen auf der Straße und in den Welten: einfach drüberlaufen und einsammeln.
 -- Der Wert passt sich an: eine Münze ist ein paar Sekunden DEINES Einkommens wert.
 -- Ab und zu gibt's eine Riesen-Münze. Der Münz-Magnet (Skill-Baum) vergrößert den Sammel-Radius.
+-- Jedes Gebiet (Straße, jede Welt) hat seine eigenen Münzen: Coins.AddZone().
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -15,48 +16,55 @@ local Coins = {}
 
 local C = Config.Coins
 local folder
-local coins = {} -- [part] = { Big = bool, Expires = number }
-local count = 0
+local coins = {} -- [part] = { Big = bool, Expires = number, Zone = Gebiet }
+local zones = {}
 
 local GOLD = Color3.fromRGB(255, 205, 40)
 
-local function spawnCoin()
+-- Neues Münz-Gebiet: { Max = Anzahl, Factor = Wert-Faktor, Color = Farbe, Point = function(): Vector3 }
+function Coins.AddZone(zone)
+	zone.Count = 0
+	table.insert(zones, zone)
+end
+
+local function spawnCoin(zone)
 	local big = math.random() < C.BigChance
 	local size = if big then 4.5 else 2.4
 	local coin = Instance.new("Part")
 	coin.Name = if big then "RiesenMuenze" else "Muenze"
 	coin.Shape = Enum.PartType.Cylinder
 	coin.Size = Vector3.new(size * 0.25, size, size)
-	coin.Color = GOLD
+	coin.Color = zone.Color
 	coin.Material = Enum.Material.Neon
 	coin.Anchored = true
 	coin.CanCollide = false
 	coin.CanQuery = false
 	coin.CanTouch = false
-	local pos = Map.RandomStreetPoint() + Vector3.new(0, size / 2 + 1, 0)
+	local pos = zone.Point() + Vector3.new(0, size / 2 + 1, 0)
 	-- stehend (Zylinder liegt sonst auf der Seite); der Client lässt sie drehen und hüpfen
 	coin.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.random() * math.pi, 0)
 	coin:SetAttribute("BaseY", pos.Y)
 	if big then
 		local sparkles = Instance.new("Sparkles")
-		sparkles.SparkleColor = GOLD
+		sparkles.SparkleColor = zone.Color
 		sparkles.Parent = coin
 		local light = Instance.new("PointLight")
-		light.Color = GOLD
+		light.Color = zone.Color
 		light.Range = 10
 		light.Brightness = 1
 		light.Parent = coin
 	end
 	coin.Parent = folder
 	CollectionService:AddTag(coin, "SpinCoin")
-	coins[coin] = { Big = big, Expires = os.clock() + C.Lifetime }
-	count += 1
+	coins[coin] = { Big = big, Expires = os.clock() + C.Lifetime, Zone = zone }
+	zone.Count += 1
 end
 
 local function removeCoin(coin: BasePart)
-	if coins[coin] then
+	local info = coins[coin]
+	if info then
 		coins[coin] = nil
-		count -= 1
+		info.Zone.Count -= 1
 	end
 	coin:Destroy()
 end
@@ -67,7 +75,8 @@ local function collect(player: Player, coin: BasePart)
 	if not info or not state then
 		return
 	end
-	local value = math.max(C.MinValue, Bases.Income(state) * C.ValueSeconds) * (1 + Bases.Skill(state, "CoinValue"))
+	local color = info.Zone.Color
+	local value = math.max(C.MinValue, Bases.Income(state) * C.ValueSeconds) * (1 + Bases.Skill(state, "CoinValue")) * info.Zone.Factor
 	-- Fähigkeit "Riesen-Münzen": eine normale Münze wird beim Einsammeln manchmal zur Riesen-Münze
 	local big = info.Big or math.random() < Bases.Skill(state, "BigCoins")
 	if big then
@@ -78,10 +87,10 @@ local function collect(player: Player, coin: BasePart)
 	removeCoin(coin)
 	Bases.AddMoney(state, value)
 	Bases.Track(state, "Coins", 1)
-	Bases.Pop(player, value, position + Vector3.new(0, 2, 0), nil, GOLD)
+	Bases.Pop(player, value, position + Vector3.new(0, 2, 0), nil, color)
 	if big then
-		FX.Burst(position, GOLD, 40)
-		Bases.BigText(player, `RIESEN-MÜNZE +{Config.FormatNumber(value)} $`, GOLD, "Collect")
+		FX.Burst(position, color, 40)
+		Bases.BigText(player, `RIESEN-MÜNZE +{Config.FormatNumber(value)} $`, color, "Collect")
 	end
 end
 
@@ -113,11 +122,14 @@ function Coins.Start(mapFolder: Instance)
 	folder = Instance.new("Folder")
 	folder.Name = "Muenzen"
 	folder.Parent = mapFolder
+	Coins.AddZone({ Max = C.MaxOnMap, Factor = 1, Color = GOLD, Point = Map.RandomStreetPoint })
 	task.spawn(function()
 		while true do
 			task.wait(C.SpawnInterval)
-			if count < C.MaxOnMap then
-				spawnCoin()
+			for _, zone in zones do
+				if zone.Count < zone.Max then
+					spawnCoin(zone)
+				end
 			end
 		end
 	end)

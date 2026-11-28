@@ -27,7 +27,7 @@ local COLORS = {
 }
 
 local folder
-local wildItems = {} -- [id] = { Entry, Model, ExpiresAt }
+local wildItems = {} -- [id] = { Entry, Model, ExpiresAt, Opts }
 local nextWildId = 0
 
 local function setPhase(name: string?, phase: string?, seconds: number?)
@@ -45,8 +45,10 @@ local function groundBelow(position: Vector3): Vector3
 	return if result then result.Position else Vector3.new(position.X, 2, position.Z)
 end
 
--- Wilde Kreatur auf den Boden legen, die man schnappen kann
-local function placeWild(entry: string, position: Vector3, lifetime: number)
+-- Wilde Kreatur auf den Boden legen, die man schnappen kann.
+-- opts (für die Welten, beim Meteor leer): Tag = Kennung zum Zählen, How = Text für die große Ansage,
+-- OnGrab = function(player, entry) statt der Meteor-Ansage, Silent = verschwindet ohne Ansage
+local function placeWild(entry: string, position: Vector3, lifetime: number, opts: { [string]: any }?)
 	nextWildId += 1
 	local id = nextWildId
 	local def, mutation = Config.ParseEntry(entry)
@@ -77,7 +79,19 @@ local function placeWild(entry: string, position: Vector3, lifetime: number)
 	p:SetAttribute("WildId", id)
 
 	model.Parent = folder
-	wildItems[id] = { Entry = entry, Model = model, ExpiresAt = os.clock() + lifetime }
+	wildItems[id] = { Entry = entry, Model = model, ExpiresAt = os.clock() + lifetime, Opts = opts }
+end
+Events.PlaceWild = placeWild
+
+-- Wie viele wilde Kreaturen mit dieser Kennung liegen gerade herum?
+function Events.CountWild(tag: string): number
+	local n = 0
+	for _, item in wildItems do
+		if item.Opts and item.Opts.Tag == tag then
+			n += 1
+		end
+	end
+	return n
 end
 
 function Events.Grab(player: Player, id: number)
@@ -91,14 +105,19 @@ function Events.Grab(player: Player, id: number)
 		return
 	end
 	local entry = item.Entry
+	local opts = item.Opts
 	local ok = Steal.StartWild(player, entry, function(dropPos: Vector3?)
 		-- Fallen gelassen: liegt wieder rum (noch 30 Sekunden)
-		placeWild(entry, dropPos or Map.RandomStreetPoint(), 30)
-	end)
+		placeWild(entry, dropPos or Map.RandomStreetPoint(), 30, opts)
+	end, opts and opts.How)
 	if ok then
 		wildItems[id] = nil
 		item.Model:Destroy()
-		Bases.Announce(`{player.DisplayName} hat die Meteor-Kreatur! Haut den Dieb!`, COLORS.Meteor)
+		if opts and opts.OnGrab then
+			opts.OnGrab(player, entry)
+		else
+			Bases.Announce(`{player.DisplayName} hat die Meteor-Kreatur! Haut den Dieb!`, COLORS.Meteor)
+		end
 	end
 end
 
@@ -208,7 +227,9 @@ function Events.Start(parentFolder: Instance)
 				if now >= item.ExpiresAt then
 					wildItems[id] = nil
 					item.Model:Destroy()
-					Bases.Announce("Die Meteor-Kreatur hat sich in Luft aufgelöst.", COLORS.Meteor)
+					if not (item.Opts and item.Opts.Silent) then
+						Bases.Announce("Die Meteor-Kreatur hat sich in Luft aufgelöst.", COLORS.Meteor)
+					end
 				end
 			end
 		end
