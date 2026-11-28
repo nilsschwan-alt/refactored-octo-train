@@ -75,16 +75,17 @@ local WALL = 1.5 -- Wandstärke
 local DOOR_H = 14 -- Höhe des Tors
 local GATE_HALF = GAP / 2 + 0.75 -- Abstand der Torpfosten zur Mitte
 local DOOR_EDGE = GATE_HALF + 0.75 -- ab hier beginnt links und rechts die Vorderwand
-local COL_GAP, ROW_GAP = 10, 12 -- Abstand der Kreaturen-Plätze
+local COL_GAP, ROW_GAP = 12, 13 -- Abstand der Kreaturen-Plätze
+local FIRST_ROW = 12 -- so weit hinter dem Tor steht die erste Reihe
 
 -- Größe je Stufe: HalfW = halbe Innenbreite, Depth = Innentiefe, Height = Wandhöhe,
 -- Cols = Kreaturen pro Reihe. Cols x Reihen muss zu den Plätzen in Config.BaseLevels passen.
 local HOUSES = {
-	{ HalfW = 16, Depth = 30, Height = 16, Cols = 2 }, -- 4 Plätze
-	{ HalfW = 21, Depth = 30, Height = 17, Cols = 3 }, -- 6
-	{ HalfW = 26, Depth = 30, Height = 18, Cols = 4 }, -- 8
-	{ HalfW = 31, Depth = 30, Height = 19, Cols = 5 }, -- 10
-	{ HalfW = 31, Depth = 44, Height = 22, Cols = 4 }, -- 12
+	{ HalfW = 18, Depth = 36, Height = 17, Cols = 2 }, -- 4 Plätze
+	{ HalfW = 22, Depth = 36, Height = 18, Cols = 3 }, -- 6
+	{ HalfW = 28, Depth = 36, Height = 19, Cols = 4 }, -- 8
+	{ HalfW = 33, Depth = 36, Height = 20, Cols = 5 }, -- 10
+	{ HalfW = 34, Depth = 50, Height = 23, Cols = 4 }, -- 12
 }
 
 -- Position der Kreaturen-Plätze (lokal, vorne = -Z): Reihen von vorne nach hinten
@@ -92,7 +93,7 @@ local function slotOffset(level: number, slot: number): CFrame
 	local house = HOUSES[level] or HOUSES[1]
 	local col = (slot - 1) % house.Cols + 1
 	local row = math.floor((slot - 1) / house.Cols) + 1
-	return CFrame.new((col - (house.Cols + 1) / 2) * COL_GAP, 0, FRONT + 10 + (row - 1) * ROW_GAP)
+	return CFrame.new((col - (house.Cols + 1) / 2) * COL_GAP, 0, FRONT + FIRST_ROW + (row - 1) * ROW_GAP)
 end
 
 -- Optik pro Stufe ----------------------------------------------------------
@@ -106,8 +107,6 @@ local STYLES = {
 		Glass = Color3.fromRGB(190, 225, 255), Rug = Color3.fromRGB(190, 60, 60),
 		Floor = Color3.fromRGB(205, 155, 100), FloorMat = Enum.Material.WoodPlanks,
 		Rim = Color3.fromRGB(130, 85, 50), RimMat = Enum.Material.Wood,
-		Fence = "Holz", FenceColor = Color3.fromRGB(160, 110, 65), FenceMat = Enum.Material.WoodPlanks, FenceHeight = 3,
-		Post = Color3.fromRGB(120, 80, 45), PostMat = Enum.Material.Wood,
 		Gate = Color3.fromRGB(125, 85, 50), GateMat = Enum.Material.Wood,
 		Pad = Color3.fromRGB(235, 205, 155), PadMat = Enum.Material.Wood,
 		Ring = Color3.fromRGB(255, 225, 170),
@@ -119,8 +118,6 @@ local STYLES = {
 		Glass = Color3.fromRGB(170, 215, 255), Rug = Color3.fromRGB(60, 100, 200),
 		Floor = Color3.fromRGB(150, 150, 162), FloorMat = Enum.Material.Slate,
 		Rim = Color3.fromRGB(120, 200, 255), RimMat = Enum.Material.Neon,
-		Fence = "Stein", FenceColor = Color3.fromRGB(175, 175, 185), FenceMat = Enum.Material.Cobblestone, FenceHeight = 5,
-		Post = Color3.fromRGB(145, 145, 155), PostMat = Enum.Material.Cobblestone,
 		Gate = Color3.fromRGB(140, 140, 150), GateMat = Enum.Material.Cobblestone,
 		Pad = Color3.fromRGB(205, 205, 212), PadMat = Enum.Material.Concrete,
 		Ring = Color3.fromRGB(170, 220, 255),
@@ -131,13 +128,11 @@ local STYLES = {
 		Roof = "Giebel", RoofColor = Color3.fromRGB(214, 112, 72), RoofMat = Enum.Material.Slate,
 		Glass = Color3.fromRGB(255, 235, 180), Rug = Color3.fromRGB(200, 50, 70),
 		Floor = Color3.fromRGB(242, 228, 198), FloorMat = Enum.Material.Pebble,
-		Rim = Color3.fromRGB(255, 200, 70), RimMat = Enum.Material.Neon,
-		Fence = "Lichter", FenceColor = Color3.fromRGB(252, 248, 240), FenceMat = Enum.Material.Marble, FenceHeight = 3.5,
-		Post = Color3.fromRGB(255, 200, 70), PostMat = Enum.Material.SmoothPlastic, Bulb = Color3.fromRGB(255, 225, 120),
+		Rim = Color3.fromRGB(230, 190, 90), RimMat = Enum.Material.SmoothPlastic,
+		Bulb = Color3.fromRGB(255, 225, 120),
 		Gate = Color3.fromRGB(252, 248, 240), GateMat = Enum.Material.Marble, GateTrim = Color3.fromRGB(255, 200, 70),
 		Pad = Color3.fromRGB(255, 246, 225), PadMat = Enum.Material.Marble,
 		Ring = Color3.fromRGB(255, 220, 130),
-		Arcs = true,
 	},
 	{ -- 4 Neon-Palast
 		Wall = Color3.fromRGB(34, 28, 62), WallMat = Enum.Material.SmoothPlastic,
@@ -146,27 +141,21 @@ local STYLES = {
 		Glass = Color3.fromRGB(0, 230, 255), Rug = Color3.fromRGB(255, 60, 200),
 		Floor = Color3.fromRGB(38, 32, 64), FloorMat = Enum.Material.SmoothPlastic,
 		Rim = Color3.fromRGB(0, 230, 255), RimMat = Enum.Material.Neon,
-		Fence = "Neon", FenceColor = Color3.fromRGB(32, 26, 58), FenceMat = Enum.Material.SmoothPlastic, FenceHeight = 4,
-		Post = Color3.fromRGB(255, 60, 200), PostMat = Enum.Material.Neon, Trim = Color3.fromRGB(0, 230, 255),
 		Gate = Color3.fromRGB(32, 26, 58), GateMat = Enum.Material.SmoothPlastic, GateTrim = Color3.fromRGB(255, 60, 200),
 		Pad = Color3.fromRGB(60, 55, 100), PadMat = Enum.Material.SmoothPlastic,
 		Ring = Color3.fromRGB(0, 200, 255),
-		Dome = Color3.fromRGB(120, 230, 255),
 	},
 	{ -- 5 Kristall-Festung
 		Wall = Color3.fromRGB(248, 245, 255), WallMat = Enum.Material.Marble,
 		Trim = Color3.fromRGB(255, 205, 70), TrimMat = Enum.Material.Metal,
 		Roof = "Glas", RoofColor = Color3.fromRGB(205, 150, 255), RoofMat = Enum.Material.Glass,
 		Glass = Color3.fromRGB(215, 165, 255), Rug = Color3.fromRGB(150, 80, 230),
-		Floor = Color3.fromRGB(248, 245, 255), FloorMat = Enum.Material.Marble,
+		Floor = Color3.fromRGB(225, 215, 250), FloorMat = Enum.Material.Marble,
 		Rim = Color3.fromRGB(200, 120, 255), RimMat = Enum.Material.Neon,
-		Fence = "Kristall", FenceColor = Color3.fromRGB(255, 200, 60), FenceMat = Enum.Material.Metal, FenceHeight = 4.5,
-		Post = Color3.fromRGB(255, 215, 90), PostMat = Enum.Material.Metal, Trim = Color3.fromRGB(200, 120, 255),
+		LampBrightness = 0.55, -- weißes Haus mit Glasdach: sonst ist es drinnen zu grell
 		Gate = Color3.fromRGB(255, 200, 60), GateMat = Enum.Material.Metal, GateTrim = Color3.fromRGB(200, 120, 255),
 		Pad = Color3.fromRGB(240, 235, 255), PadMat = Enum.Material.Marble,
 		Ring = Color3.fromRGB(210, 150, 255),
-		Dome = Color3.fromRGB(225, 175, 255),
-		Crystals = true,
 	},
 }
 
@@ -266,20 +255,21 @@ local function gableRoof(folder: Instance, cf: CFrame, style, outer: number, z0:
 	local half = outer + over
 	local drop = half * math.tan(theta) -- so weit fällt das Dach vom First bis zur Traufe
 	local length = half / math.cos(theta)
+	local thick = 1.5 -- Dicke der Dachplatten
 	for _, side in { -1, 1 } do
 		-- Mitte der Unterkante, dann eine halbe Dicke nach oben
 		local mx, my = side * half / 2, h + rise - drop / 2
-		local nx, ny = side * math.sin(theta) * 0.5, math.cos(theta) * 0.5
+		local nx, ny = side * math.sin(theta) * thick / 2, math.cos(theta) * thick / 2
 		roofPart(part({
 			Name = "Dach",
-			Size = Vector3.new(length, 1, z1 - z0 + over * 2),
+			Size = Vector3.new(length, thick, z1 - z0 + over * 2),
 			CFrame = cf * CFrame.new(mx + nx, my + ny, (z0 + z1) / 2) * CFrame.Angles(0, 0, -side * theta),
 			Color = style.RoofColor,
 			Material = style.RoofMat,
 			Parent = folder,
 		}))
 	end
-	roofPart(box(folder, cf, "First", -0.9, 0.9, h + rise - 0.2, h + rise + 1.3, z0 - over - 0.3, z1 + over + 0.3, style.Trim, style.TrimMat))
+	roofPart(box(folder, cf, "First", -1, 1, h + rise - 0.2, h + rise + 1.9, z0 - over - 0.3, z1 + over + 0.3, style.Trim, style.TrimMat))
 	-- Giebel vorne und hinten: Stufen, deren Ecken unter den Dachplatten verschwinden
 	for _, z in { z0 + WALL / 2, z1 - WALL / 2 } do
 		for k = 0, math.ceil(rise) - 1 do
@@ -322,21 +312,43 @@ local function pillar(folder: Instance, cf: CFrame, name: string, x: number, z: 
 	return p
 end
 
--- Stehender Kristall (leuchtet und funkelt)
-local function crystal(folder: Instance, cf: CFrame, x: number, y: number, z: number, height: number, color: Color3, tilt: number?): Part
-	local c = part({
-		Name = "Kristall",
-		Size = Vector3.new(height * 0.24, height, height * 0.24),
-		CFrame = cf * CFrame.new(x, y + height / 2, z) * CFrame.Angles(math.rad(tilt or 0), 0, 0) * CFrame.Angles(0, math.rad(45), 0),
-		Color = color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.15,
-		CanCollide = false,
-		CanQuery = false,
-		Parent = folder,
-	})
-	sparkle(c, color, 8)
-	return c
+-- Kristall-Gruppe: ein großer Kristall mit Spitze, daneben zwei kleinere, schräg (leuchtet und funkelt)
+local function crystal(folder: Instance, cf: CFrame, x: number, y: number, z: number, height: number, color: Color3): Part
+	local main
+	for i, info in { { 0, 0, 1, 0, 0 }, { 0.32, 0.2, 0.62, 22, 40 }, { -0.28, -0.24, 0.5, -26, 110 } } do
+		local hgt = height * info[3]
+		local width = hgt * 0.2
+		local base = cf * CFrame.new(x + info[1] * height * 0.5, y, z + info[2] * height * 0.5) * CFrame.Angles(0, math.rad(info[5]), 0) * CFrame.Angles(math.rad(info[4]), 0, 0)
+		local shaft = part({
+			Name = "Kristall",
+			Size = Vector3.new(width, hgt, width),
+			CFrame = base * CFrame.new(0, hgt / 2, 0) * CFrame.Angles(0, math.rad(45), 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.12,
+			CanCollide = false,
+			CanQuery = false,
+			Parent = folder,
+		})
+		-- Spitze: ein Würfel, der auf der Ecke steht
+		part({
+			Name = "Kristallspitze",
+			Size = Vector3.new(width * 0.98, width * 0.98, width * 0.98),
+			CFrame = base * CFrame.new(0, hgt, 0) * CFrame.Angles(0, math.rad(45), 0) * CFrame.Angles(math.rad(45), 0, math.rad(35.26)),
+			Color = color:Lerp(Color3.new(1, 1, 1), 0.25),
+			Material = Enum.Material.Neon,
+			Transparency = 0.12,
+			CanCollide = false,
+			CanQuery = false,
+			Parent = folder,
+		})
+		if i == 1 then
+			main = shaft
+			sparkle(shaft, color, 8)
+			pointLight(shaft, color, 14, 0.7)
+		end
+	end
+	return main
 end
 
 -- Baut das Haus einer Base neu: Wände, Dach, Deko und die Kreaturen-Plätze je nach Stufe.
@@ -403,7 +415,7 @@ function Map.BuildDecor(plot, level: number)
 		local z = if depth > 36 then zIn + depth * (i * 2 - 1) / 4 else zMid
 		box(folder, cf, "Lampenkette", -0.12, 0.12, h - 3, h, z - 0.12, z + 0.12, Color3.fromRGB(60, 55, 55), Enum.Material.Metal, NO_HIT)
 		local lamp = box(folder, cf, "Deckenlampe", -1.3, 1.3, h - 4, h - 3, z - 1.3, z + 1.3, style.Ring, Enum.Material.Neon, NO_HIT)
-		pointLight(lamp, lampColor, 50, 1.1)
+		pointLight(lamp, lampColor, 50, style.LampBrightness or 1.1)
 	end
 	box(folder, cf, "Teppich", -5, 5, 0, 0.12, zIn + 0.6, zIn + 6.5, style.Rug, Enum.Material.Fabric, NO_HIT)
 
@@ -463,11 +475,11 @@ function Map.BuildDecor(plot, level: number)
 			local x = sx * (outer + 1.5)
 			pillar(folder, cf, "Turm", x, FRONT, -0.9, h + 6, 3.4, style.Wall, style.WallMat)
 			pillar(folder, cf, "Turmkranz", x, FRONT, h + 6, h + 7.4, 4.1, style.Trim, style.TrimMat, NO_HIT)
-			for i = 0, 2 do
-				pillar(folder, cf, "Turmdach", x, FRONT, h + 7.4 + i * 2.2, h + 9.6 + i * 2.2, 3.7 - i * 1.25, Color3.fromRGB(70, 115, 200), Enum.Material.Slate, NO_HIT)
+			for i = 0, 5 do
+				pillar(folder, cf, "Turmdach", x, FRONT, h + 7.4 + i * 1.3, h + 8.7 + i * 1.3, 3.8 - i * 0.62, Color3.fromRGB(70, 115, 200), Enum.Material.Slate, NO_HIT)
 			end
-			box(folder, cf, "Fahnenmast", x - 0.15, x + 0.15, h + 14, h + 19, FRONT - 0.15, FRONT + 0.15, Color3.fromRGB(70, 70, 78), Enum.Material.Metal, NO_HIT)
-			box(folder, cf, "Fahne", x, x + sx * 3, h + 17, h + 19, FRONT - 0.08, FRONT + 0.08, Color3.fromRGB(215, 50, 55), Enum.Material.Fabric, NO_HIT)
+			box(folder, cf, "Fahnenmast", x - 0.15, x + 0.15, h + 15, h + 20.5, FRONT - 0.15, FRONT + 0.15, Color3.fromRGB(70, 70, 78), Enum.Material.Metal, NO_HIT)
+			box(folder, cf, "Fahne", x, x + sx * 3, h + 18.5, h + 20.5, FRONT - 0.08, FRONT + 0.08, Color3.fromRGB(215, 50, 55), Enum.Material.Fabric, NO_HIT)
 			lantern(folder, cf, sx * (DOOR_EDGE + 1.6), 10.5, zFront - 0.9, Color3.fromRGB(255, 150, 60), 24)
 		end
 	elseif level == 3 then
@@ -532,6 +544,22 @@ function Map.BuildDecor(plot, level: number)
 		end
 		roofPart(box(folder, cf, "Dachkante", -outer - 0.6, outer + 0.6, h + 1, h + 1.5, zFront - 0.6, zFront, style.Trim, Enum.Material.Neon))
 		roofPart(box(folder, cf, "Dachkante", -outer - 0.6, outer + 0.6, h + 1, h + 1.5, zOut, zOut + 0.6, style.Trim, Enum.Material.Neon))
+		-- zweite Dachstufe mit pinker Leuchtkante und einem Leuchtturm in der Mitte
+		local tx, tz0, tz1 = outer - 6, zFront + 6, zOut - 6
+		roofPart(box(folder, cf, "Dachstufe", -tx, tx, h + 1, h + 4.5, tz0, tz1, style.Wall, style.WallMat))
+		roofPart(box(folder, cf, "Dachkante", -tx - 0.3, tx + 0.3, h + 4.5, h + 5, tz0 - 0.3, tz0 + 0.3, pink, Enum.Material.Neon))
+		roofPart(box(folder, cf, "Dachkante", -tx - 0.3, tx + 0.3, h + 4.5, h + 5, tz1 - 0.3, tz1 + 0.3, pink, Enum.Material.Neon))
+		for _, sx in { -1, 1 } do
+			roofPart(box(folder, cf, "Dachkante", sx * tx - 0.3, sx * tx + 0.3, h + 4.5, h + 5, tz0, tz1, pink, Enum.Material.Neon))
+		end
+		roofPart(box(folder, cf, "Dachturm", -3, 3, h + 4.5, h + 9, zMid - 3, zMid + 3, style.Wall, style.WallMat))
+		local glow = roofPart(box(folder, cf, "Dachleuchte", -2.2, 2.2, h + 9, h + 12, zMid - 2.2, zMid + 2.2, style.Trim, Enum.Material.Neon))
+		pointLight(glow, style.Trim, 40, 1)
+		-- Neon-Rahmen links und rechts am Tor
+		for _, sx in { -1, 1 } do
+			local x = sx * (DOOR_EDGE + 0.3)
+			box(folder, cf, "Torneon", x - 0.3, x + 0.3, 0, DOOR_H + 2, zFront - 0.3, zFront, style.Trim, Enum.Material.Neon, NO_HIT)
+		end
 	elseif level == 5 then
 		-- Kristall-Festung: Kristalle auf den Ecken und am Tor, Lichtsäule aus der Dachmitte
 		local cyan, purple = Color3.fromRGB(0, 255, 255), Color3.fromRGB(200, 100, 255)
@@ -539,14 +567,13 @@ function Map.BuildDecor(plot, level: number)
 		for _, sx in { -1, 1 } do
 			for _, z in { FRONT, zBack + WALL / 2 } do
 				i += 1
-				crystal(folder, cf, sx * (hw + WALL / 2), h, z, 11, if i % 2 == 0 then cyan else purple)
+				crystal(folder, cf, sx * (hw + WALL / 2), h, z, 14, if i % 2 == 0 then cyan else purple)
 			end
-			crystal(folder, cf, sx * (outer + 3.5), -1, FRONT - 1, 9, cyan)
-			crystal(folder, cf, sx * (outer + 5.5), -1, FRONT + 4, 6, purple)
-			crystal(folder, cf, sx * (outer + 4.5), -1, zMid, 8, purple)
-			crystal(folder, cf, sx * (outer + 3.5), -1, zBack - 2, 6, cyan)
+			crystal(folder, cf, sx * (outer + 4.5), -1, FRONT - 1, 16, cyan)
+			crystal(folder, cf, sx * (outer + 3.5), -1, zMid + 9, 13, purple)
+			crystal(folder, cf, sx * (outer + 4.5), -1, zBack - 2, 15, cyan)
 		end
-		crystal(folder, cf, 0, h + 1, zMid, 9, purple)
+		crystal(folder, cf, 0, h + 1, zMid, 18, purple)
 		local beam = part({
 			Name = "Lichtsaeule",
 			Size = Vector3.new(3, 120, 3),
@@ -780,14 +807,14 @@ function Map.Build()
 			part({
 				Name = "Sockel",
 				Size = Vector3.new(3, 3, 3),
-				CFrame = cf * CFrame.new(px, 1.5, FRONT + 3.5),
+				CFrame = cf * CFrame.new(px, 1.5, FRONT + 2.6),
 				Color = Color3.fromRGB(70, 70, 80),
 				Parent = model,
 			})
 			local button = part({
 				Name = "Knopf",
 				Size = Vector3.new(2.4, 0.6, 2.4),
-				CFrame = cf * CFrame.new(px, 3.3, FRONT + 3.5),
+				CFrame = cf * CFrame.new(px, 3.3, FRONT + 2.6),
 				Color = color,
 				Material = Enum.Material.Neon,
 				Parent = model,
@@ -799,8 +826,8 @@ function Map.Build()
 			labels[1].TextColor3 = color
 			return button
 		end
-		local lockButton = pedestal(-12.5, Color3.fromRGB(255, 60, 60), "Schloss")
-		local upgradeButton = pedestal(12.5, Color3.fromRGB(80, 255, 120), "Upgrade")
+		local lockButton = pedestal(-13.5, Color3.fromRGB(255, 60, 60), "Schloss")
+		local upgradeButton = pedestal(13.5, Color3.fromRGB(80, 255, 120), "Upgrade")
 		local lockPrompt = prompt(lockButton, "Lock", "Abschließen", "Base-Schloss", 0.3, 8)
 		local upgradePrompt = prompt(upgradeButton, "Upgrade", "Upgrade", "Base", 0.5, 8)
 

@@ -56,8 +56,6 @@ local ISLAND_CORE_X, ISLAND_CORE_Z = 275, 125 -- Kern-Rechteck der Insel
 local ISLAND_ROUND = 60 -- so weit ragt der runde Rand über das Kern-Rechteck hinaus
 local BARRIER_X, BARRIER_Z = 310, 170 -- unsichtbare Wände, damit niemand runterfällt
 local WIESE_HALF_X, WIESE_HALF_Z = 290, 108 -- glatte Spielwiese (Part) rund um Bases und Weg
--- Hinter jeder Base reicht ein Streifen Wiese weiter nach hinten: dort steht die Villa
-local VILLA_STRIP_HALF, VILLA_STRIP_DEPTH = 28, 32
 -- Ausbuchtungen am Rand, damit die Insel von oben nicht wie ein Rechteck aussieht: X, Z, Radius
 local LOBES = {
 	{ -320, 120, 70 },
@@ -114,15 +112,6 @@ end
 local function groundY(x: number, z: number): number
 	if math.abs(x) <= WIESE_HALF_X and math.abs(z) <= WIESE_HALF_Z then
 		return 1
-	end
-	if math.abs(z) <= WIESE_HALF_Z + VILLA_STRIP_DEPTH - 6 then
-		local spacing = Config.Map.BaseSpacing
-		local perRow = math.ceil(Config.Map.BaseCount / 2)
-		for col = 1, perRow do
-			if math.abs(x - (col - (perRow + 1) / 2) * spacing) <= VILLA_STRIP_HALF - 2 then
-				return 1
-			end
-		end
 	end
 	local y = terrainY(x, z, true)
 	return if y then y - 0.25 else 1 -- etwas einsinken lassen, damit nichts schwebt
@@ -284,24 +273,10 @@ local function buildIsland(info, rng: Random)
 	end
 	local hardX = info.StreetHalf + 76
 	local hardZ = info.BaseZ + info.BaseSize / 2 + 6
-	-- die ganze Spielwiese, und hinter jeder Base der Streifen für die Villa (außen herum Gras)
+	-- die ganze Spielwiese (außen herum Gras)
 	flatten(0, 0, WIESE_HALF_X * 2 + 2, WIESE_HALF_Z * 2 + 2, Enum.Material.Grass)
-	local perRow = math.ceil(Config.Map.BaseCount / 2)
-	local stripLen = VILLA_STRIP_DEPTH + 1
-	for col = 1, perRow do
-		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
-		for _, side in { -1, 1 } do
-			flatten(baseX, side * (hardZ + stripLen / 2), VILLA_STRIP_HALF * 2 + 2, stripLen, Enum.Material.Grass)
-		end
-	end
-	-- innen "Ground" ohne Halme: unter Weg, Bases, Plätzen und den Villen
+	-- innen "Ground" ohne Halme: unter Weg, Häusern und Plätzen
 	flatten(0, 0, hardX * 2, hardZ * 2, Enum.Material.Ground)
-	for col = 1, perRow do
-		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
-		for _, side in { -1, 1 } do
-			flatten(baseX, side * (hardZ + (VILLA_STRIP_DEPTH - 3) / 2), VILLA_STRIP_HALF * 2 - 4, VILLA_STRIP_DEPTH - 3, Enum.Material.Ground)
-		end
-	end
 
 	-- Teich: Sandufer, ausheben, Sandboden, Wasser rein
 	for _, blob in LAKE_BLOBS do
@@ -1128,22 +1103,20 @@ local function buildNature(info, parent: Instance, rng: Random)
 	local function at(x: number, z: number): Vector3
 		return Vector3.new(x, groundY(x, z), z)
 	end
-	-- Hinter jeder Base steht (je nach Stufe) eine Villa: dort wächst nichts
-	local function behindBase(x: number, z: number, margin: number): boolean
-		local depth = math.abs(z) - baseZ
-		if depth < S / 2 - 8 or depth > S / 2 + 36 + margin then
+	-- Direkt hinter einem Haus wächst nichts (das größte Haus reicht bis etwa 30 Studs hinter die Base-Mitte)
+	local function nearHouse(x: number, z: number, margin: number): boolean
+		if math.abs(z) - baseZ > 42 + margin then
 			return false
 		end
 		for col = 1, perRow do
-			local baseX = (col - (perRow + 1) / 2) * spacing
-			if math.abs(x - baseX) < 26 + margin then
+			if math.abs(x - (col - (perRow + 1) / 2) * spacing) < 40 + margin then
 				return true
 			end
 		end
 		return false
 	end
 	local function blocked(x: number, z: number, margin: number): boolean
-		return inLake(x, z, margin) or onStream(x, z) or behindBase(x, z, margin)
+		return inLake(x, z, margin) or onStream(x, z) or nearHouse(x, z, margin)
 	end
 
 	-- Zwischen den Bases (Lücken) je ein Baum und Büsche
@@ -1242,24 +1215,6 @@ function World.Build(root: Instance, info)
 		Material = Enum.Material.Grass,
 		Parent = folder,
 	})
-
-	-- Wiesen-Streifen hinter jeder Base für die Villa (gleiche Höhe wie die Spielwiese)
-	local stripStart = info.BaseZ + info.BaseSize / 2 + 6
-	local stripEnd = stripStart + VILLA_STRIP_DEPTH
-	local perRow = math.ceil(Config.Map.BaseCount / 2)
-	for col = 1, perRow do
-		local baseX = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
-		for _, side in { -1, 1 } do
-			info.Part({
-				Name = "VillaWiese",
-				Size = Vector3.new(VILLA_STRIP_HALF * 2, 1, stripEnd - WIESE_HALF_Z),
-				CFrame = CFrame.new(baseX, info.FloorY - 1.5, side * (WIESE_HALF_Z + stripEnd) / 2),
-				Color = Color3.fromRGB(110, 205, 90),
-				Material = Enum.Material.Grass,
-				Parent = folder,
-			})
-		end
-	end
 
 	buildBarrier(info, folder)
 	buildStreet(info, folder)
