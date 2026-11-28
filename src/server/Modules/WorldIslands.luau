@@ -390,7 +390,7 @@ function Islands.Portal(parent: Instance, cf: CFrame, opts)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Schild"
 	gui.Size = UDim2.fromScale(16, 4.8) -- schmal genug, dass sich Nachbar-Schilder nicht überdecken
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 6.5, 0)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 9.5, 0) -- hoch genug, dass das Shop-Schild von der Straße aus nichts verdeckt
 	gui.MaxDistance = 320
 	gui.LightInfluence = 0
 	gui.Adornee = beam

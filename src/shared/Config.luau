@@ -476,6 +476,8 @@ Config.Worlds = {
 	-- ClickFactor: ein Klick bringt dort so viel mehr Geld als auf der Hauptinsel
 	-- Tint: Farbstich des Bildes in der Welt, Clock: Uhrzeit dort (0 = Nacht, weglassen = wie draußen)
 	-- Sky: Dunst und Horizont dort (Color = hell, Decay = dunkel; Density, Offset, Haze = wie dicht)
+	-- Ambient: Farbe des Schattenlichts dort (weglassen = wie draußen)
+	-- Bloom: wie stark Neon-Teile dort strahlen (Intensity kleiner = weniger, Threshold größer = weniger)
 	List = {
 		{
 			Id = "Kristall",
@@ -498,6 +500,7 @@ Config.Worlds = {
 			Color = Color3.fromRGB(255, 110, 35),
 			Tint = Color3.fromRGB(255, 232, 214),
 			Sky = { Color = Color3.fromRGB(255, 170, 120), Decay = Color3.fromRGB(150, 60, 40), Density = 0.32, Offset = 0.2, Haze = 1.4 },
+			Ambient = Color3.fromRGB(195, 150, 130), -- warmes Schattenlicht, sonst wirkt der Boden grünlich
 			Clock = 17.85, -- Abendrot
 		},
 		{
@@ -521,6 +524,7 @@ Config.Worlds = {
 			Color = Color3.fromRGB(110, 120, 255),
 			Tint = Color3.fromRGB(224, 218, 255),
 			Sky = { Color = Color3.fromRGB(120, 110, 210), Decay = Color3.fromRGB(40, 30, 90) },
+			Bloom = { Intensity = 0.2, Threshold = 1.9 }, -- nachts überstrahlen die Leuchtbäume sonst zu weißen Flecken
 			Clock = 0,
 		},
 	},
