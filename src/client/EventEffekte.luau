@@ -205,8 +205,9 @@ return function(ctx)
 	TweenService:Create(pointerScale, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.15 }):Play()
 
 	-- Ränder, die der Pfeil frei lässt: links die Knopf-Leiste mit der Geld-Anzeige, rechts die
-	-- Aufgaben, oben Ansage und Countdown, unten die Combo-Anzeige
-	local LEFT, RIGHT, TOP, BOTTOM = 310, 340, 230, 280
+	-- Aufgaben, oben Ansage und Countdown, unten die Combo-Anzeige. Auf kleinen Bildschirmen
+	-- (Handy quer) schrumpfen sie mit, sonst bliebe für den Pfeil kein Platz.
+	local MAX_LEFT, MAX_RIGHT, MAX_TOP, MAX_BOTTOM = 310, 340, 230, 280
 	local hideAt = Config.Events.Meteor.ArrowHide
 
 	RunService.RenderStepped:Connect(function()
@@ -219,6 +220,10 @@ return function(ctx)
 			return
 		end
 		local view = camera.ViewportSize
+		local LEFT = math.min(MAX_LEFT, view.X * 0.3)
+		local RIGHT = math.min(MAX_RIGHT, view.X * 0.3)
+		local TOP = math.min(MAX_TOP, view.Y * 0.28)
+		local BOTTOM = math.min(MAX_BOTTOM, view.Y * 0.3)
 		local world = player:GetAttribute("World")
 		if type(world) == "string" and world ~= "" then
 			-- In einer Welt ist der Meteor zu weit weg für einen Pfeil: nur ein Hinweis oben
@@ -226,7 +231,7 @@ return function(ctx)
 			arrow.Visible = false
 			distance.Size = UDim2.fromOffset(300, 28)
 			distance.Text = "☄️ Meteor auf der Hauptinsel!"
-			pointer.Position = UDim2.fromOffset(view.X / 2, view.Y - BOTTOM - 10)
+			pointer.Position = UDim2.fromOffset(view.X / 2, math.max(view.Y * 0.7, view.Y - MAX_BOTTOM - 10))
 			return
 		end
 		local far = (target - root.Position).Magnitude
@@ -257,8 +262,8 @@ return function(ctx)
 		if dir.Magnitude < 1 then
 			dir = Vector2.new(0, 1)
 		end
-		local roomX = if dir.X > 0 then view.X - RIGHT - center.X else center.X - LEFT
-		local roomY = if dir.Y > 0 then view.Y - BOTTOM - center.Y else center.Y - TOP
+		local roomX = math.max(20, if dir.X > 0 then view.X - RIGHT - center.X else center.X - LEFT)
+		local roomY = math.max(20, if dir.Y > 0 then view.Y - BOTTOM - center.Y else center.Y - TOP)
 		local scale = math.min(
 			if math.abs(dir.X) > 0.001 then roomX / math.abs(dir.X) else math.huge,
 			if math.abs(dir.Y) > 0.001 then roomY / math.abs(dir.Y) else math.huge
