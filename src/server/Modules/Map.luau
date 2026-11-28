@@ -331,7 +331,7 @@ local function buildFence(cf: CFrame, style, folder: Instance, villaHalf: number
 	if villaHalf then
 		local x = FENCE_R * math.sin(villaEdge)
 		local z = FENCE_R * math.cos(villaEdge)
-		local zEnd = VILLA_FRONT_Z + 1.2
+		local zEnd = VILLA_FRONT_Z + 3.5 -- ein Stück in die Villa hinein, auch bei runden Ecken
 		if zEnd > z and x < villaHalf then
 			local thick = if kind == "Stein" then 1.5 else if kind == "Holz" then 0.4 else 1
 			for _, side in { -1, 1 } do
