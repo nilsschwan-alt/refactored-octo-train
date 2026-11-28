@@ -297,6 +297,7 @@ local function runKlickfieber()
 	setPhase("Klickfieber", "active", cfg.Duration)
 	task.wait(cfg.Duration)
 	Clicker.Fever = nil
+	Bases.Announce("🔥 Das Klick-Fieber ist vorbei.", COLORS.Klickfieber)
 	-- Bilanz: nur das Geld aus den Klicks
 	for player, clicks in fever.Clicks do
 		Bases.BigText(player, `🔥 Fieber vorbei: {clicks} Klicks, +{Config.FormatNumber(math.floor(fever.Money[player] or 0))} $!`,
