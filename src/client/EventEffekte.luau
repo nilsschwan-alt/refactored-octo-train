@@ -248,8 +248,8 @@ return function(ctx)
 		local at = Vector2.new(p.X, p.Y)
 		local inFront = p.Z > 0
 		if inFront and at.X > LEFT and at.X < view.X - RIGHT and at.Y > TOP and at.Y < view.Y - BOTTOM then
-			-- Stelle ist im Bild: Pfeil zeigt von oben darauf
-			pointer.Position = UDim2.fromOffset(at.X, at.Y - 60)
+			-- Stelle ist im Bild: Pfeil zeigt von oben darauf (bleibt aber unter dem Countdown)
+			pointer.Position = UDim2.fromOffset(at.X, math.max(at.Y - 60, TOP - 30))
 			arrow.Rotation = 180
 			return
 		end

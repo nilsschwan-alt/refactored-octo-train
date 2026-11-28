@@ -224,7 +224,7 @@ function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): bo
 	-- Base voll: Schnappen geht trotzdem, wenn das Neue besser ist als das schwächste Monster.
 	-- Das wird dann zu Hause dafür verkauft.
 	local swap: string? = nil
-	if not Bases.FreeSlot(tState) then
+	if not Bases.FreeSlot(tState) and not Bases.CanAbsorb(tState, entry) then
 		swap = swapFor(tState, entry)
 		if not swap then
 			Bases.Notify(thief, "Deine Base ist voll und deine Monster sind alle stärker!", RED)
@@ -286,6 +286,17 @@ function Steal.Deliver(thief: Player)
 		return
 	end
 	local entry = info.Entry
+	if not Bases.FreeSlot(tState) and info.Source == "wild" and Bases.CanAbsorb(tState, entry) then
+		-- Base voll, aber eine gleiche steht schon da: verschmelzen oder einlagern
+		cleanup(thief, info)
+		local result, kind = Bases.TryAbsorb(tState, entry)
+		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
+		if result and kind then
+			Bases.Notify(thief, Bases.AbsorbText(tState, result, kind), YELLOW)
+		end
+		Bases.AnnounceIfRare(thief, entry, info.How or "den Meteor geschnappt")
+		return
+	end
 	if not Bases.FreeSlot(tState) then
 		-- Wilde Beute: das schwächste Monster wird verkauft und macht Platz
 		local old, slot = nil, nil
@@ -296,9 +307,7 @@ function Steal.Deliver(thief: Player)
 			Steal.Return(thief, "full")
 			return
 		end
-		tState.Data.Slots[tostring(slot)] = nil
-		Bases.RenderSlot(tState, slot)
-		local price = Bases.SellPrice(tState, old)
+		local _, price = Bases.TakeForSale(tState, slot)
 		Bases.AddMoney(tState, price)
 		Bases.Notify(thief, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, YELLOW)
 	end

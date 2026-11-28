@@ -40,6 +40,7 @@ function Rebirth.Do(player: Player)
 		return Config.EntryIncome(a) > Config.EntryIncome(b)
 	end)
 	table.clear(data.Slots)
+	table.clear(data.Stock) -- das Lager fängt auch von vorn an
 	-- Fähigkeit "Erbstück": mehr Kreaturen behalten, die Base startet dafür groß genug
 	local keep = R.KeepCreatures + Bases.Skill(state, "Heritage")
 	local startLevel = 1

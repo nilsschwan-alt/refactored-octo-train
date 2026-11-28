@@ -31,6 +31,7 @@ function Data.Default()
 		Money = Config.StartMoney,
 		BaseLevel = 1,
 		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", mit Sternen "Blubbo||2"
+		Stock = {}, -- Lager: doppelte Kreaturen, die bei voller Base nicht hineinpassten, z.B. { Blubbo = 1 }
 		Cash = 0, -- alt: frühere Kasse. Reste werden beim Join aufs Konto gebucht
 		Pity = 0, -- Packs seit dem letzten Legendär+
 		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
@@ -114,6 +115,13 @@ local function sanitize(raw)
 			end
 		end
 	end
+	if type(raw.Stock) == "table" then
+		for entry, amount in raw.Stock do
+			if type(entry) == "string" and type(amount) == "number" and amount == amount and amount >= 1 and Config.ParseEntry(entry) then
+				data.Stock[entry] = math.clamp(math.floor(amount), 1, 99)
+			end
+		end
+	end
 	return data
 end
 
@@ -152,6 +160,7 @@ function Data.Save(userId: number, data): boolean
 		Money = math.floor(data.Money),
 		BaseLevel = data.BaseLevel,
 		Slots = table.clone(data.Slots),
+		Stock = table.clone(data.Stock),
 		Cash = math.floor(data.Cash),
 		Pity = data.Pity,
 		LastDaily = data.LastDaily,
