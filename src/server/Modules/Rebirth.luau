@@ -40,7 +40,13 @@ function Rebirth.Do(player: Player)
 		return Config.EntryIncome(a) > Config.EntryIncome(b)
 	end)
 	table.clear(data.Slots)
-	for i = 1, math.min(R.KeepCreatures, Config.BaseLevels[1].Slots, #entries) do
+	-- Fähigkeit "Erbstück": mehr Kreaturen behalten, die Base startet dafür groß genug
+	local keep = R.KeepCreatures + Bases.Skill(state, "Heritage")
+	local startLevel = 1
+	while Config.BaseLevels[startLevel].Slots < keep and Config.BaseLevels[startLevel + 1] do
+		startLevel += 1
+	end
+	for i = 1, math.min(keep, Config.BaseLevels[startLevel].Slots, #entries) do
 		data.Slots[tostring(i)] = entries[i]
 	end
 
@@ -49,10 +55,10 @@ function Rebirth.Do(player: Player)
 	data.Tokens += R.TokensPerRebirth
 	data.Money = 0
 	data.Cash = 0
-	data.BaseLevel = 1
-	Bases.AddMoney(state, Config.StartMoney, "quest")
+	data.BaseLevel = startLevel
+	Bases.AddMoney(state, math.floor(Config.StartMoney * (1 + Bases.Skill(state, "StartMoney"))), "quest")
 	Bases.RefreshStats(state)
-	Map.BuildDecor(state.Plot, 1)
+	Map.BuildDecor(state.Plot, startLevel)
 	Bases.RenderAll(state)
 	Bases.RefreshPlot(state.Plot)
 

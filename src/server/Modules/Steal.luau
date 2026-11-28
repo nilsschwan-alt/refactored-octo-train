@@ -60,10 +60,19 @@ function Steal.Shield(player: Player, seconds: number)
 	end
 end
 
--- Tempo mit Beute für diesen Spieler (Fähigkeit "Schnelle Beine" macht schneller)
+-- Tempo mit Beute für diesen Spieler (Fähigkeit "Schnelle Beine" macht schneller,
+-- die "Klebefalle" des Beklauten macht langsamer)
 local function carrySpeed(player: Player): number
 	local state = Bases.GetState(player)
-	return Steal.CarrySpeed + (if state then Bases.Skill(state, "CarrySpeed") else 0)
+	local info = carrying[player]
+	local slow = if info and info.Slow then info.Slow else 0
+	return (Steal.CarrySpeed + (if state then Bases.Skill(state, "CarrySpeed") else 0)) * (1 - slow)
+end
+
+-- Normales Lauftempo für diesen Spieler (Fähigkeit "Flitzer" macht schneller)
+function Steal.SpeedFor(player: Player): number
+	local state = Bases.GetState(player)
+	return Steal.WalkSpeed + (if state then Bases.Skill(state, "WalkSpeed") else 0)
 end
 
 -- Tempo für alle Spieler neu setzen (z.B. Start/Ende der Diebes-Nacht)
@@ -71,7 +80,7 @@ function Steal.ApplySpeeds()
 	for _, player in Players:GetPlayers() do
 		local hum = getHumanoid(player)
 		if hum and hum.WalkSpeed > 0 then
-			hum.WalkSpeed = if carrying[player] then carrySpeed(player) else Steal.WalkSpeed
+			hum.WalkSpeed = if carrying[player] then carrySpeed(player) else Steal.SpeedFor(player)
 		end
 	end
 end
@@ -87,7 +96,7 @@ local function cleanup(thief: Player, info)
 	end
 	local hum = info.Humanoid
 	if hum and hum.Parent then
-		hum.WalkSpeed = Steal.WalkSpeed
+		hum.WalkSpeed = Steal.SpeedFor(thief)
 		hum.UseJumpPower = info.OldUseJumpPower
 		hum.JumpPower = info.OldJumpPower
 	end
@@ -313,7 +322,9 @@ end
 -- Schlag mit der Klatsche: Träger in der Nähe verlieren ihre Beute
 function Steal.Hit(hitter: Player): boolean
 	local now = os.clock()
-	if lastHit[hitter] and now - lastHit[hitter] < Config.Steal.HitCooldown then
+	local hState = Bases.GetState(hitter)
+	local cooldown = Config.Steal.HitCooldown * (1 - (if hState then Bases.Skill(hState, "HitCooldown") else 0))
+	if lastHit[hitter] and now - lastHit[hitter] < cooldown then
 		return false
 	end
 	lastHit[hitter] = now
@@ -321,7 +332,6 @@ function Steal.Hit(hitter: Player): boolean
 	if not myRoot then
 		return false
 	end
-	local hState = Bases.GetState(hitter)
 	local range = Config.Steal.HitRange + (if hState then Bases.Skill(hState, "HitRange") else 0)
 	local hitSomeone = false
 	for thief, _ in carrying do
@@ -337,9 +347,9 @@ function Steal.Hit(hitter: Player): boolean
 				if push.Magnitude > 0 then
 					root.AssemblyLinearVelocity = push.Unit * 45 + Vector3.new(0, 25, 0)
 				end
-				task.delay(Config.Steal.StunTime, function()
+				task.delay(Config.Steal.StunTime + (if hState then Bases.Skill(hState, "StunTime") else 0), function()
 					if hum.Parent and hum.WalkSpeed == 0 then
-						hum.WalkSpeed = if carrying[thief] then carrySpeed(thief) else Steal.WalkSpeed
+						hum.WalkSpeed = if carrying[thief] then carrySpeed(thief) else Steal.SpeedFor(thief)
 					end
 				end)
 			end

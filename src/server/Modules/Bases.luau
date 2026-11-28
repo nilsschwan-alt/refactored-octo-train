@@ -18,7 +18,6 @@ Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
 -- Aufgaben-Fortschritt melden. Wird von Quests.Init gesetzt (so gibt es keine Schleife zwischen den Modulen).
 Bases.Track = function(_state, _kind: string, _amount: number) end
 local remotes
-local lastClick = {} -- [player] = os.clock()
 local mergePending = {} -- [state] = true, wenn die Verschmelzen-Liste an den Client raus muss
 
 local RED = Color3.fromRGB(255, 90, 90)
@@ -121,10 +120,18 @@ end
 -- Alle Boni zusammen: Base-Stufe x Wiedergeburt x Skill-Baum x Goldrausch
 function Bases.Multiplier(state): number
 	local skillBonus = 1 + Bases.Skill(state, "Income") + Bases.Skill(state, "GoldDonkey")
-	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * skillBonus * Bases.IncomeMultiplier
+	-- Fähigkeit "Goldgräber": im Goldrausch noch etwas obendrauf
+	local rush = if Bases.IncomeMultiplier > 1 then 1 + Bases.Skill(state, "GoldRush") else 1
+	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * skillBonus * Bases.IncomeMultiplier * rush
 end
 
--- Schwebende "+X $"-Zahl an einer Stelle in der Welt (nur für diesen Spieler)
+-- Preis für den Ausbau auf diese Stufe (Fähigkeit "Baumeister" macht ihn billiger)
+function Bases.UpgradeCost(state, level): number
+	return math.floor(level.Cost * (1 - Bases.Skill(state, "UpgradeDiscount")))
+end
+
+-- Schwebende "+X $"-Zahl an einer Stelle in der Welt (nur für diesen Spieler).
+-- Wird gerade nirgends benutzt, bleibt aber als Werkzeug für später.
 function Bases.Pop(player: Player, amount: number, position: Vector3, model: Instance?, color: Color3?)
 	if player.Parent then
 		remotes.Pop:FireClient(player, amount, position, model, color)
@@ -147,32 +154,6 @@ function Bases.RefreshStats(state)
 	if state.LevelValue then
 		state.LevelValue.Value = data.BaseLevel
 	end
-end
-
--- Klick auf eine eigene Kreatur = sofort Geld
-function Bases.Click(player: Player, plot, slot: number)
-	local state = Bases.States[player]
-	if not state or state.Plot ~= plot or plot.Stolen[slot] then
-		return
-	end
-	local now = os.clock()
-	if lastClick[player] and now - lastClick[player] < Config.Click.Cooldown then
-		return
-	end
-	lastClick[player] = now
-	local entry = state.Data.Slots[tostring(slot)]
-	local model = plot.SlotModels[slot]
-	if not entry or not model then
-		return
-	end
-	local power = 1 + Bases.Skill(state, "ClickPower")
-	local amount = math.max(
-		Config.Click.MinValue,
-		math.floor(Config.EntryIncome(entry) * Config.Click.IncomeSeconds * Bases.Multiplier(state) * power)
-	)
-	Bases.AddMoney(state, amount)
-	Bases.Track(state, "Clicks", 1)
-	Bases.Pop(player, amount, model:GetPivot().Position + Vector3.new(0, 4, 0), model)
 end
 
 -- Plätze ---------------------------------------------------------------------------
@@ -238,13 +219,6 @@ function Bases.RenderSlot(state, slot: number)
 	addPrompt(body, "Steal", "Klauen", name, rarity.StealTime, plot, slot)
 	local sellPrice = Bases.SellPrice(state, entry)
 	addPrompt(body, "Sell", `Verkaufen ({Config.FormatNumber(sellPrice)} $)`, name, 0.6, plot, slot)
-	-- Anklicken = Geld (nur der Besitzer bekommt etwas)
-	local clicker = Instance.new("ClickDetector")
-	clicker.MaxActivationDistance = Config.Click.MaxDistance
-	clicker.Parent = body
-	clicker.MouseClick:Connect(function(who)
-		Bases.Click(who, plot, slot)
-	end)
 	model.Parent = plot.Creatures
 	plot.SlotModels[slot] = model
 end
@@ -513,7 +487,7 @@ function Bases.RefreshPlot(plot)
 
 	local nextLevel = Config.BaseLevels[level + 1]
 	if nextLevel then
-		plot.UpgradePrompt.ActionText = `Upgrade: {Config.FormatNumber(nextLevel.Cost)} $`
+		plot.UpgradePrompt.ActionText = `Upgrade: {Config.FormatNumber(Bases.UpgradeCost(state, nextLevel))} $`
 		plot.UpgradePrompt.ObjectText = `Stufe {level + 1}: {nextLevel.Name}`
 		plot.UpgradePrompt:SetAttribute("Active", true)
 	else
@@ -589,7 +563,6 @@ function Bases.RemovePlayer(player: Player)
 	end
 	local plot = state.Plot
 	Bases.States[player] = nil
-	lastClick[player] = nil
 	mergePending[state] = nil
 	for slot, model in plot.SlotModels do
 		model:Destroy()
@@ -610,7 +583,7 @@ function Bases.CheckDailyBonus(state)
 		return
 	end
 	state.Data.LastDaily = today
-	local bonus = Config.DailyBonus[state.Data.BaseLevel] or Config.DailyBonus[1]
+	local bonus = math.floor((Config.DailyBonus[state.Data.BaseLevel] or Config.DailyBonus[1]) * (1 + Bases.Skill(state, "DailyLuck")))
 	Bases.AddMoney(state, bonus)
 	Bases.BigText(state.Player, `TAGESBONUS +{Config.FormatNumber(bonus)} $`, Color3.fromRGB(255, 220, 60), "Reveal")
 	remotes.MoneyPopup:FireClient(state.Player, bonus)
@@ -643,11 +616,12 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	if not nextLevel then
 		return
 	end
-	if state.Data.Money < nextLevel.Cost then
-		Bases.Notify(player, `Du brauchst {Config.FormatNumber(nextLevel.Cost)} $ für das Upgrade.`, RED)
+	local cost = Bases.UpgradeCost(state, nextLevel)
+	if state.Data.Money < cost then
+		Bases.Notify(player, `Du brauchst {Config.FormatNumber(cost)} $ für das Upgrade.`, RED)
 		return
 	end
-	Bases.AddMoney(state, -nextLevel.Cost)
+	Bases.AddMoney(state, -cost)
 	state.Data.BaseLevel += 1
 	Bases.RefreshStats(state)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)

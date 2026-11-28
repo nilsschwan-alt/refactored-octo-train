@@ -115,16 +115,16 @@ return function(ctx)
 	end
 
 	-- Skill-Baum ----------------------------------------------------------------------
-	local S = 44 -- Größe einer Wabe (Mitte bis Spitze)
+	local S = 42 -- Größe einer Wabe (Mitte bis Spitze)
 	local UNIT = SQRT3 * S -- Abstand zweier Waben nebeneinander
-	local HEX_X, HEX_Y = 248, 270 -- Mitte des Netzes im Fenster
+	local HEX_X, HEX_Y = 262, 296 -- Mitte des Netzes im Fenster (drei Ringe = 36 Waben + Mitte)
 	local SKILL_COLOR = Color3.fromRGB(90, 160, 255)
 
 	local skillButton, skillButtonScale, skillBadge = hudButton(172, SKILL_COLOR, "🧠", "Skills")
-	local skillPanel, showSkillPanel = window(880, 560, SKILL_COLOR, "💠 Skill-Baum")
+	local skillPanel, showSkillPanel = window(940, 600, SKILL_COLOR, "💠 Skill-Baum")
 	local tokenTitle = label({
 		Size = UDim2.fromOffset(330, 34),
-		Position = UDim2.fromOffset(480, 12),
+		Position = UDim2.fromOffset(540, 12),
 		Font = Enum.Font.FredokaOne,
 		TextColor3 = TOKEN_BLUE,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -196,12 +196,12 @@ return function(ctx)
 		return { Frame = frame, Scale = scale, Border = border, Fill = fill, Icon = icon, Sub = sub, Button = button, CanBuy = false }
 	end
 
-	-- Legende unten links: welche Farbe ist welcher Bereich
+	-- Legende unten in einer Reihe: welche Farbe ist welcher Bereich
 	for i, id in { "Geld", "Glueck", "Dieb" } do
 		local branch = Config.Skills.Branches[id]
 		label({
-			Size = UDim2.fromOffset(190, 24),
-			Position = UDim2.fromOffset(20, 438 + i * 27),
+			Size = UDim2.fromOffset(164, 24),
+			Position = UDim2.fromOffset(16 + (i - 1) * 168, 562),
 			Font = Enum.Font.FredokaOne,
 			TextColor3 = branch.Color,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -213,7 +213,7 @@ return function(ctx)
 	-- Rechts: Infos zur gewählten Wabe
 	local detail = Instance.new("Frame")
 	detail.Size = UDim2.fromOffset(400, 484)
-	detail.Position = UDim2.fromOffset(468, 62)
+	detail.Position = UDim2.fromOffset(528, 76)
 	detail.BackgroundColor3 = Color3.fromRGB(40, 36, 60)
 	detail.Parent = skillPanel
 	corner(detail, 12)

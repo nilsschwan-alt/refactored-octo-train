@@ -60,10 +60,10 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 - **Klatsche** (Taste 1): Träger hauen, dann ist die Beute weg.
 - **Schloss** (roter Knopf) und **Upgrade** (grüner Knopf, 5 Stufen) in deiner Base. **Verkaufen:** E an einer eigenen Kreatur.
 - **Tagesbonus** beim ersten Joinen am Tag.
-- **Selbst Geld machen:** Auf der Straße liegen **Münzen** (drüberlaufen, manchmal eine Riesen-Münze). **Klick auf deine eigenen Kreaturen** gibt sofort Geld.
-- **Aufgaben** (rechts): immer 3 gleichzeitig, z.B. "Sammle 20 Münzen". Geschafft = Geld, dann kommt sofort eine neue.
+- **Selbst Geld machen (Klicker):** **Überall in die Welt klicken oder tippen** gibt sofort Geld. Schnell hintereinander klicken baut eine **Combo** auf (WARM, HEISS, FEUER, INFERNO) und bringt bis zu 3x so viel. Dazu Volltreffer und mit Glück der Jackpot. In den Welten ist jeder Klick mehr wert.
+- **Aufgaben** (rechts): immer 3 gleichzeitig, z.B. "Klicke 300x für Geld". Geschafft = Geld, dann kommt sofort eine neue.
 - **Bestenlisten** neben der Riesen-Statue: Top 10 aller Zeiten (nur im veröffentlichten Spiel) und dieser Server.
-- **Wiedergeburt** (lila Knopf oder Taste **R**): Kostet Geld, setzt Geld und Base-Stufe zurück, deine 4 besten Kreaturen bleiben. Dafür +50 % Einkommen für immer und Tokens für den Rebirth-Shop (Glück, Münz-Magnet, Klick-Kraft).
+- **Wiedergeburt** (lila Knopf oder Taste **R**): Kostet Geld, setzt Geld und Base-Stufe zurück, deine 4 besten Kreaturen bleiben. Dafür +50 % Einkommen für immer und Tokens für den Skill-Baum (36 Fähigkeiten in drei Ästen: Geld & Klick, Glück, Dieb & Schutz).
 
 **Balancen:** Alle Zahlen und **alle Drop-Raten** (Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.
 

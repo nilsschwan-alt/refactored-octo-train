@@ -3272,20 +3272,7 @@ task.spawn(function()
 	end
 end)
 
--- Münzen auf der Straße drehen sich und hüpfen ---------------------------------
-RunService.RenderStepped:Connect(function()
-	local t = os.clock()
-	for _, coin in CollectionService:GetTagged("SpinCoin") do
-		if coin:IsA("BasePart") then
-			local pos = coin.Position
-			local baseY = coin:GetAttribute("BaseY") or pos.Y
-			local phase = pos.X * 0.1 + pos.Z * 0.1
-			coin.CFrame = CFrame.new(pos.X, baseY + math.sin(t * 3 + phase) * 0.4, pos.Z) * CFrame.Angles(0, t * 3 + phase, 0)
-		end
-	end
-end)
-
--- Schwebende "+X $" in der Welt (Klick auf Kreatur, Münze) ----------------------
+-- Schwebende "+X $" in der Welt (z.B. beim Verkaufen) ----------------------
 local squishing = {}
 local function squish(model: Model)
 	if squishing[model] then
@@ -3613,7 +3600,7 @@ local function updateRebirth()
 	local cost = Config.RebirthCost(rebirths)
 	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
 	local unlock = Config.RebirthUnlock(rebirths)
-	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens für den Skill-Baum.`
+	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures + (player:GetAttribute("Sk_Heritage") or 0)} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens für den Skill-Baum.`
 	if unlock then
 		rebirthUnlock.Text = `🎁 Schaltet frei: {unlock.Name} mit neuen, stärkeren Kreaturen!`
 		rebirthUnlock.TextColor3 = unlock.Color:Lerp(WHITE, 0.35)
@@ -3707,6 +3694,19 @@ require(script.Parent:WaitForChild("Welten"))({
 	Stroke = stroke,
 	Tween = tween,
 	PlaySound = playSound,
+})
+
+-- Klicker: überall klicken oder tippen gibt Geld, mit Combo (eigene Datei: Klicker.luau)
+require(script.Parent:WaitForChild("Klicker"))({
+	Corner = corner,
+	Label = label,
+	Stroke = stroke,
+	Tween = tween,
+	PlaySound = playSound,
+	StarBurst = starBurst,
+	Busy = function()
+		return opening
+	end,
 })
 
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.

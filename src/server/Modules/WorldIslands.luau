@@ -1,8 +1,8 @@
 -- Baut die vier Welten als schwebende Inseln aus Blöcken (ganz ohne Terrain) und die Portale.
 -- Jede Insel: runder Boden, unsichtbare Wand am Rand, Ankunftsplatz mit Rück-Portal im Süden
--- und ein großes Wahrzeichen. Islands.Build() gibt zurück, wo man ankommt und wo Münzen
--- und wilde Monster auftauchen dürfen.
--- Was man in den Welten TUT (Münzen, Monster, Freischalten), steht in Worlds.luau und Config.luau.
+-- und ein großes Wahrzeichen. Islands.Build() gibt zurück, wo man ankommt und wo
+-- wilde Monster auftauchen dürfen.
+-- Was man in den Welten TUT (Klick-Bonus, Monster, Freischalten), steht in Worlds.luau und Config.luau.
 
 local CollectionService = game:GetService("CollectionService")
 
@@ -128,8 +128,8 @@ local function facing(deg: number): CFrame
 	return CFrame.Angles(0, math.rad(90 - deg), 0)
 end
 
--- Sperrflächen: Blockers = hier steht etwas Festes (keine Münzen, keine Deko),
--- Keep = hier soll keine Deko hin (Wege, Plätze, Teiche), Münzen aber schon.
+-- Sperrflächen: Blockers = hier steht etwas Festes (keine Monster, keine Deko),
+-- Keep = hier soll keine Deko hin (Wege, Plätze, Teiche), Monster aber schon.
 local function inAny(list, x: number, z: number, margin: number): boolean
 	for _, b in list do
 		local dx, dz = x - b[1], z - b[2]
@@ -150,7 +150,7 @@ local function keep(ctx, x: number, z: number, r: number)
 end
 
 -- Ruft fn(x, z) an "count" freien Stellen zwischen minR und maxR auf.
--- clear = Platz, den ein Ding braucht. solid = true: danach für Münzen und Deko gesperrt,
+-- clear = Platz, den ein Ding braucht. solid = true: danach für Monster und Deko gesperrt,
 -- false: nur für andere Deko gesperrt, nil: gar nicht gemerkt (Kleinkram wie Risse und Sprenkel).
 local function scatter(ctx, count: number, minR: number, maxR: number, clear: number, solid: boolean?, fn: (number, number) -> ())
 	local placed = 0
@@ -1233,7 +1233,7 @@ function Islands.Build(parent: Instance, world, center: Vector3, floorY: number)
 		Portal = portal,
 		-- hier kommt man an (Blick zur Inselmitte)
 		Spawn = origin * CFrame.lookAt(Vector3.new(0, 3.5, 78), Vector3.new(0, 3.5, 0)),
-		-- zufälliger freier Punkt auf dem Boden (für Münzen und wilde Monster)
+		-- zufälliger freier Punkt auf dem Boden (für wilde Monster)
 		RandomPoint = function(): Vector3
 			for _ = 1, 30 do
 				local a = rng:NextNumber(0, math.pi * 2)

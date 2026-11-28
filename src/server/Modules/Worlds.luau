@@ -1,6 +1,6 @@
 -- Welten: baut die vier Inseln und den Portal-Platz hinter dem Kisten-Shop, lässt Spieler
--- hin- und zurückreisen und sorgt in jeder Welt für Münzen und wilde Monster.
--- Alle Werte (ab welcher Wiedergeburt, Münz-Wert, wie oft ein Monster kommt) stehen in
+-- hin- und zurückreisen und sorgt in jeder Welt für wilde Monster.
+-- Alle Werte (ab welcher Wiedergeburt, Klick-Bonus, wie oft ein Monster kommt) stehen in
 -- Config.Worlds. Wie die Inseln aussehen, steht in WorldIslands.luau.
 
 local Players = game:GetService("Players")
@@ -10,7 +10,6 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Bases = require(script.Parent.Bases)
 local Steal = require(script.Parent.Steal)
 local Events = require(script.Parent.Events)
-local Coins = require(script.Parent.Coins)
 local Map = require(script.Parent.Map)
 local Islands = require(script.Parent.WorldIslands)
 
@@ -93,13 +92,14 @@ local function enter(player: Player, state, portal)
 		end
 		travel(player, islands[world.Id].Spawn, world, function()
 			Bases.BigText(player, `{world.Icon} {Config.Upper(world.Name)}`, world.Color, nil, false)
-			Bases.Notify(player, `Münzen sind hier x{world.CoinFactor} wert. Halte Ausschau nach wilden Monstern!`, world.Color)
+			Bases.Notify(player, `Jeder Klick bringt hier x{world.ClickFactor} Geld. Halte Ausschau nach wilden Monstern!`, world.Color)
 		end)
 	else
 		travel(player, hubSpawn[portal.From.Id], nil, function()
 			if Steal.IsCarrying(player) then
-				Steal.Shield(player, W.ArrivalShield)
-				Bases.Notify(player, `🛡️ {W.ArrivalShield} Sekunden Schutz. Lauf nach Hause!`, GREEN)
+				local seconds = W.ArrivalShield + Bases.Skill(state, "PortalShield")
+				Steal.Shield(player, seconds)
+				Bases.Notify(player, `🛡️ {seconds} Sekunden Schutz. Lauf nach Hause!`, GREEN)
 			end
 		end)
 	end
@@ -221,7 +221,6 @@ function Worlds.Start(mapFolder: Instance, remoteFolder: Instance)
 		local back = pos - dir * 9 + Vector3.new(0, 3.5, 0)
 		hubSpawn[world.Id] = CFrame.lookAt(back, back - dir)
 
-		Coins.AddZone({ Max = W.CoinsPerWorld, Factor = world.CoinFactor, Color = world.CoinColor, Point = island.RandomPoint })
 		wildNext[world.Id] = os.clock() + W.Wild.FirstAfter
 	end
 

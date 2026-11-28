@@ -1,4 +1,4 @@
--- Aufgaben: Immer 3 gleichzeitig (z.B. "Sammle 20 Münzen"). Geschafft = Geld + Fanfare,
+-- Aufgaben: Immer 3 gleichzeitig (z.B. "Öffne 5 Kisten"). Geschafft = Geld + Fanfare,
 -- und sofort kommt eine neue. Ziele und Belohnungen wachsen mit deinem Einkommen.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,7 +24,7 @@ local function kinds()
 end
 local ALL_KINDS = kinds()
 
--- Text für eine Aufgabe, z.B. "Sammle 20 Münzen auf der Straße"
+-- Text für eine Aufgabe, z.B. "Öffne 5 Kisten"
 local function describe(quest): string
 	local info = Q.Types[quest.Kind]
 	local text = info.Text:gsub("{n}", Config.FormatNumber(quest.Goal))
@@ -102,7 +102,7 @@ function Quests.Fill(state)
 	Quests.Send(state)
 end
 
--- Fortschritt: kind = "Coins", "Clicks", "Earn", "OpenPacks", "Steal", "HitThief"
+-- Fortschritt: kind = "Clicks", "Earn", "OpenPacks", "Steal", "HitThief"
 function Quests.Add(state, kind: string, amount: number)
 	if not state or not state.Data.Quests then
 		return
@@ -137,6 +137,12 @@ function Quests.Add(state, kind: string, amount: number)
 			data.Tokens += S.TokensPerQuest
 			Bases.RefreshStats(state)
 			Bases.Notify(player, `💠 +{S.TokensPerQuest} Token für den Skill-Baum!`, BLUE)
+		end
+		-- Fähigkeit "Token-Finder": manchmal liegt noch ein Token obendrauf
+		if math.random() < Bases.Skill(state, "TokenLuck") then
+			data.Tokens += 1
+			Bases.RefreshStats(state)
+			Bases.Notify(player, "💠 Glück gehabt: +1 Extra-Token!", BLUE)
 		end
 	end
 	if #finished > 0 then
