@@ -354,8 +354,8 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 	end
 	local badge = label({
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromOffset(24, 24),
-		Position = UDim2.new(1, -3, 0, 3),
+		Size = UDim2.fromOffset(22, 22),
+		Position = UDim2.new(1, -7, 0, 7), -- ganz auf dem Knopf, ragt nicht in den Nachbarn
 		BackgroundTransparency = 0,
 		BackgroundColor3 = Color3.fromRGB(235, 60, 70),
 		Font = Enum.Font.FredokaOne,
@@ -364,7 +364,7 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 		ZIndex = 5,
 		Parent = button,
 	})
-	corner(badge, 12)
+	corner(badge, 11)
 	-- Rand um die Plakette, nicht um die Schrift
 	stroke(badge, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	-- Maus drüber: Symbol wächst. Gedrückt: Knopf sinkt auf seine Unterkante.
@@ -470,11 +470,14 @@ local function updateMoney()
 end
 
 -- Wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf.
--- Schnelle Zuwächse (Klicker!) werden gesammelt und als eine Summe gezeigt.
+-- Kommt schnell hintereinander Geld (Klicker!), zählt dieselbe Zahl weiter hoch, statt
+-- dass sich viele Zahlen stapeln.
 do
 	local lastMoney = player:GetAttribute("Money") or 0
-	local pending = 0
-	local waiting = false
+	local gainLabel: TextLabel? = nil
+	local gainSum = 0
+	local gainRun = 0
+	local START = UDim2.new(1, 10, 0, 8) -- rechts neben der Geld-Anzeige
 	player:GetAttributeChangedSignal("Money"):Connect(function()
 		local now = player:GetAttribute("Money") or 0
 		local gain = now - lastMoney
@@ -482,30 +485,32 @@ do
 		if gain < 1 then
 			return
 		end
-		pending += gain
-		if waiting then
-			return
+		local shown = gainLabel
+		if not shown then
+			shown = Instance.new("TextLabel")
+			shown.BackgroundTransparency = 1
+			shown.Size = UDim2.fromOffset(140, 26)
+			shown.Font = Enum.Font.FredokaOne
+			shown.TextScaled = true
+			shown.TextXAlignment = Enum.TextXAlignment.Left
+			shown.TextColor3 = Color3.fromRGB(130, 255, 130)
+			shown.Parent = moneyBox
+			gainLabel = shown
+			gainSum = 0
 		end
-		waiting = true
-		task.delay(0.3, function()
-			waiting = false
-			local total = pending
-			pending = 0
-			local gainLabel = Instance.new("TextLabel")
-			gainLabel.BackgroundTransparency = 1
-			gainLabel.Size = UDim2.fromOffset(140, 26)
-			gainLabel.Position = UDim2.new(1, 10, 0, 8) -- rechts neben der Geld-Anzeige
-			gainLabel.Font = Enum.Font.FredokaOne
-			gainLabel.TextScaled = true
-			gainLabel.TextXAlignment = Enum.TextXAlignment.Left
-			gainLabel.TextColor3 = Color3.fromRGB(130, 255, 130)
-			gainLabel.TextStrokeTransparency = 0.3
-			gainLabel.Text = `+{Config.FormatNumber(total)} $`
-			gainLabel.Parent = moneyBox
-			tween(gainLabel, 0.9, { Position = gainLabel.Position - UDim2.fromOffset(0, 30), TextTransparency = 1, TextStrokeTransparency = 1 })
-			task.delay(1, function()
-				gainLabel:Destroy()
-			end)
+		gainSum += gain
+		gainRun += 1
+		local run = gainRun
+		shown.Text = `+{Config.FormatNumber(gainSum)} $`
+		shown.Position = START
+		shown.TextTransparency = 0
+		shown.TextStrokeTransparency = 0.3
+		tween(shown, 0.8, { Position = START - UDim2.fromOffset(0, 30), TextTransparency = 1, TextStrokeTransparency = 1 }, Enum.EasingStyle.Quint)
+		task.delay(0.85, function()
+			if run == gainRun then
+				shown:Destroy()
+				gainLabel = nil
+			end
 		end)
 	end)
 end

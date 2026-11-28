@@ -267,7 +267,9 @@ return function(ctx)
 		goPad.PaddingLeft, goPad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
 		goPad.Parent = go
 		go.Activated:Connect(function()
-			if world and not Config.WorldUnlocked(world, rebirths()) then
+			local blocked = player:GetAttribute("Carrying") ~= nil
+				or (world ~= nil and (not Config.WorldUnlocked(world, rebirths()) or player:GetAttribute("World") == world.Id))
+			if blocked then
 				playSound("Tick", 0.6)
 				return
 			end
@@ -284,9 +286,12 @@ return function(ctx)
 
 	local function refreshRows()
 		local here = player:GetAttribute("World")
+		local carrying = player:GetAttribute("Carrying") ~= nil
 		for _, row in rows do
 			local world = row.World
 			local open = world == nil or Config.WorldUnlocked(world, rebirths())
+			local isHere = world ~= nil and here == world.Id
+			local can = open and not isHere and not carrying
 			if not world then
 				row.Sub.Text = "hinter dem Kisten-Shop"
 				row.Sub.TextColor3 = Color3.fromRGB(205, 200, 225)
@@ -300,9 +305,9 @@ return function(ctx)
 				row.Sub.Text = `Klick-Geld x{(string.gsub(tostring(world.ClickFactor), "%.", ","))} · wilde Monster`
 				row.Sub.TextColor3 = Color3.fromRGB(205, 200, 225)
 			end
-			row.Go.Text = if open then "Reisen" else "Gesperrt"
-			row.Go.BackgroundColor3 = if open then Color3.fromRGB(60, 190, 110) else Color3.fromRGB(95, 95, 110)
-			row.Go.AutoButtonColor = open
+			row.Go.Text = if not open then "Gesperrt" elseif isHere then "Hier" else "Reisen"
+			row.Go.BackgroundColor3 = if can then Color3.fromRGB(60, 190, 110) else Color3.fromRGB(95, 95, 110)
+			row.Go.AutoButtonColor = can
 			row.Stroke.Transparency = if open then 0 else 0.6
 		end
 		hint.Visible = player:GetAttribute("Carrying") ~= nil
