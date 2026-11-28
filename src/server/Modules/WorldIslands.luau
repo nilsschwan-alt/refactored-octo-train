@@ -251,6 +251,19 @@ local function islets(ctx, list, style, fn)
 	end
 end
 
+-- Felsnadel unter jedem Inselchen (eigener Schritt, weil crystal() erst weiter unten steht)
+local function isletSpikes(ctx, list, style)
+	for _, info in list do
+		local a = math.rad(info[1])
+		local r = info[4]
+		local x, z = math.cos(a) * info[2], math.sin(a) * info[2]
+		for _, o in { { 0, 0, 1 }, { 0.45, 0.2, 0.6 }, { -0.4, -0.3, 0.5 } } do
+			put(ctx, "Inselchen", CFrame.new(x + o[1] * r, info[3] - 16 - r * o[3] * 0.5, z + o[2] * r) * CFrame.Angles(0, math.rad(45), 0), Vector3.new(r * 0.32 * o[3], r * o[3], r * 0.32 * o[3]), style.Rock:Lerp(BLACK, 0.35), style.RockMat or M.Slate, { Glow = true })
+			put(ctx, "Inselchen", CFrame.new(x + o[1] * r, info[3] - 16 - r * o[3], z + o[2] * r) * TIP, Vector3.one * (r * 0.32 * o[3] * 0.98), style.Rock:Lerp(BLACK, 0.4), style.RockMat or M.Slate, { Glow = true })
+		end
+	end
+end
+
 -- Kristall mit Spitze. tilt = Neigung in Grad, lean = Richtung, in die er sich neigt (Grad).
 -- Ohne "extra" leuchtet er und man läuft durch.
 local function crystal(ctx, x: number, y: number, z: number, height: number, width: number, color: Color3, tilt: number?, lean: number?, extra: { [string]: any }?): Part
@@ -272,6 +285,38 @@ local function crystalCluster(ctx, x: number, z: number, height: number, color: 
 		crystal(ctx, x + math.cos(math.rad(a)) * d, -0.8, z + math.sin(math.rad(a)) * d, h, h * 0.2, color:Lerp(WHITE, 0.15), rn(ctx, 18, 32), a, extra)
 	end
 	return main
+end
+
+-- Hängende Felsnadeln unter der Insel und unter den Inselchen (sonst sieht die Unterseite
+-- wie eine Torte aus). glow = Farbe für ein paar leuchtende dazwischen (oder nil)
+local function hangingSpikes(ctx, style, glow: Color3?)
+	local R = ctx.R
+	local rock = { Glow = true, Material = style.RockMat or M.Slate }
+	-- Ringe: { innen, außen, Höhe der Unterkante dort, Anzahl }
+	for _, ring in { { 0.94, 0.99, -6, 16 }, { 0.8, 0.9, -18, 12 }, { 0.62, 0.76, -32, 9 }, { 0.44, 0.58, -48, 7 } } do
+		for i = 1, ring[4] do
+			local a = (i + rn(ctx, -0.3, 0.3)) / ring[4] * math.pi * 2
+			local r = R * rn(ctx, ring[1], ring[2])
+			local length = rn(ctx, 9, 22)
+			local shiny = glow and i % 4 == 0
+			crystal(ctx, math.cos(a) * r, ring[3] + 1, math.sin(a) * r, length, length * rn(ctx, 0.2, 0.3), if shiny then glow :: Color3 else style.Rock:Lerp(BLACK, rn(ctx, 0, 0.25)), 180 + rn(ctx, -8, 8), rn(ctx, 0, 360), if shiny then nil else rock)
+		end
+	end
+end
+
+-- Felsen am Inselrand: abwechselnd Brocken und spitze Nadeln
+local function rimRock(ctx, x: number, z: number, i: number, color: Color3, material: Enum.Material?)
+	if i % 3 == 1 then
+		local solid = { Material = material or M.Slate }
+		crystal(ctx, x, -1.5, z, rn(ctx, 10, 17), rn(ctx, 4, 5.5), color, rn(ctx, 0, 7), rn(ctx, 0, 360), solid)
+		local a = rn(ctx, 0, 360)
+		crystal(ctx, x + math.cos(math.rad(a)) * 3, -1.8, z + math.sin(math.rad(a)) * 3, rn(ctx, 5, 9), rn(ctx, 2.6, 3.6), color:Lerp(BLACK, 0.12), rn(ctx, 10, 22), a, solid)
+	else
+		local h = rn(ctx, 5, 13)
+		block(ctx, "Randfels", x, h / 2 - 1.5, z, rn(ctx, 7, 11), h, rn(ctx, 6, 10), color, material or M.Slate, {
+			Rot = CFrame.Angles(rn(ctx, -0.18, 0.18), rn(ctx, 0, math.pi), rn(ctx, -0.18, 0.18)),
+		})
+	end
 end
 
 -- Schwebender Glitzer über der ganzen Insel
@@ -301,7 +346,7 @@ function Islands.Portal(parent: Instance, cf: CFrame, opts)
 		block(ctx, "Leuchte", x, 7, 1.55, 0.8, 11.5, 0.2, color, M.Neon, { Glow = true })
 	end
 	block(ctx, "Leuchte", 0, 14.5, 1.55, 14, 0.7, 0.2, color, M.Neon, { Glow = true })
-	block(ctx, "Schwelle", 0, 0.08, -0.6, 9, 0.2, 4.2, color, M.Neon, { Glow = true, Transparency = 0.3 })
+	block(ctx, "Schwelle", 0, 0.15, -0.6, 9, 0.3, 4.2, color, M.Neon, { Glow = true, Transparency = 0.3 })
 
 	-- Das leuchtende Feld und der Wirbel davor (den dreht der Client)
 	local field = block(ctx, "Feld", 0, 6.5, -2.7, 9, 13, 0.4, color, M.Neon, { Glow = true, Transparency = 0.15 })
@@ -332,8 +377,8 @@ function Islands.Portal(parent: Instance, cf: CFrame, opts)
 
 	-- Rote Sperre: Wer genug Wiedergeburten hat, sieht sie nicht und läuft durch (macht der Client)
 	if opts.Rebirths then
-		local lock = block(ctx, "Sperre", 0, 6.5, 1.2, 9, 13, 0.6, rgb(255, 60, 70), M.Neon, {
-			Transparency = 0.6,
+		local lock = block(ctx, "Sperre", 0, 6.5, 1.2, 9, 13, 0.6, rgb(255, 40, 50), M.Neon, {
+			Transparency = 0.35,
 			CastShadow = false,
 			CanQuery = false,
 		})
@@ -377,7 +422,8 @@ function Islands.Portal(parent: Instance, cf: CFrame, opts)
 	gui.Parent = beam
 
 	-- Lichtsäule, damit man das Portal von weitem findet
-	block(ctx, "Lichtsaeule", 0, 61, -1, 1.6, 90, 1.6, color, M.Neon, { Glow = true, Transparency = 0.62 })
+	-- (beginnt erst über dem Schild und steht dahinter)
+	block(ctx, "Lichtsaeule", 0, 67, -3, 1.6, 80, 1.6, color, M.Neon, { Glow = true, Transparency = 0.62 })
 
 	model.Parent = parent
 	return { Model = model, Trigger = trigger, CFrame = cf, Rebirths = opts.Rebirths }
@@ -392,9 +438,10 @@ local function crystalTree(ctx, x: number, z: number, s: number)
 	local y = 7 * s
 	for i, size in { 7, 5.4, 3.8 } do
 		local side = size * s
-		local crown = put(ctx, "Krone", CFrame.new(x, y + side * 0.3, z) * CFrame.Angles(0, math.rad(i * 30), 0) * TIP, Vector3.new(side, side, side), color:Lerp(WHITE, (i - 1) * 0.18), M.Glass, {
-			Ghost = true,
-			Transparency = 0.2,
+		-- (kein Glas: dahinter würden leuchtende Teile verschwinden)
+		local crown = put(ctx, "Krone", CFrame.new(x, y + side * 0.3, z) * CFrame.Angles(0, math.rad(i * 30), 0) * TIP, Vector3.new(side, side, side), color:Lerp(WHITE, (i - 1) * 0.18), M.Neon, {
+			Glow = true,
+			Transparency = 0.15,
 		})
 		if i == 1 then
 			light(crown, color, 16, 0.8)
@@ -461,8 +508,8 @@ THEMES.Kristall = function(ctx)
 	blocker(ctx, 0, 0, 14)
 
 	-- Kristall-Bogen über dem Weg
-	crystal(ctx, -9.5, -1, 46, 21, 3, rgb(255, 110, 220), 38, 0)
-	crystal(ctx, 9.5, -1, 46, 21, 3, rgb(90, 225, 255), 38, 180)
+	crystal(ctx, -9.5, -1.6, 46, 21.5, 3, rgb(255, 110, 220), 27, 0)
+	crystal(ctx, 9.5, -1.6, 46, 21.5, 3, rgb(90, 225, 255), 27, 180)
 	keep(ctx, -9.5, 46, 3)
 	keep(ctx, 9.5, 46, 3)
 
@@ -473,7 +520,7 @@ THEMES.Kristall = function(ctx)
 		local main = crystalCluster(ctx, x, z, rn(ctx, 7, 16), pick(ctx, CRYSTAL_COLORS))
 		light(main, main.Color, 14, 0.8)
 	end)
-	scatter(ctx, 11, 28, 90, 2.4, true, function(x, z)
+	scatter(ctx, 11, 28, 90, 5, true, function(x, z)
 		crystalTree(ctx, x, z, rn(ctx, 0.85, 1.35))
 	end)
 	scatter(ctx, 18, 20, 96, 1.5, false, function(x, z)
@@ -485,10 +532,7 @@ THEMES.Kristall = function(ctx)
 	end)
 
 	rim(ctx, 30, function(x, z, _, i)
-		local h = rn(ctx, 5, 13)
-		block(ctx, "Randfels", x, h / 2 - 1.5, z, rn(ctx, 7, 11), h, rn(ctx, 6, 10), style.Rock:Lerp(WHITE, rn(ctx, 0, 0.12)), M.Slate, {
-			Rot = CFrame.Angles(rn(ctx, -0.15, 0.15), rn(ctx, 0, math.pi), rn(ctx, -0.15, 0.15)),
-		})
+		rimRock(ctx, x, z, i, style.Rock:Lerp(WHITE, rn(ctx, 0, 0.12)))
 		if i % 2 == 0 then
 			crystalCluster(ctx, x * 0.93, z * 0.93, rn(ctx, 6, 10), pick(ctx, CRYSTAL_COLORS))
 		end
@@ -505,10 +549,13 @@ THEMES.Kristall = function(ctx)
 		LightEmission = 1,
 	})
 
-	islets(ctx, { { 30, 152, 14, 14 }, { 125, 160, -8, 11 }, { 200, 150, 22, 16 }, { 285, 165, 4, 12 }, { 335, 140, 30, 9 } }, style, function(sub, r)
+	local isletList = { { 30, 152, 14, 14 }, { 125, 160, -8, 11 }, { 200, 150, 22, 16 }, { 285, 165, 4, 12 }, { 335, 140, 30, 9 } }
+	islets(ctx, isletList, style, function(sub, r)
 		local main = crystalCluster(sub, 0, 0, r * 0.95, pick(sub, CRYSTAL_COLORS))
 		light(main, main.Color, 20, 1)
 	end)
+	isletSpikes(ctx, isletList, style)
+	hangingSpikes(ctx, style, rgb(190, 110, 255))
 	return style
 end
 
@@ -583,13 +630,23 @@ THEMES.Lava = function(ctx)
 
 	-- Wahrzeichen: der Vulkan (Stufen-Kegel mit Lava-Kessel oben)
 	local vx, vz = 0, -30
-	local tiers = { { 38, 8 }, { 31, 8 }, { 24.5, 8 }, { 18.5, 8 }, { 13, 7 } }
+	-- viele niedrige Stufen, unten flach und oben steil: so sieht es nach Berg aus statt nach Torte
+	local tiers = { { 38, 4 }, { 33.5, 4 }, { 29.5, 4.5 }, { 25.5, 4.5 }, { 22, 4.5 }, { 19, 4.5 }, { 16.5, 4.5 }, { 14.2, 4.5 }, { 12.4, 4.5 } }
 	local tops = {}
 	local y = 0
 	for i, t in tiers do
-		cyl(ctx, "Vulkan", vx, y, vz, t[1], t[2], rgb(80, 60, 56):Lerp(rgb(44, 34, 38), (i - 1) / 4), M.Slate)
+		cyl(ctx, "Vulkan", vx, y, vz, t[1], t[2], rgb(80, 60, 56):Lerp(rgb(44, 34, 38), (i - 1) / (#tiers - 1)), M.Slate)
 		y += t[2]
 		tops[i] = y
+		-- Felsbrocken auf den Stufen brechen die Ringe auf
+		for _ = 1, 9 - math.floor(i / 2) do
+			local a = rn(ctx, 0, math.pi * 2)
+			local size = rn(ctx, 3, 5.5)
+			block(ctx, "Vulkanfels", vx + math.cos(a) * (t[1] - 1), y - size * 0.25, vz + math.sin(a) * (t[1] - 1), size, size, size, rgb(70, 54, 52):Lerp(rgb(40, 32, 36), rn(ctx, 0, 1)), M.Slate, {
+				Ghost = true,
+				Rot = CFrame.Angles(rn(ctx, 0, 3), rn(ctx, 0, 3), rn(ctx, 0, 3)),
+			})
+		end
 	end
 	local crater = cyl(ctx, "Lava", vx, y, vz, 10, 1.6, LAVA, M.Neon, { CastShadow = false })
 	cyl(ctx, "Lava", vx, y + 1.2, vz, 5.5, 0.6, LAVA_HOT, M.Neon, { Glow = true })
@@ -622,7 +679,7 @@ THEMES.Lava = function(ctx)
 	blocker(ctx, vx, vz, 40)
 
 	-- Lava läuft in drei Strömen die Stufen hinunter und weiter in die Lava-Seen
-	local streams = { { 40, 60, 20, 12 }, { 150, -62, 6, 13 }, { 270, 0, -103, 0 } } -- Winkel, Ziel x, Ziel z, See-Radius
+	local streams = { { 40, 60, 20, 12 }, { 150, -62, 6, 13 }, { 270, 0, -106.4, 0 } } -- Winkel, Ziel x, Ziel z, See-Radius
 	for _, s in streams do
 		local base = CFrame.new(vx, 0, vz) * facing(s[1])
 		for i, t in tiers do
@@ -639,17 +696,22 @@ THEMES.Lava = function(ctx)
 		end
 	end
 	-- Im Norden stürzt die Lava über den Inselrand
-	block(ctx, "Lavafall", 0, -36, -106.6, 4.4, 72, 1.2, LAVA, M.Neon, { Glow = true, Transparency = 0.1 })
+	-- (unten löst er sich in Stücken auf, statt abrupt aufzuhören)
+	block(ctx, "Lavafall", 0, -24.9, -107, 4.4, 50, 1.2, LAVA, M.Neon, { Glow = true, Transparency = 0.1 })
+	for i, fade in { 0.4, 0.62, 0.8, 0.92 } do
+		block(ctx, "Lavafall", 0, -50 - i * 9 + 4.5, -107, 4.4 - i * 0.5, 9, 1.2, LAVA, M.Neon, { Glow = true, Transparency = fade })
+	end
 	lavaPool(ctx, -30, 56, 9)
 	lavaPool(ctx, 48, -62, 8)
 
 	-- Glühende Risse im Boden
-	scatter(ctx, 34, 16, 98, 1.2, nil, function(x, z)
+	-- (liegen tiefer als Wege, Plätze und Lava und halten Abstand davon, sonst flimmert es)
+	scatter(ctx, 34, 16, 98, 7, nil, function(x, z)
 		local yaw = rn(ctx, 0, math.pi)
 		local length = rn(ctx, 4, 9)
 		local cf = CFrame.new(x, 0, z) * CFrame.Angles(0, yaw, 0)
-		put(ctx, "Riss", cf * CFrame.new(0, -0.07, 0), Vector3.new(0.5, 0.3, length), LAVA, M.Neon, { Glow = true })
-		put(ctx, "Riss", cf * CFrame.new(0, -0.07, length / 2) * CFrame.Angles(0, 0.7, 0) * CFrame.new(0, 0, length * 0.3), Vector3.new(0.4, 0.3, length * 0.6), LAVA, M.Neon, { Glow = true })
+		put(ctx, "Riss", cf * CFrame.new(0, -0.13, 0), Vector3.new(0.5, 0.3, length), LAVA, M.Neon, { Glow = true })
+		put(ctx, "Riss", cf * CFrame.new(0, -0.13, length / 2) * CFrame.Angles(0, 0.7, 0) * CFrame.new(0, 0, length * 0.3), Vector3.new(0.4, 0.3, length * 0.6), LAVA, M.Neon, { Glow = true })
 	end)
 	scatter(ctx, 18, 22, 92, 3.6, true, function(x, z)
 		rockSpikes(ctx, x, z, rn(ctx, 0.8, 1.3), rgb(50, 40, 44))
@@ -671,10 +733,7 @@ THEMES.Lava = function(ctx)
 	end)
 
 	rim(ctx, 30, function(x, z, _, i)
-		local h = rn(ctx, 5, 14)
-		block(ctx, "Randfels", x, h / 2 - 1.5, z, rn(ctx, 7, 11), h, rn(ctx, 6, 10), rgb(44, 34, 38):Lerp(rgb(70, 54, 52), rn(ctx, 0, 1)), M.Slate, {
-			Rot = CFrame.Angles(rn(ctx, -0.18, 0.18), rn(ctx, 0, math.pi), rn(ctx, -0.18, 0.18)),
-		})
+		rimRock(ctx, x, z, i, rgb(44, 34, 38):Lerp(rgb(70, 54, 52), rn(ctx, 0, 1)))
 		if i % 3 == 0 then
 			local glow = block(ctx, "Glut", x * 0.94, 1, z * 0.94, 2.6, 2.6, 2.6, LAVA, M.Neon, {
 				Glow = true,
@@ -696,7 +755,10 @@ THEMES.Lava = function(ctx)
 		LightEmission = 1,
 	})
 
-	islets(ctx, { { 25, 150, 10, 13 }, { 130, 158, 24, 15 }, { 205, 150, -6, 11 }, { 310, 160, 16, 12 } }, style, function(sub, r)
+	local isletList = { { 25, 150, 10, 13 }, { 130, 158, 24, 15 }, { 205, 150, -6, 11 }, { 310, 160, 16, 12 } }
+	isletSpikes(ctx, isletList, style)
+	hangingSpikes(ctx, style, LAVA)
+	islets(ctx, isletList, style, function(sub, r)
 		rockSpikes(sub, 0, 0, r / 12, rgb(50, 40, 44))
 		block(sub, "Lavatropfen", r * 0.35, -19, 0, 1.8, 30, 1.8, LAVA, M.Neon, { Glow = true, Transparency = 0.2 })
 		cyl(sub, "Lava", r * 0.35, -2.42, 0, 2.6, 2.5, LAVA, M.Neon, { Glow = true })
@@ -713,7 +775,7 @@ local function pine(ctx, x: number, z: number, s: number)
 	cyl(ctx, "Stamm", x, 0, z, 0.7 * s, 3.2 * s, rgb(110, 78, 55), M.Wood)
 	local y = 2.6 * s
 	for i, r in { 4.3, 3.2, 2.1 } do
-		cyl(ctx, "Tanne", x, y, z, r * s, 2.8 * s, rgb(40, 125, 95):Lerp(rgb(70, 160, 120), (i - 1) / 2), M.Grass, { Ghost = true })
+		cyl(ctx, "Tanne", x, y, z, r * s, 2.8 * s, rgb(40, 125, 95):Lerp(rgb(70, 160, 120), (i - 1) / 2), M.LeafyGrass, { Ghost = true })
 		cyl(ctx, "Schnee", x, y + 2.8 * s, z, (r - 0.5) * s, 0.6 * s, SNOW, M.Snow, { Ghost = true })
 		y += 2.6 * s
 	end
@@ -777,9 +839,20 @@ local function peak(ctx, x: number, z: number, layers)
 		local t = (i - 1) / math.max(1, #layers - 1)
 		local rot = CFrame.Angles(0, math.rad(l[4]), 0)
 		block(ctx, "Berg", x, y + l[2] / 2, z, l[1], l[2], l[3], rgb(132, 152, 188):Lerp(SNOW, t ^ 0.8), if t > 0.6 then M.Snow else M.Slate, { Rot = rot })
-		block(ctx, "Schneedecke", x, y + l[2] + 0.3, z, l[1] - 1.6, 0.9, l[3] - 1.6, SNOW, M.Snow, { Rot = rot, Ghost = true })
+		block(ctx, "Schneedecke", x, y + l[2] + 0.2, z, l[1] + 1.4, 1.6, l[3] + 1.4, SNOW, M.Snow, { Rot = rot, Ghost = true })
 		y += l[2]
 	end
+	return y
+end
+
+-- Spitze Felszacke mit Schneehaube (unten Fels, oberes Drittel und Spitze Schnee)
+local function rockPeak(ctx, x: number, y: number, z: number, height: number, width: number, tilt: number, lean: number)
+	local base = CFrame.new(x, y, z) * facing(lean) * CFrame.Angles(math.rad(tilt), 0, 0)
+	local turn = CFrame.Angles(0, math.rad(45), 0)
+	local low = height * 0.66
+	put(ctx, "Berg", base * CFrame.new(0, low / 2, 0) * turn, Vector3.new(width, low, width), rgb(140, 160, 196), M.Slate)
+	put(ctx, "Berg", base * CFrame.new(0, low + (height - low) / 2, 0) * turn, Vector3.new(width * 1.03, height - low, width * 1.03), SNOW, M.Snow)
+	put(ctx, "Berg", base * CFrame.new(0, height, 0) * TIP, Vector3.one * (width * 1.01), SNOW, M.Snow)
 end
 
 THEMES.Eis = function(ctx)
@@ -797,14 +870,26 @@ THEMES.Eis = function(ctx)
 	light(heart, rgb(130, 220, 255), 46, 1.8)
 	for i = 1, 5 do
 		local a = i * 72 + 15
-		crystal(ctx, math.cos(math.rad(a)) * 3.4, 0.4, math.sin(math.rad(a)) * 3.4, rn(ctx, 9, 16), rn(ctx, 2.2, 3.2), ICE:Lerp(WHITE, 0.25), rn(ctx, 16, 30), a, ICE_LOOK)
+		crystal(ctx, math.cos(math.rad(a)) * 3.4, -0.1, math.sin(math.rad(a)) * 3.4, rn(ctx, 9, 16), rn(ctx, 2.2, 3.2), ICE:Lerp(WHITE, 0.25), rn(ctx, 16, 30), a, ICE_LOOK)
 	end
 	blocker(ctx, 0, 0, 8.5)
 
 	-- Wahrzeichen: der Gipfel hinten
-	peak(ctx, 0, -62, { { 46, 13, 40, 8 }, { 37, 12, 31, -14 }, { 28, 12, 23, 22 }, { 19, 11, 15, -9 }, { 10, 11, 8, 30 } })
-	peak(ctx, -31, -50, { { 22, 10, 20, -12 }, { 14, 10, 12, 18 }, { 7, 9, 6, -30 } })
-	peak(ctx, 29, -55, { { 20, 9, 18, 15 }, { 12, 9, 11, -20 }, { 6, 8, 5, 35 } })
+	-- (zwei breite Felsstufen, darauf ein Bündel spitzer Zacken mit Schneehauben)
+	local top = peak(ctx, 0, -62, { { 46, 11, 40, 8 }, { 36, 9, 30, -14 } })
+	rockPeak(ctx, 0, top - 2, -62, 38, 17, 0, 0)
+	rockPeak(ctx, -11, top - 3, -58, 25, 12, 9, 180)
+	rockPeak(ctx, 11, top - 3, -66, 28, 13, 8, 0)
+	rockPeak(ctx, -2, top - 3, -72, 20, 11, 10, 270)
+	rockPeak(ctx, 4, top - 3, -52, 17, 10, 9, 90)
+	rockPeak(ctx, -19, 9, -66, 22, 10, 12, 200)
+	rockPeak(ctx, 19, 9, -58, 20, 10, 12, 340)
+	local leftTop = peak(ctx, -31, -50, { { 22, 9, 20, -12 } })
+	rockPeak(ctx, -31, leftTop - 2, -50, 22, 11, 4, 150)
+	rockPeak(ctx, -36, leftTop - 3, -46, 13, 7, 12, 160)
+	local rightTop = peak(ctx, 29, -55, { { 20, 8, 18, 15 } })
+	rockPeak(ctx, 29, rightTop - 2, -55, 20, 10, 4, 30)
+	rockPeak(ctx, 34, rightTop - 3, -51, 12, 7, 12, 20)
 	blocker(ctx, 0, -62, 33)
 	blocker(ctx, -31, -50, 17)
 	blocker(ctx, 29, -55, 16)
@@ -829,7 +914,9 @@ THEMES.Eis = function(ctx)
 	rim(ctx, 30, function(x, z, _, i)
 		local h = rn(ctx, 5, 12)
 		local rot = CFrame.Angles(rn(ctx, -0.15, 0.15), rn(ctx, 0, math.pi), rn(ctx, -0.15, 0.15))
-		if i % 2 == 0 then
+		if i % 3 == 1 then
+			iceSpikes(ctx, x, z, rn(ctx, 1.2, 1.6))
+		elseif i % 2 == 0 then
 			block(ctx, "Eisblock", x, h / 2 - 1.5, z, rn(ctx, 6, 10), h, rn(ctx, 6, 9), ICE, M.Ice, { Rot = rot })
 		else
 			block(ctx, "Schneewehe", x, h / 2 - 2.5, z, rn(ctx, 8, 12), h * 0.7, rn(ctx, 7, 10), SNOW, M.Snow, { Rot = rot })
@@ -845,7 +932,7 @@ THEMES.Eis = function(ctx)
 			local z = z0 + math.sin(i * 0.7 + band) * 16
 			local nextZ = z0 + math.sin((i + 1) * 0.7 + band) * 16
 			local yaw = math.atan2(nextZ - z, 24)
-			put(ctx, "Polarlicht", CFrame.new(x, 78 + band * 7 + math.cos(i * 0.9) * 4, z) * CFrame.Angles(0, -yaw, 0), Vector3.new(26, 13, 0.6), AURORA[band]:Lerp(AURORA[band % 3 + 1], (i + 5) / 10), M.Neon, {
+			put(ctx, "Polarlicht", CFrame.new(x, 78 + band * 7 + math.cos(i * 0.9) * 4, z) * CFrame.Angles(0, -yaw, 0), Vector3.new(31, 13, 0.6), AURORA[band]:Lerp(AURORA[band % 3 + 1], (i + 5) / 10), M.Neon, {
 				Glow = true,
 				Transparency = 0.74,
 			})
@@ -867,7 +954,10 @@ THEMES.Eis = function(ctx)
 		LightEmission = 0.5,
 	})
 
-	islets(ctx, { { 20, 150, 12, 13 }, { 140, 158, 20, 14 }, { 215, 152, -6, 11 }, { 300, 162, 26, 12 } }, style, function(sub, r, i)
+	local isletList = { { 20, 150, 12, 13 }, { 140, 158, 20, 14 }, { 215, 152, -6, 11 }, { 300, 162, 26, 12 } }
+	isletSpikes(ctx, isletList, style)
+	hangingSpikes(ctx, style, ICE)
+	islets(ctx, isletList, style, function(sub, r, i)
 		if i % 2 == 0 then
 			iceSpikes(sub, 0, 0, r / 10)
 		else
@@ -885,10 +975,12 @@ local SPACE_CYAN = rgb(90, 220, 255)
 
 -- Planet mit Ring, schwebt am Himmel
 local function planet(ctx, x: number, y: number, z: number, d: number, color: Color3, ringColor: Color3?)
-	ball(ctx, "Planet", x, y, z, d, color, M.SmoothPlastic, { Glow = true })
-	ball(ctx, "Planetenfleck", x + d * 0.2, y + d * 0.16, z + d * 0.2, d * 0.66, color:Lerp(WHITE, 0.22), M.SmoothPlastic, { Glow = true })
+	-- leicht leuchtend, sonst sind sie bei Nacht nur dunkle Kugeln
+	ball(ctx, "Planet", x, y, z, d, color:Lerp(BLACK, 0.3), M.Neon, { Glow = true })
+	local tilt = CFrame.Angles(math.rad(rn(ctx, 12, 28)), 0, math.rad(rn(ctx, -20, 20)))
+	-- heller Streifen um den Bauch
+	cyl(ctx, "Planetenstreifen", x, y - d * 0.05, z, d * 0.502, d * 0.1, color:Lerp(WHITE, 0.15), M.Neon, { Glow = true, Rot = tilt })
 	if ringColor then
-		local tilt = CFrame.Angles(math.rad(rn(ctx, 12, 28)), 0, math.rad(rn(ctx, -20, 20)))
 		cyl(ctx, "Planetenring", x, y - 0.25, z, d * 0.92, 0.5, ringColor, M.Neon, { Glow = true, Transparency = 0.45, Rot = tilt })
 		cyl(ctx, "Planetenring", x, y - 0.3, z, d * 0.7, 0.6, ringColor:Lerp(WHITE, 0.4), M.Neon, { Glow = true, Transparency = 0.6, Rot = tilt })
 	end
@@ -919,22 +1011,26 @@ local function rocket(ctx)
 	cyl(ctx, "Startrampe", 0, 0.4, 0, 16.6, 0.5, SPACE_CYAN, M.Neon, { Glow = true })
 	cyl(ctx, "Startrampe", 0, 1.2, 0, 8, 0.4, rgb(60, 62, 84), M.Metal)
 	-- Triebwerk und Flamme
-	cyl(ctx, "Duese", 0, 3.4, 0, 3.2, 2.4, rgb(50, 52, 70), M.Metal)
-	local flame = cyl(ctx, "Flamme", 0, 1.6, 0, 2.2, 2, rgb(255, 170, 60), M.Neon, { Glow = true, Transparency = 0.25 })
+	cyl(ctx, "Duese", 0, 2.4, 0, 3.2, 2, rgb(50, 52, 70), M.Metal)
+	local flame = cyl(ctx, "Flamme", 0, 1.6, 0, 2.2, 1, rgb(255, 170, 60), M.Neon, { Glow = true, Transparency = 0.25 })
 	light(flame, rgb(255, 170, 60), 26, 1.6)
 	local fire = Instance.new("Fire")
 	fire.Size = 9
 	fire.Heat = -6 -- brennt nach unten weg
 	fire.Parent = flame
 	-- Rumpf
-	local body = cyl(ctx, "Rakete", 0, 5.8, 0, 4.6, 24, white, M.SmoothPlastic)
+	local body = cyl(ctx, "Rakete", 0, 4, 0, 4.6, 25.8, white, M.SmoothPlastic)
 	cyl(ctx, "Raketenstreifen", 0, 9, 0, 4.7, 1.6, red, nil, { Ghost = true })
 	cyl(ctx, "Raketenstreifen", 0, 25, 0, 4.7, 1.6, red, nil, { Ghost = true })
-	cyl(ctx, "Raketenspitze", 0, 29.8, 0, 3.8, 3, red)
-	cyl(ctx, "Raketenspitze", 0, 32.8, 0, 2.7, 2.6, red)
-	ball(ctx, "Raketenspitze", 0, 35.6, 0, 4, red)
-	cyl(ctx, "Antenne", 0, 37, 0, 0.2, 4, metal, M.Metal, { Ghost = true })
-	local beacon = ball(ctx, "Antennenlicht", 0, 41.2, 0, 0.9, rgb(255, 80, 80), M.Neon, { Glow = true })
+	-- Spitze in vielen kleinen Stufen, damit sie rund wirkt
+	local noseY = 29.8
+	for _, r in { 4.4, 4.05, 3.6, 3.05, 2.4, 1.7 } do
+		cyl(ctx, "Raketenspitze", 0, noseY, 0, r, 1.2, red)
+		noseY += 1.2
+	end
+	ball(ctx, "Raketenspitze", 0, noseY - 0.3, 0, 3, red)
+	cyl(ctx, "Antenne", 0, noseY + 0.8, 0, 0.2, 4, metal, M.Metal, { Ghost = true })
+	local beacon = ball(ctx, "Antennenlicht", 0, noseY + 5, 0, 0.9, rgb(255, 80, 80), M.Neon, { Glow = true })
 	light(beacon, rgb(255, 80, 80), 20, 1.5)
 	-- Bullaugen rundherum
 	for i = 0, 3 do
@@ -945,7 +1041,7 @@ local function rocket(ctx)
 	-- Flossen und Standbeine
 	for i = 0, 3 do
 		local base = facing(i * 90)
-		put(ctx, "Flosse", base * CFrame.new(0, 8.5, 6.4) * CFrame.Angles(math.rad(-16), 0, 0), Vector3.new(0.9, 9, 5), red, nil, nil)
+		put(ctx, "Flosse", base * CFrame.new(0, 8.5, 5.9) * CFrame.Angles(math.rad(-16), 0, 0), Vector3.new(0.9, 9, 5.6), red, nil, nil)
 		put(ctx, "Standbein", base * CFrame.new(0, 3.6, 8.6) * CFrame.Angles(math.rad(-34), 0, 0), Vector3.new(0.7, 6.4, 0.7), metal, M.Metal, { Ghost = true })
 		put(ctx, "Standfuss", base * CFrame.new(0, 1.4, 10.4), Vector3.new(2.2, 0.4, 2.2), metal, M.Metal, { Ghost = true })
 	end
@@ -954,11 +1050,12 @@ local function rocket(ctx)
 end
 
 local function ufo(ctx, x: number, y: number, z: number)
-	local metal = rgb(150, 156, 180)
-	cyl(ctx, "Ufo", x, y, z, 11, 2, metal, M.Metal, { Glow = true })
-	cyl(ctx, "Ufo", x, y + 2, z, 7, 1.3, metal:Lerp(WHITE, 0.2), M.Metal, { Glow = true })
-	cyl(ctx, "Ufo", x, y - 1.2, z, 6.5, 1.2, rgb(70, 74, 96), M.Metal, { Glow = true })
-	ball(ctx, "Ufo-Kuppel", x, y + 2.6, z, 9.5, SPACE_CYAN, M.Glass, { Glow = true, Transparency = 0.45 })
+	local metal = rgb(196, 202, 226)
+	cyl(ctx, "Ufo", x, y, z, 11, 2, metal, M.SmoothPlastic, { Glow = true })
+	cyl(ctx, "Ufo", x, y + 2, z, 7, 1.3, metal:Lerp(WHITE, 0.3), M.SmoothPlastic, { Glow = true })
+	cyl(ctx, "Ufo", x, y - 1.2, z, 6.5, 1.2, rgb(110, 114, 146), M.SmoothPlastic, { Glow = true })
+	cyl(ctx, "Ufo-Ring", x, y + 0.75, z, 11.35, 0.5, SPACE_CYAN, M.Neon, { Glow = true })
+	ball(ctx, "Ufo-Kuppel", x, y + 2.6, z, 9.5, SPACE_CYAN, M.SmoothPlastic, { Glow = true, Transparency = 0.62 })
 	ball(ctx, "Ufo-Pilot", x, y + 4.4, z, 2.6, rgb(120, 255, 140), M.SmoothPlastic, { Glow = true })
 	for i = 1, 10 do
 		local a = math.rad(i * 36)
@@ -975,17 +1072,35 @@ THEMES.Galaxie = function(ctx)
 	plaza(ctx, 0, 78, 15, rgb(72, 62, 150), SPACE_CYAN)
 	pathLine(ctx, 0, 64, 0, 26, 9, rgb(66, 56, 138))
 	for _, x in { -4.9, 4.9 } do
-		pathLine(ctx, x, 64, x, 26, 0.5, SPACE_CYAN, M.Neon, 0.16, "Wegleuchte", { Glow = true })
+		pathLine(ctx, x, 62.4, x, 26.6, 0.5, SPACE_CYAN, M.Neon, 0.2, "Wegleuchte", { Glow = true })
 	end
 	plaza(ctx, 0, 0, 26, rgb(66, 56, 138), rgb(255, 150, 240))
 
 	-- Wahrzeichen: die Rakete auf ihrer Startrampe
 	rocket(ctx)
 
+
+	-- Mond-Station: Kuppeln mit Leuchtring und Tür zur Inselmitte
+	for _, spot in { { -62, -34, 13 }, { -50, 46, 10 }, { 66, 36, 12 }, { 20, -78, 10 }, { -84, 6, 9 } } do
+		local x, z, d = spot[1], spot[2], spot[3]
+		local origin = ctx.Origin
+		ctx.Origin = origin * CFrame.new(x, 0, z) * facing(math.deg(math.atan2(-z, -x)))
+		ball(ctx, "Kuppel", 0, -0.5, 0, d, rgb(232, 234, 248), M.SmoothPlastic)
+		local ring = cyl(ctx, "Kuppelring", 0, 0, 0, d / 2 + 0.5, 0.6, pick(ctx, STAR_COLORS), M.Neon, { Glow = true })
+		light(ring, ring.Color, d * 1.6, 1)
+		block(ctx, "Kuppeltuer", 0, 1.9, d / 2 - 0.5, 3.2, 3.8, 1.6, rgb(92, 94, 118), M.Metal)
+		block(ctx, "Kuppeltuer", 0, 1.8, d / 2 + 0.32, 2.2, 3, 0.1, SPACE_CYAN, M.Neon, { Glow = true })
+		ball(ctx, "Kuppelfenster", d * 0.3, d * 0.22, d * 0.16, d * 0.42, SPACE_CYAN, M.Neon, { Glow = true })
+		cyl(ctx, "Kuppelantenne", 0, d / 2 - 0.8, 0, 0.18, 3.4, rgb(150, 156, 180), M.Metal, { Ghost = true })
+		ball(ctx, "Antennenlicht", 0, d / 2 + 2.8, 0, 0.7, rgb(255, 80, 80), M.Neon, { Glow = true })
+		ctx.Origin = origin
+		blocker(ctx, x, z, d / 2 + 2)
+	end
+
 	-- Sternen-Sprenkel im Boden
-	scatter(ctx, 80, 12, 100, 0.8, nil, function(x, z)
+	scatter(ctx, 80, 12, 100, 2.5, nil, function(x, z)
 		local s = rn(ctx, 0.5, 1.3)
-		block(ctx, "Sprenkel", x, -0.08, z, s, 0.3, s, pick(ctx, STAR_COLORS), M.Neon, { Glow = true, Rot = CFrame.Angles(0, math.rad(45), 0) })
+		block(ctx, "Sprenkel", x, -0.13, z, s, 0.3, s, pick(ctx, STAR_COLORS), M.Neon, { Glow = true, Rot = CFrame.Angles(0, math.rad(45), 0) })
 	end)
 	-- Krater
 	scatter(ctx, 8, 34, 88, 8, false, function(x, z)
@@ -1011,6 +1126,27 @@ THEMES.Galaxie = function(ctx)
 
 	ufo(ctx, 58, 27, -44)
 	keep(ctx, 58, -44, 6)
+	-- Leuchtbäume: hoher Stiel mit drei Leuchtkugeln
+	scatter(ctx, 10, 36, 94, 3, true, function(x, z)
+		local color = pick(ctx, { rgb(255, 150, 240), SPACE_CYAN, rgb(190, 140, 255), rgb(255, 235, 130) })
+		local h = rn(ctx, 10, 15)
+		cyl(ctx, "Leuchtbaum", x, 0, z, 0.6, h, rgb(40, 190, 180), M.Neon, { CastShadow = false })
+		for i = 1, 3 do
+			local a = math.rad(i * 120 + rn(ctx, -20, 20))
+			local d = rn(ctx, 2.6, 3.8)
+			local bulb = ball(ctx, "Leuchtkugel", x + math.cos(a) * 1.9, h - (i - 1) * 2.4, z + math.sin(a) * 1.9, d, color:Lerp(WHITE, (i - 1) * 0.15), M.Neon, { Glow = true })
+			if i == 1 then
+				light(bulb, color, 20, 1.2)
+			end
+		end
+		ball(ctx, "Leuchtkugel", x, h + 1.4, z, 3.4, color, M.Neon, { Glow = true })
+	end)
+	-- Mondfelsen mit leuchtendem Band
+	scatter(ctx, 9, 34, 96, 4, true, function(x, z)
+		local d = rn(ctx, 6, 10)
+		ball(ctx, "Mondfels", x, d * 0.12, z, d, rgb(62, 54, 122), M.Slate)
+		ball(ctx, "Mondfels", x + d * 0.42, d * 0.02, z + d * 0.2, d * 0.6, rgb(74, 64, 140), M.Slate, { Ghost = true })
+	end)
 
 	-- Planeten, Mond und Sterne am Himmel
 	planet(ctx, -70, 62, -60, 30, rgb(255, 150, 90), rgb(255, 220, 150))
@@ -1019,7 +1155,7 @@ THEMES.Galaxie = function(ctx)
 	planet(ctx, 30, 105, -120, 38, rgb(255, 120, 170), rgb(255, 210, 230))
 	planet(ctx, 150, 30, -90, 16, rgb(130, 230, 150), nil)
 	planet(ctx, -40, 95, 120, 18, rgb(255, 215, 110), rgb(255, 245, 200))
-	ball(ctx, "Mond", -150, 70, -150, 64, rgb(226, 222, 244), M.Slate, { Glow = true })
+	ball(ctx, "Mond", -150, 70, -150, 64, rgb(196, 194, 218), M.Neon, { Glow = true })
 	for _ = 1, 70 do
 		local a = rn(ctx, 0, math.pi * 2)
 		local r = rn(ctx, 115, 270)
@@ -1034,11 +1170,10 @@ THEMES.Galaxie = function(ctx)
 	end
 
 	rim(ctx, 30, function(x, z, _, i)
-		local h = rn(ctx, 4, 10)
-		local rot = CFrame.Angles(rn(ctx, -0.15, 0.15), rn(ctx, 0, math.pi), rn(ctx, -0.15, 0.15))
-		block(ctx, "Randfels", x, h / 2 - 1.5, z, rn(ctx, 7, 11), h, rn(ctx, 6, 10), rgb(44, 38, 92):Lerp(rgb(70, 60, 140), rn(ctx, 0, 1)), M.Slate, { Rot = rot })
+		rimRock(ctx, x, z, i, rgb(44, 38, 92):Lerp(rgb(70, 60, 140), rn(ctx, 0, 1)))
 		if i % 2 == 0 then
-			block(ctx, "Randleuchte", x, h - 1.3, z, 5, 0.4, 5, pick(ctx, STAR_COLORS), M.Neon, { Glow = true, Rot = rot })
+			local glow = ball(ctx, "Randleuchte", x * 0.94, 1.2, z * 0.94, 2.2, pick(ctx, STAR_COLORS), M.Neon, { Glow = true })
+			light(glow, glow.Color, 12, 0.9)
 		end
 	end)
 
@@ -1054,7 +1189,10 @@ THEMES.Galaxie = function(ctx)
 		LightEmission = 1,
 	})
 
-	islets(ctx, { { 35, 150, 16, 12 }, { 120, 156, -4, 14 }, { 210, 150, 26, 11 }, { 290, 164, 8, 13 } }, style, function(sub)
+	local isletList = { { 35, 150, 16, 12 }, { 120, 156, -4, 14 }, { 210, 150, 26, 11 }, { 290, 164, 8, 13 } }
+	isletSpikes(ctx, isletList, style)
+	hangingSpikes(ctx, style, SPACE_CYAN)
+	islets(ctx, isletList, style, function(sub)
 		starCrystal(sub, 0, 0, pick(sub, STAR_COLORS))
 	end)
 	return style

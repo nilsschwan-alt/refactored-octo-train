@@ -104,10 +104,17 @@ return function(ctx)
 	end)
 
 	local homeButton: TextButton
+	local outsideSky -- Dunst-Farben der Hauptinsel, beim ersten Mal gemerkt
 
 	local function applyWorld()
 		local world = Config.WorldById[player:GetAttribute("World") or ""]
 		tween(tint, 0.6, { TintColor = if world then world.Tint else WHITE })
+		local haze = Lighting:FindFirstChild("SpielDunst")
+		if haze and haze:IsA("Atmosphere") then
+			outsideSky = outsideSky or { Color = haze.Color, Decay = haze.Decay }
+			local sky = (world and world.Sky) or outsideSky
+			tween(haze, 0.6, { Color = sky.Color, Decay = sky.Decay })
+		end
 		if world and world.Clock then
 			wantedClock = world.Clock + CLOCK_MARK
 			Lighting.ClockTime = wantedClock
