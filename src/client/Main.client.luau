@@ -228,13 +228,16 @@ end
 -- Linke Leiste: oben die Geld-Anzeige, darunter die Knöpfe untereinander ---------------
 -- Die Leiste hat eine eigene Ebene UNTER den Fenstern, damit ein offenes Fenster sie
 -- immer überdeckt. Am PC bleibt sie unter dem Chat (oben links), auf kleinen Bildschirmen
--- schrumpft sie. Am Handy stehen die Knöpfe in zwei Spalten weiter oben, damit unten
--- links Platz für den Lauf-Stick bleibt.
+-- schrumpft sie. Die Knöpfe stehen in zwei Spalten: So bleibt die Leiste niedrig und es
+-- ist Platz für neue Knöpfe (einfach den nächsten Platz nehmen, die Leiste wächst mit).
+-- Am Handy sitzt sie ganz oben, damit unten links Platz für den Lauf-Stick bleibt.
 gui.DisplayOrder = 1
 local hud = Instance.new("Frame")
 hud.Name = "LinkeLeiste"
 hud.BackgroundTransparency = 1
 local HUD_TOUCH = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local HUD_KEY_HINTS = false -- true = kleiner Tasten-Buchstabe oben links an jedem Knopf (nur am PC)
+local HUD_ROWS = 3 -- so viele Reihen mit je zwei Knöpfen (für neue Knöpfe einfach erhöhen)
 do
 	local hudGui = Instance.new("ScreenGui")
 	hudGui.Name = "SpielLeiste"
@@ -242,7 +245,7 @@ do
 	hudGui.DisplayOrder = 0
 	hudGui.Parent = player.PlayerGui
 	hud.Parent = hudGui
-	local height = if HUD_TOUCH then 84 + 3 * 72 - 4 else 84 + 6 * 72 - 4
+	local height = 84 + HUD_ROWS * 72 - 4
 	hud.Size = UDim2.fromOffset(236, height)
 	local hudScale = Instance.new("UIScale")
 	hudScale.Parent = hud
@@ -263,20 +266,16 @@ do
 	fit()
 end
 
--- Quadratischer Knopf in der linken Leiste. slot = Platz von oben (1 = direkt unter dem Geld),
--- key = Taste, die oben links als kleiner Hinweis steht (nur mit Tastatur).
+-- Quadratischer Knopf in der linken Leiste. slot = Platz (1 = oben links, 2 = oben rechts,
+-- 3 = zweite Reihe links ...), key = Taste dazu (wird nur gezeigt, wenn HUD_KEY_HINTS an ist).
 -- Gibt zurück: Knopf, UIScale (zum Pulsieren), rote Zahl-Plakette, Halter (zum Verstecken).
 local function hudButton(slot: number, color: Color3, icon: string, text: string, key: string?)
 	local holder = Instance.new("Frame")
 	holder.Name = text .. "Knopf"
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
 	holder.Size = UDim2.fromOffset(64, 68)
-	if HUD_TOUCH then
-		-- Handy: zwei Spalten
-		holder.Position = UDim2.fromOffset(32 + ((slot - 1) % 2) * 72, 84 + math.floor((slot - 1) / 2) * 72 + 34)
-	else
-		holder.Position = UDim2.fromOffset(32, 84 + (slot - 1) * 72 + 34)
-	end
+	-- zwei Spalten: Platz 1 und 2 in der ersten Reihe, 3 und 4 in der zweiten usw.
+	holder.Position = UDim2.fromOffset(32 + ((slot - 1) % 2) * 72, 84 + math.floor((slot - 1) / 2) * 72 + 34)
 	holder.BackgroundTransparency = 1
 	holder.Parent = hud
 	local scale = Instance.new("UIScale")
@@ -339,7 +338,7 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 		Parent = button,
 	})
 	stroke(nameLabel, color:Lerp(BLACK, 0.7), 2)
-	if key and UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled then -- nur am PC
+	if HUD_KEY_HINTS and key and not HUD_TOUCH then
 		local hint = label({
 			Size = UDim2.fromOffset(19, 19),
 			Position = UDim2.fromOffset(-6, -6),
