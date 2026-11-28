@@ -23,7 +23,7 @@ return function(ctx)
 	local player = Players.LocalPlayer
 	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local gui: ScreenGui = ctx.Gui
-	local corner, label, stroke, tween, playSound = ctx.Corner, ctx.Label, ctx.Stroke, ctx.Tween, ctx.PlaySound
+	local label, tween, playSound = ctx.Label, ctx.Tween, ctx.PlaySound
 
 	local function rebirths(): number
 		return player:GetAttribute("Rebirths") or 0
@@ -181,64 +181,30 @@ return function(ctx)
 	-- Knopf "Welten": Reise-Fenster, von überall direkt in eine offene Welt ------------
 	local worldButton = ctx.HudButton(5, Color3.fromRGB(120, 95, 235), "🌀", "Welten", "T")
 
-	local ROW = 62
-	local panel = Instance.new("Frame")
+	local Stil = ctx.Stil -- gemeinsamer Fenster-Stil (Stil.luau)
+	local ROW = 70
+	local TRAVEL_GREEN = Color3.fromRGB(60, 190, 110)
+	local panel, showPanel = Stil.Window(500, 78 + (#Config.Worlds.List + 1) * ROW + 30, Color3.fromRGB(120, 95, 235), "🌀 Welten")
 	panel.Name = "WeltenFenster"
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.fromOffset(460, 74 + (#Config.Worlds.List + 1) * ROW + 34)
-	panel.BackgroundColor3 = Color3.fromRGB(26, 23, 40)
-	panel.Visible = false
-	panel.Active = true -- fängt Klicks ab, damit im Fenster kein Klick-Geld entsteht
-	panel.Parent = gui
-	corner(panel, 14)
-	stroke(panel, Color3.fromRGB(120, 95, 235), 3)
-	local panelScale = Instance.new("UIScale")
-	panelScale.Parent = panel
-	label({
-		Size = UDim2.fromOffset(330, 40),
-		Position = UDim2.fromOffset(16, 8),
-		Font = Enum.Font.FredokaOne,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "🌀 Welten",
-		Parent = panel,
-	})
-	local close = Instance.new("TextButton")
-	close.Size = UDim2.fromOffset(40, 40)
-	close.Position = UDim2.new(1, -50, 0, 10)
-	close.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-	close.Text = "X"
-	close.TextColor3 = WHITE
-	close.Font = Enum.Font.GothamBold
-	close.TextScaled = true
-	close.Parent = panel
-	corner(close, 8)
-	close.Activated:Connect(function()
-		panel.Visible = false
-	end)
 	local hint = label({
 		Size = UDim2.new(1, -32, 0, 20),
 		Position = UDim2.new(0, 16, 1, -30),
-		Font = Enum.Font.Gotham,
-		TextColor3 = Color3.fromRGB(190, 185, 215),
-		Text = "Mit Beute auf dem Kopf kannst du nicht reisen.",
+		Font = Enum.Font.GothamMedium,
+		TextColor3 = Stil.Dim,
+		Text = "",
 		Parent = panel,
 	})
 
 	-- Eine Zeile: Symbol, Name, Zeile darunter und der Knopf "Reisen"
 	local rows = {}
 	local function addRow(index: number, id: string, icon: string, name: string, color: Color3, world)
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, -32, 0, ROW - 8)
-		row.Position = UDim2.fromOffset(16, 62 + (index - 1) * ROW)
-		row.BackgroundColor3 = Color3.fromRGB(40, 36, 60)
-		row.Parent = panel
-		corner(row, 10)
-		local rowStroke = stroke(row, color, 2)
-		label({ Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(8, 5), Text = icon, Parent = row })
+		local row, rowStroke = Stil.Panel(panel, UDim2.new(1, -32, 0, ROW - 8), UDim2.fromOffset(16, 78 + (index - 1) * ROW))
+		rowStroke.Color = color
+		rowStroke.Thickness = 2
+		label({ Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(10, 9), Text = icon, Parent = row })
 		label({
-			Size = UDim2.fromOffset(220, 26),
-			Position = UDim2.fromOffset(62, 4),
+			Size = UDim2.fromOffset(240, 26),
+			Position = UDim2.fromOffset(64, 7),
 			Font = Enum.Font.FredokaOne,
 			TextColor3 = color:Lerp(WHITE, 0.4),
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -246,27 +212,15 @@ return function(ctx)
 			Parent = row,
 		})
 		local sub = label({
-			Size = UDim2.fromOffset(220, 18),
-			Position = UDim2.fromOffset(62, 31),
-			Font = Enum.Font.Gotham,
+			Size = UDim2.fromOffset(254, 18),
+			Position = UDim2.fromOffset(64, 35),
+			Font = Enum.Font.GothamMedium,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Text = "",
 			Parent = row,
 		})
-		local go = Instance.new("TextButton")
-		go.Size = UDim2.fromOffset(120, 40)
-		go.Position = UDim2.new(1, -128, 0.5, -20)
-		go.Font = Enum.Font.FredokaOne
-		go.TextScaled = true
-		go.TextColor3 = WHITE
-		go.Text = "Reisen"
-		go.Parent = row
-		corner(go, 10)
-		local goPad = Instance.new("UIPadding") -- Schrift nicht bis an den Rand
-		goPad.PaddingTop, goPad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6)
-		goPad.PaddingLeft, goPad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
-		goPad.Parent = go
-		go.Activated:Connect(function()
+		local go = Stil.Button(row, "Reisen", TRAVEL_GREEN, UDim2.fromOffset(132, 46), UDim2.new(1, -142, 0.5, -23))
+		go.Button.Activated:Connect(function()
 			local blocked = player:GetAttribute("Carrying") ~= nil
 				or (world ~= nil and (not Config.WorldUnlocked(world, rebirths()) or player:GetAttribute("World") == world.Id))
 			if blocked then
@@ -274,6 +228,7 @@ return function(ctx)
 				return
 			end
 			playSound("Click")
+			go.Pop()
 			panel.Visible = false
 			Remotes.TravelTo:FireServer(id)
 		end)
@@ -305,12 +260,11 @@ return function(ctx)
 				row.Sub.Text = `Klick-Geld x{(string.gsub(tostring(world.ClickFactor), "%.", ","))} · wilde Monster`
 				row.Sub.TextColor3 = Color3.fromRGB(205, 200, 225)
 			end
-			row.Go.Text = if not open then "Gesperrt" elseif isHere then "Hier" else "Reisen"
-			row.Go.BackgroundColor3 = if can then Color3.fromRGB(60, 190, 110) else Color3.fromRGB(95, 95, 110)
-			row.Go.AutoButtonColor = can
+			row.Go.SetText(if not open then "Gesperrt" elseif isHere then "Hier" else "Reisen")
+			row.Go.SetEnabled(can, TRAVEL_GREEN)
 			row.Stroke.Transparency = if open then 0 else 0.6
 		end
-		hint.Visible = player:GetAttribute("Carrying") ~= nil
+		hint.Text = if carrying then "Mit Beute auf dem Kopf kannst du nicht reisen." else "Neue Welten schaltest du mit Wiedergeburten frei."
 	end
 
 	local function toggleWorlds()
@@ -319,15 +273,7 @@ return function(ctx)
 			return
 		end
 		refreshRows()
-		local fit = 1
-		local camera = workspace.CurrentCamera
-		if camera then
-			local size = camera.ViewportSize
-			fit = math.min(1, size.X / (panel.Size.X.Offset + 40), size.Y / (panel.Size.Y.Offset + 40))
-		end
-		panelScale.Scale = fit * 0.8
-		tween(panelScale, 0.25, { Scale = fit }, Enum.EasingStyle.Back)
-		panel.Visible = true
+		showPanel()
 		playSound("Click")
 	end
 	worldButton.Activated:Connect(toggleWorlds)

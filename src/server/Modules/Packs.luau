@@ -145,8 +145,17 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	-- Ansage erst nach der Öffnungs-Animation, damit nichts verraten wird
 	task.delay(if count > 1 then 5 else 3.5, function()
 		if player.Parent then
+			local legendary = 0
 			for _, entry in entries do
 				Bases.AnnounceIfRare(player, entry, "aus einer Kiste gezogen")
+				local def = Config.ParseEntry(entry)
+				if def and Config.RarityRank(def.Rarity) >= LEGENDARY then
+					legendary += 1
+				end
+			end
+			-- für den Erfolg (erst jetzt, damit die Ansage nichts verrät)
+			if legendary > 0 and Bases.GetState(player) == state then
+				Bases.Track(state, "Legendary", legendary)
 			end
 		end
 	end)

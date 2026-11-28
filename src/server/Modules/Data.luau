@@ -40,6 +40,8 @@ function Data.Default()
 		Tokens = 0, -- für den Skill-Baum
 		Skills = {}, -- { Income = 2, Luck = 1, ... } gelernte Stufen im Skill-Baum
 		QuestCount = 0, -- geschaffte Aufgaben (jede x-te gibt Tokens)
+		Stats = {}, -- Zähler für die Erfolge, z.B. { OpenPacks = 12, Clicks = 340 }
+		Achieved = {}, -- erreichte Stufe pro Erfolg, z.B. { Packs = 2 }
 		TotalEarned = 0, -- insgesamt verdient (für die Bestenliste)
 		Quests = {}, -- { { Kind = "Clicks", Goal = 20, Progress = 3, Reward = 500 }, ... }
 	}
@@ -74,6 +76,21 @@ local function sanitize(raw)
 	data.Rebirths = math.floor(data.Rebirths)
 	data.Tokens = math.floor(data.Tokens)
 	data.QuestCount = math.floor(data.QuestCount)
+	if type(raw.Stats) == "table" then
+		for kind, value in raw.Stats do
+			if type(kind) == "string" and #kind <= 30 and type(value) == "number" and value == value and value > 0 then
+				data.Stats[kind] = value
+			end
+		end
+	end
+	if type(raw.Achieved) == "table" then
+		for _, achievement in Config.Achievements do
+			local tier = raw.Achieved[achievement.Id]
+			if type(tier) == "number" and tier == tier then
+				data.Achieved[achievement.Id] = math.clamp(math.floor(tier), 0, #achievement.Goals)
+			end
+		end
+	end
 	-- Alte Spielstände hatten "Upgrades" (Glück, Münz-Magnet, Klick-Kraft): Die Stufen
 	-- gelten im Skill-Baum weiter.
 	local rawSkills = if type(raw.Skills) == "table" then raw.Skills elseif type(raw.Upgrades) == "table" then raw.Upgrades else nil
@@ -187,6 +204,8 @@ function Data.Save(userId: number, data): boolean
 		Tokens = data.Tokens,
 		Skills = table.clone(data.Skills),
 		QuestCount = data.QuestCount,
+		Stats = table.clone(data.Stats),
+		Achieved = table.clone(data.Achieved),
 		TotalEarned = math.floor(data.TotalEarned),
 		Quests = {},
 	}

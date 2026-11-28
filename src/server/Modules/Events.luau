@@ -575,6 +575,7 @@ local function hitShadows(hitter: Player, position: Vector3, range: number): boo
 				Bases.AddMoney(hState, reward)
 				remotes.MoneyPopup:FireClient(hitter, reward)
 				Bases.Notify(hitter, `👤 Schatten verjagt: +{Config.FormatNumber(reward)} $`, GREEN)
+				Bases.Track(hState, "Shadow", 1) -- für den Erfolg (die Aufgabe "Hau einen Dieb" zählt Main)
 				if math.random() < S.TokenChance then
 					hState.Data.Tokens += 1
 					Bases.RefreshStats(hState)

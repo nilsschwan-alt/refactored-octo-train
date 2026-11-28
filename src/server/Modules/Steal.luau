@@ -298,6 +298,7 @@ function Steal.Deliver(thief: Player)
 	else
 		cleanup(thief, info)
 		receive()
+		Bases.Track(tState, "Wild", 1)
 		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
 		Bases.AnnounceIfRare(thief, entry, info.How or "den Meteor geschnappt")
 	end

@@ -1,5 +1,5 @@
--- Skill-Baum: Fähigkeiten mit Tokens lernen. Der Baum ist ein Waben-Netz: Man darf nur
--- Waben lernen, die an die Mitte oder an eine schon gelernte Wabe grenzen.
+-- Skill-Baum: Fähigkeiten mit Tokens lernen. Drei Bereiche mit je 3 Reihen: Die zweite und
+-- dritte Reihe gehen auf, sobald man genug Stufen in dem Bereich gelernt hat (Config.Skills.RowNeed).
 -- Alle Fähigkeiten, Kosten und Wirkungen stehen in Config.Skills.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,7 +25,7 @@ function Skills.Buy(player: Player, id: string)
 		return
 	end
 	if not Config.SkillReachable(data.Skills, skill) then
-		Bases.Notify(player, "Lerne zuerst eine Fähigkeit direkt daneben.", RED)
+		Bases.Notify(player, `🔒 Dafür brauchst du erst {Config.SkillNeed(skill)} Stufen in diesem Bereich.`, RED)
 		return
 	end
 	local cost = skill.Costs[level + 1] or math.huge
