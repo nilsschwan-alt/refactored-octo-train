@@ -31,7 +31,8 @@ function Data.Default()
 		Money = Config.StartMoney,
 		BaseLevel = 1,
 		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", mit Sternen "Blubbo||2"
-		Stock = {}, -- Lager: doppelte Kreaturen, die bei voller Base nicht hineinpassten, z.B. { Blubbo = 1 }
+		Bag = {}, -- Inventar: alle Kreaturen, die nicht in der Base stehen, z.B. { Blubbo = 3, ["Blubbo|Gold"] = 1 }
+		Feed = {}, -- Futter, das beim Verbessern übrig blieb, pro Art, z.B. { Blubbo = 1 }
 		Cash = 0, -- alt: frühere Kasse. Reste werden beim Join aufs Konto gebucht
 		Pity = 0, -- Packs seit dem letzten Legendär+
 		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
@@ -115,10 +116,27 @@ local function sanitize(raw)
 			end
 		end
 	end
-	if type(raw.Stock) == "table" then
-		for entry, amount in raw.Stock do
-			if type(entry) == "string" and type(amount) == "number" and amount == amount and amount >= 1 and Config.ParseEntry(entry) then
-				data.Stock[entry] = math.clamp(math.floor(amount), 1, 99)
+	-- Inventar (früher hieß es Lager: Stock). Mehr als hineinpasst, wird nicht geladen.
+	local bagLeft = Config.Inventory.Size
+	for _, source in { raw.Bag, raw.Stock } do
+		if type(source) == "table" then
+			for entry, amount in source do
+				if bagLeft > 0 and type(entry) == "string" and type(amount) == "number" and amount == amount and amount >= 1 then
+					local def, mutation, stars = Config.ParseEntry(entry)
+					if def then
+						local clean = Config.MakeEntry(def.Id, mutation, stars)
+						local count = math.min(math.floor(amount), bagLeft)
+						data.Bag[clean] = (data.Bag[clean] or 0) + count
+						bagLeft -= count
+					end
+				end
+			end
+		end
+	end
+	if type(raw.Feed) == "table" then
+		for id, amount in raw.Feed do
+			if type(id) == "string" and Config.CreatureById[id] and type(amount) == "number" and amount == amount and amount >= 1 then
+				data.Feed[id] = math.min(math.floor(amount), 999)
 			end
 		end
 	end
@@ -160,7 +178,8 @@ function Data.Save(userId: number, data): boolean
 		Money = math.floor(data.Money),
 		BaseLevel = data.BaseLevel,
 		Slots = table.clone(data.Slots),
-		Stock = table.clone(data.Stock),
+		Bag = table.clone(data.Bag),
+		Feed = table.clone(data.Feed),
 		Cash = math.floor(data.Cash),
 		Pity = data.Pity,
 		LastDaily = data.LastDaily,

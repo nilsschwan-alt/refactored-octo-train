@@ -31,16 +31,22 @@ function Rebirth.Do(player: Player)
 		return
 	end
 
-	-- Die besten Kreaturen behalten (nach Einkommen)
+	-- Die besten Kreaturen behalten (nach Einkommen, aus Base und Inventar)
 	local entries = {}
 	for _, entry in data.Slots do
 		table.insert(entries, entry)
+	end
+	for entry, count in data.Bag do
+		for _ = 1, math.min(count, 12) do
+			table.insert(entries, entry)
+		end
 	end
 	table.sort(entries, function(a, b)
 		return Config.EntryIncome(a) > Config.EntryIncome(b)
 	end)
 	table.clear(data.Slots)
-	table.clear(data.Stock) -- das Lager fängt auch von vorn an
+	table.clear(data.Bag) -- das Inventar fängt auch von vorn an
+	table.clear(data.Feed)
 	-- Fähigkeit "Erbstück": mehr Kreaturen behalten, die Base startet dafür groß genug
 	local keep = R.KeepCreatures + Bases.Skill(state, "Heritage")
 	local startLevel = 1

@@ -1,5 +1,5 @@
 -- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld (kommt automatisch),
--- Verkaufen, Verschmelzen (Sterne), Upgrades und das Base-Schloss.
+-- Inventar, Verkaufen, Verbessern (Sterne), Upgrades und das Base-Schloss.
 -- Kreaturen stehen im Spielstand als Eintrag: "Blubbo", "Blubbo|Gold" oder mit Sternen "Blubbo|Gold|2".
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,7 +19,7 @@ Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
 -- Aufgaben-Fortschritt melden. Wird von Quests.Init gesetzt (so gibt es keine Schleife zwischen den Modulen).
 Bases.Track = function(_state, _kind: string, _amount: number) end
 local remotes
-local mergePending = {} -- [state] = true, wenn die Verschmelzen-Liste an den Client raus muss
+local inventoryPending = {} -- [state] = true, wenn das Inventar an den Client raus muss
 
 local RED = Color3.fromRGB(255, 90, 90)
 
@@ -205,7 +205,7 @@ end
 
 -- Zeigt die Kreatur auf einem Platz an (oder entfernt sie, wenn der Platz leer/geklaut ist)
 function Bases.RenderSlot(state, slot: number)
-	Bases.QueueMerges(state)
+	Bases.QueueInventory(state)
 	local plot = state.Plot
 	local old = plot.SlotModels[slot]
 	if old then
@@ -260,286 +260,432 @@ function Bases.GiveCreature(state, entry: string): number?
 	return slot
 end
 
--- Verschmelzen (Sterne) -------------------------------------------------------------
--- Lager: Kommt bei voller Base eine Kreatur dazu, von der schon eine gleiche in der Base steht,
--- wird sie nicht verkauft, sondern eingelagert (state.Data.Stock). Eingelagerte zählen beim
--- Verschmelzen mit. So kann man auch mit voller Base Sterne sammeln.
-function Bases.Stock(state, entry: string): number
-	return state.Data.Stock[entry] or 0
+-- Inventar und Sterne ----------------------------------------------------------------
+-- Aktiv = steht in der Base (state.Data.Slots), verdient Geld und kann geklaut werden.
+-- Inventar = state.Data.Bag[eintrag] = Anzahl: alle anderen Kreaturen. Sie verdienen nichts,
+-- sind aber sicher und dienen als Futter: Mit "Verbessern" bekommt eine Kreatur einen Stern
+-- und frisst dafür Kreaturen ihrer Art aus dem Inventar (die Mutation ist egal, aber nie eine,
+-- die stärker ist als sie selbst). Futter, das dabei übrig bleibt, merkt sich
+-- state.Data.Feed[artId] für den nächsten Stern.
+local STAR_COLOR = Color3.fromRGB(255, 215, 70)
+local BAG_COLOR = Color3.fromRGB(120, 200, 255)
+
+-- So viele Kreaturen liegen im Inventar
+function Bases.BagCount(state): number
+	local total = 0
+	for _, count in state.Data.Bag do
+		total += count
+	end
+	return total
 end
 
-local function useStock(state, entry: string, amount: number)
-	local left = Bases.Stock(state, entry) - amount
-	state.Data.Stock[entry] = if left > 0 then left else nil
+local function bagAdd(state, entry: string, amount: number)
+	state.Data.Bag[entry] = (state.Data.Bag[entry] or 0) + amount
+	Bases.QueueInventory(state)
 end
 
--- Plätze, auf denen genau diese Kreatur gerade steht
-local function standing(state, entry: string): { number }
-	local slots = {}
-	for slot = 1, Bases.Level(state).Slots do
-		if state.Data.Slots[tostring(slot)] == entry and not state.Plot.Stolen[slot] then
-			table.insert(slots, slot)
+local function bagTake(state, entry: string, amount: number): boolean
+	local have = state.Data.Bag[entry] or 0
+	if have < amount then
+		return false
+	end
+	state.Data.Bag[entry] = if have > amount then have - amount else nil
+	Bases.QueueInventory(state)
+	return true
+end
+
+-- Legt eine Kreatur ins Inventar. Ist es danach zu voll, wird die schwächste darin verkauft
+-- (das Geld ist dann schon gebucht). Gibt (verkaufter Eintrag oder nil, Preis) zurück.
+function Bases.Store(state, entry: string): (string?, number)
+	bagAdd(state, entry, 1)
+	if Bases.BagCount(state) <= Config.Inventory.Size then
+		return nil, 0
+	end
+	local worst, worstIncome = entry, Config.EntryIncome(entry)
+	for other in state.Data.Bag do
+		local income = Config.EntryIncome(other)
+		if income < worstIncome then
+			worst, worstIncome = other, income
 		end
 	end
-	return slots
+	bagTake(state, worst, 1)
+	local price = Bases.SellPrice(state, worst)
+	Bases.AddMoney(state, price)
+	return worst, price
 end
 
--- Welche Kreaturen kann man gerade verschmelzen? Gibt { [eintrag] = { platz, platz, ... } } zurück
--- (nur Einträge, von denen mit dem Lager zusammen genug gleiche da sind, von denen mindestens
--- eine in der Base steht und die noch Sterne bekommen können).
-function Bases.MergeGroups(state)
-	local groups = {}
-	for slot = 1, Bases.Level(state).Slots do
-		local entry = state.Data.Slots[tostring(slot)]
-		if entry and not state.Plot.Stolen[slot] then
-			groups[entry] = groups[entry] or {}
-			table.insert(groups[entry], slot)
+-- Futter für diese Kreatur: alle im Inventar von derselben Art, die nicht stärker sind als sie.
+-- inBag = sie liegt selbst im Inventar (dann zählt sie nicht als ihr eigenes Futter).
+-- Gibt die Liste { { Entry, Count, Points } } (das schwächste Futter zuerst) und die Summe zurück.
+local function foodFor(state, entry: string, inBag: boolean)
+	local def = Config.ParseEntry(entry)
+	local income = Config.EntryIncome(entry)
+	local list, total = {}, 0
+	for other, count in state.Data.Bag do
+		if Config.ParseEntry(other) == def and Config.EntryIncome(other) <= income then
+			local n = if inBag and other == entry then count - 1 else count
+			if n > 0 then
+				local points = Config.FoodPoints(other)
+				table.insert(list, { Entry = other, Count = n, Points = points })
+				total += n * points
+			end
 		end
 	end
-	for entry, slots in groups do
-		if #slots + Bases.Stock(state, entry) < Config.Stars.Need or not Config.MergeResult(entry) then
-			groups[entry] = nil
+	table.sort(list, function(a, b)
+		if a.Points ~= b.Points then
+			return a.Points < b.Points
 		end
-	end
-	return groups
+		return a.Entry < b.Entry
+	end)
+	return list, total
 end
 
--- Schickt die Liste der möglichen Verschmelzungen an den Client (gebündelt).
--- Ready = false: es fehlen noch welche (steht in der Liste, damit man das Lager sieht).
-function Bases.QueueMerges(state)
-	if mergePending[state] then
+-- Futter-Stand für die Anzeige: (vorhanden, nötig). nötig = nil: hat schon alle Sterne.
+local function feedState(state, entry: string, inBag: boolean): (number, number?)
+	local def, _, stars = Config.ParseEntry(entry)
+	local cost = Config.StarCost(stars)
+	if not def or not cost then
+		return 0, nil
+	end
+	local _, total = foodFor(state, entry, inBag)
+	return math.min(cost, (state.Data.Feed[def.Id] or 0) + total), cost
+end
+
+-- Schickt das Inventar an den Client (gebündelt):
+-- { Size, Count, Slots, Items = { { Entry, Count, Slot (wenn aktiv), Stolen, Have, Cost, Price } } }
+function Bases.QueueInventory(state)
+	if inventoryPending[state] then
 		return
 	end
-	mergePending[state] = true
+	inventoryPending[state] = true
 	task.delay(0.25, function()
-		mergePending[state] = nil
+		inventoryPending[state] = nil
 		if Bases.States[state.Player] ~= state then
 			return
 		end
-		local list = {}
-		local groups = Bases.MergeGroups(state)
-		for entry, slots in groups do
-			table.insert(list, { Entry = entry, Count = #slots + Bases.Stock(state, entry), Result = Config.MergeResult(entry), Ready = true })
-		end
-		for entry, amount in state.Data.Stock do
-			local result = Config.MergeResult(entry)
-			if not groups[entry] and result then
-				table.insert(list, { Entry = entry, Count = #standing(state, entry) + amount, Result = result, Ready = false })
+		local items = {}
+		for slot = 1, Bases.Level(state).Slots do
+			local entry = state.Data.Slots[tostring(slot)]
+			if entry and Config.ParseEntry(entry) then
+				local have, cost = feedState(state, entry, false)
+				table.insert(items, { Entry = entry, Count = 1, Slot = slot, Stolen = state.Plot.Stolen[slot] ~= nil, Have = have, Cost = cost, Price = Bases.SellPrice(state, entry) })
 			end
 		end
-		table.sort(list, function(a, b)
-			if a.Ready ~= b.Ready then
-				return a.Ready
-			end
-			return Config.EntryIncome(a.Result) > Config.EntryIncome(b.Result)
-		end)
-		remotes.Merges:FireClient(state.Player, list)
+		for entry, count in state.Data.Bag do
+			local have, cost = feedState(state, entry, true)
+			table.insert(items, { Entry = entry, Count = count, Have = have, Cost = cost, Price = Bases.SellPrice(state, entry) })
+		end
+		remotes.Inventory:FireClient(state.Player, {
+			Size = Config.Inventory.Size,
+			Count = Bases.BagCount(state),
+			Slots = Bases.Level(state).Slots,
+			Items = items,
+		})
 	end)
 end
 
--- Kreatur fliegt zum Ziel und schrumpft dabei weg
-local function flyInto(model: Model, target: Vector3)
-	task.spawn(function()
-		local from = model:GetPivot()
-		local base = model:GetScale()
-		local duration = 0.38
-		local start = os.clock()
-		while model.Parent do
-			local t = math.min(1, (os.clock() - start) / duration)
-			local eased = t * t
-			local pos = from.Position:Lerp(target, eased) + Vector3.new(0, math.sin(t * math.pi) * 5, 0)
-			pcall(function()
-				model:PivotTo(CFrame.new(pos) * from.Rotation * CFrame.Angles(0, t * 8, 0))
-				model:ScaleTo(base * math.max(0.08, 1 - eased * 0.9))
-			end)
-			if t >= 1 then
-				break
-			end
-			task.wait()
-		end
-		model:Destroy()
-	end)
-end
-
--- Macht aus den Kreaturen auf diesen Plätzen eine mit mehr Sternen. Sie landet auf dem
--- ersten Platz. Gibt den neuen Eintrag zurück.
-local function mergeSlots(state, entry: string, slots: { number }, quiet: boolean?): string
-	local plot = state.Plot
-	local player = state.Player
-	local extra = 0
-	local _, _, stars = Config.ParseEntry(entry)
-	if stars + 1 < Config.Stars.Max and math.random() < Bases.Skill(state, "StarLuck") then
-		extra = 1 -- Sternen-Glück: gleich zwei Sterne
+-- Gibt einer Kreatur einen Stern und verbraucht dafür Futter aus dem Inventar.
+-- slot = ihr Platz in der Base, wenn sie aktiv ist, sonst nil (dann liegt sie im Inventar).
+-- Gibt (neuer Eintrag, Sternen-Glück) zurück, oder (nil, Grund): "gone", "max" oder "food".
+local function starUp(state, entry: string, slot: number?): (string?, any)
+	local def, mutation, stars = Config.ParseEntry(entry)
+	if not def then
+		return nil, "gone"
 	end
-	local result = Config.MergeResult(entry, extra) :: string
-	local targetSlot = slots[1]
-	local target = Map.SlotCFrame(plot, targetSlot).Position + Vector3.new(0, 2, 0)
-
-	-- Modelle der Zutaten fliegen zusammen
-	for i, slot in slots do
-		local model = plot.SlotModels[slot]
-		state.Data.Slots[tostring(slot)] = nil
-		if model then
-			for _, d in model:GetDescendants() do
-				if d:IsA("ProximityPrompt") or d:IsA("ClickDetector") or d:IsA("BillboardGui") then
-					d:Destroy()
-				end
-			end
-			if quiet then
-				plot.SlotModels[slot] = nil
-				model:Destroy()
-			elseif i > 1 then
-				plot.SlotModels[slot] = nil
-				flyInto(model, target)
-			end
-			-- die Kreatur auf dem Zielplatz bleibt stehen, bis die neue erscheint
+	if slot then
+		if state.Data.Slots[tostring(slot)] ~= entry or state.Plot.Stolen[slot] then
+			return nil, "gone"
+		end
+	elseif (state.Data.Bag[entry] or 0) < 1 then
+		return nil, "gone"
+	end
+	local cost = Config.StarCost(stars)
+	if not cost then
+		return nil, "max"
+	end
+	local list, total = foodFor(state, entry, slot == nil)
+	local have = state.Data.Feed[def.Id] or 0
+	if have + total < cost then
+		return nil, "food"
+	end
+	for _, food in list do
+		while have < cost and food.Count > 0 do
+			bagTake(state, food.Entry, 1)
+			food.Count -= 1
+			have += food.Points
 		end
 	end
-	state.Data.Slots[tostring(targetSlot)] = result
-	for i, slot in slots do
-		if i > 1 then
-			Bases.RenderSlot(state, slot)
-		end
-	end
+	have -= cost
+	state.Data.Feed[def.Id] = if have > 0 then have else nil
 
-	local def, _, newStars = Config.ParseEntry(result)
-	local color = Color3.fromRGB(255, 215, 70)
-	local function appear()
-		if Bases.States[player] ~= state or state.Data.Slots[tostring(targetSlot)] ~= result then
-			return
-		end
-		Bases.RenderSlot(state, targetSlot)
-		local model = plot.SlotModels[targetSlot]
+	local newStars = stars + 1
+	local lucky = false
+	if newStars < Config.Stars.Max and math.random() < Bases.Skill(state, "StarLuck") then
+		newStars += 1 -- Sternen-Glück: gleich noch einer dazu
+		lucky = true
+	end
+	local result = Config.MakeEntry(def.Id, mutation, newStars)
+	if slot then
+		state.Data.Slots[tostring(slot)] = result
+		Bases.RenderSlot(state, slot)
+		local model = state.Plot.SlotModels[slot]
+		local target = Map.SlotCFrame(state.Plot, slot).Position + Vector3.new(0, 2, 0)
 		if model then
 			FX.PopIn(model)
-			FX.Burst(target, color, 40 + newStars * 15)
-			FX.Ring(target - Vector3.new(0, 1.7, 0), color, 10 + newStars * 3)
-			if def then
-				FX.Ring(target - Vector3.new(0, 1.7, 0), Config.Rarities[def.Rarity].Color, 6 + newStars * 2)
-			end
 		end
-	end
-	if quiet then
-		appear()
+		FX.Burst(target, STAR_COLOR, 40 + newStars * 15)
+		FX.Ring(target - Vector3.new(0, 1.7, 0), STAR_COLOR, 10 + newStars * 3)
+		FX.Ring(target - Vector3.new(0, 1.7, 0), Config.Rarities[def.Rarity].Color, 6 + newStars * 2)
+		Bases.RefreshPlot(state.Plot)
 	else
-		task.delay(0.4, appear)
-		local name = Config.EntryName(result)
-		if extra > 0 then
-			Bases.BigText(player, `STERNEN-GLÜCK! {Config.StarText(newStars)}`, color, "MergeBig", true)
-		else
-			Bases.BigText(player, `VERSCHMOLZEN! {Config.StarText(newStars)}`, color, if newStars >= 3 then "MergeBig" else "Merge")
-		end
-		Bases.Notify(player, `{name} macht jetzt +{Config.FormatRate(Config.EntryIncome(result))} $/s.`, color)
-		if newStars >= Config.Stars.AnnounceFrom then
-			Bases.Announce(`{player.DisplayName} hat verschmolzen: {name}!`, color)
-		end
+		bagTake(state, entry, 1)
+		bagAdd(state, result, 1)
 	end
-	Bases.RefreshPlot(plot)
-	return result
+	return result, lucky
 end
 
--- Spieler drückt "Verschmelzen" für einen Eintrag
-function Bases.Merge(player: Player, entry: string)
+local function starUpFailed(player: Player, reason: string)
+	if reason == "max" then
+		Bases.Notify(player, "Diese Kreatur hat schon alle Sterne.", RED)
+	elseif reason == "food" then
+		Bases.Notify(player, "Dafür fehlt noch Futter: Sammle mehr von dieser Art.", RED)
+	end
+end
+
+-- Spieler drückt "Verbessern" bei einer Kreatur
+function Bases.StarUp(player: Player, entry: string, slot: number?)
 	local state = Bases.States[player]
 	if not state then
 		return
 	end
-	local slots = Bases.MergeGroups(state)[entry]
-	if not slots then
-		Bases.Notify(player, `Dafür brauchst du {Config.Stars.Need} gleiche Kreaturen (Base und Lager zusammen).`, RED)
-		Bases.QueueMerges(state)
+	local result, lucky = starUp(state, entry, slot)
+	if not result then
+		starUpFailed(player, lucky)
+		Bases.QueueInventory(state)
 		return
 	end
-	table.sort(slots)
-	-- Erst die aus der Base nehmen (das macht Plätze frei), den Rest aus dem Lager
-	local use = {}
-	for i = 1, math.min(Config.Stars.Need, #slots) do
-		use[i] = slots[i]
+	local _, _, stars = Config.ParseEntry(result)
+	local name = Config.EntryName(result)
+	Bases.BigText(player, `{if lucky then "STERNEN-GLÜCK!" else "NEUER STERN!"} {Config.StarText(stars)}`, STAR_COLOR, if stars >= 3 then "MergeBig" else "Merge", lucky == true)
+	Bases.Notify(player, `⭐ {name} macht jetzt +{Config.FormatRate(Config.EntryIncome(result))} $/s.`, STAR_COLOR)
+	if stars >= Config.Stars.AnnounceFrom then
+		Bases.Announce(`{player.DisplayName} hat einen neuen Stern: {name}!`, STAR_COLOR)
 	end
-	useStock(state, entry, Config.Stars.Need - #use)
-	mergeSlots(state, entry, use)
 end
 
--- Nimmt die Kreatur von diesem Platz, damit sie verkauft werden kann. Gibt (Eintrag, Preis)
--- zurück; das Geld bucht der Aufrufer. Steht danach keine gleiche mehr in der Base, wird ihr
--- Lager mitverkauft (sonst läge es nutzlos herum) und steckt schon im Preis.
-function Bases.TakeForSale(state, slot: number): (string?, number)
-	local entry = state.Data.Slots[tostring(slot)]
-	if not entry then
-		return nil, 0
+-- Spieler drückt "Alle verbessern": verteilt Sterne, solange Futter da ist, die stärksten zuerst
+function Bases.StarUpAll(player: Player)
+	local state = Bases.States[player]
+	if not state then
+		return
+	end
+	local count, bestStars, bestEntry = 0, 0, nil
+	for _ = 1, 300 do
+		local targets = {}
+		for slot = 1, Bases.Level(state).Slots do
+			local entry = state.Data.Slots[tostring(slot)]
+			if entry and not state.Plot.Stolen[slot] then
+				table.insert(targets, { Entry = entry, Slot = slot })
+			end
+		end
+		for entry in state.Data.Bag do
+			table.insert(targets, { Entry = entry })
+		end
+		table.sort(targets, function(a, b)
+			local ia, ib = Config.EntryIncome(a.Entry), Config.EntryIncome(b.Entry)
+			if ia ~= ib then
+				return ia > ib
+			end
+			if (a.Slot ~= nil) ~= (b.Slot ~= nil) then
+				return a.Slot ~= nil -- bei gleich starken zuerst die aktive
+			end
+			return if a.Slot then a.Slot < b.Slot else a.Entry < b.Entry
+		end)
+		local done = false
+		for _, target in targets do
+			local result = starUp(state, target.Entry, target.Slot)
+			if result then
+				local _, _, stars = Config.ParseEntry(result)
+				count += 1
+				if stars > bestStars then
+					bestStars, bestEntry = stars, result
+				end
+				done = true
+				break
+			end
+		end
+		if not done then
+			break
+		end
+	end
+	if count == 0 or not bestEntry then
+		Bases.Notify(player, "Gerade gibt es nichts zu verbessern: Es fehlt Futter.", RED)
+		return
+	end
+	Bases.BigText(player, `{count} {if count == 1 then "NEUER STERN" else "NEUE STERNE"}! {Config.StarText(bestStars)}`, STAR_COLOR, if bestStars >= 3 then "MergeBig" else "Merge")
+	Bases.Notify(player, `⭐ {count}x verbessert. Am besten: {Config.EntryName(bestEntry)} mit +{Config.FormatRate(Config.EntryIncome(bestEntry))} $/s.`, STAR_COLOR)
+	if bestStars >= Config.Stars.AnnounceFrom then
+		Bases.Announce(`{player.DisplayName} hat einen neuen Stern: {Config.EntryName(bestEntry)}!`, STAR_COLOR)
+	end
+end
+
+-- Kreatur aus dem Inventar in die Base stellen. Ist die Base voll, geht dafür die schwächste
+-- aktive ins Inventar.
+function Bases.Equip(player: Player, entry: string)
+	local state = Bases.States[player]
+	if not state or (state.Data.Bag[entry] or 0) < 1 or not Config.ParseEntry(entry) then
+		return
+	end
+	local packed: string? = nil
+	if not Bases.FreeSlot(state) then
+		local slot = Bases.WeakestSlot(state)
+		packed = slot and state.Data.Slots[tostring(slot)]
+		if not slot or not packed then
+			Bases.Notify(player, "Geht gerade nicht: Es ist kein Platz frei.", RED)
+			return
+		end
+		state.Data.Slots[tostring(slot)] = nil
+		bagAdd(state, packed, 1)
+	end
+	bagTake(state, entry, 1)
+	Bases.GiveCreature(state, entry)
+	Bases.RefreshPlot(state.Plot)
+	if packed then
+		Bases.Notify(player, `{Config.EntryName(entry)} steht jetzt in der Base, {Config.EntryName(packed)} ist im Inventar.`, BAG_COLOR)
+	end
+end
+
+-- Aktive Kreatur aus der Base ins Inventar legen
+function Bases.Unequip(player: Player, slot: number)
+	local state = Bases.States[player]
+	local entry = state and state.Data.Slots[tostring(slot)]
+	if not state or not entry or state.Plot.Stolen[slot] then
+		return
+	end
+	if Bases.BagCount(state) >= Config.Inventory.Size then
+		Bases.Notify(player, "Dein Inventar ist voll. Verkaufe oder verbessere erst etwas.", RED)
+		return
 	end
 	state.Data.Slots[tostring(slot)] = nil
 	Bases.RenderSlot(state, slot)
-	local count = 1
-	if #standing(state, entry) == 0 then
-		count += Bases.Stock(state, entry)
-		state.Data.Stock[entry] = nil
-	end
-	return entry, Bases.SellPrice(state, entry) * count
+	bagAdd(state, entry, 1)
+	Bases.RefreshPlot(state.Plot)
 end
 
--- Kann eine neue Kreatur bei voller Base aufgenommen werden (verschmelzen oder einlagern)?
--- Das geht, wenn schon eine gleiche in der Base steht oder im Lager liegt und sie noch
--- Sterne bekommen kann.
-function Bases.CanAbsorb(state, entry: string): boolean
-	return Config.MergeResult(entry) ~= nil and (#standing(state, entry) > 0 or Bases.Stock(state, entry) > 0)
+-- Kreaturen aus dem Inventar verkaufen (all = alle von diesem Eintrag)
+function Bases.SellFromBag(player: Player, entry: string, all: boolean?)
+	local state = Bases.States[player]
+	local have = state and state.Data.Bag[entry] or 0
+	if not state or have < 1 or not Config.ParseEntry(entry) then
+		return
+	end
+	local count = if all then have else 1
+	bagTake(state, entry, count)
+	local price = Bases.SellPrice(state, entry) * count
+	Bases.AddMoney(state, price)
+	remotes.MoneyPopup:FireClient(player, price)
+	local amount = if count > 1 then `{count}x ` else ""
+	Bases.Notify(player, `{amount}{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
 end
 
--- Base voll und eine neue Kreatur kommt. Steht schon eine gleiche da, wird die neue nicht
--- verkauft: Sind es mit dem Lager zusammen genug, wird sofort verschmolzen, sonst kommt sie
--- ins Lager. Gibt (Eintrag, "merged" oder "stored") zurück, oder nil, wenn es keine gleiche gibt.
-function Bases.TryAbsorb(state, entry: string): (string?, string?)
-	if not Bases.CanAbsorb(state, entry) then
-		return nil, nil
+-- Spieler drückt "Beste aufstellen": Die stärksten Kreaturen (aktiv und Inventar) kommen in
+-- die Base, der Rest ins Inventar.
+function Bases.EquipBest(player: Player)
+	local state = Bases.States[player]
+	if not state then
+		return
 	end
-	local same = standing(state, entry)
-	local need = Config.Stars.Need - 1 -- so viele braucht die neue noch dazu
-	if #same == 0 and Bases.Stock(state, entry) >= need then
-		-- Keine steht mehr (z.B. geklaut), aber mit dem Lager reicht es: Die verschmolzene
-		-- Kreatur nimmt den Platz der schwächsten, wenn sie besser ist als die.
-		local result = Config.MergeResult(entry) :: string
-		local slot = Bases.WeakestSlot(state)
-		local old = slot and state.Data.Slots[tostring(slot)]
-		if slot and old and Config.EntryIncome(old) < Config.EntryIncome(result) then
-			useStock(state, entry, need)
-			local _, price = Bases.TakeForSale(state, slot)
-			Bases.AddMoney(state, price)
-			Bases.Notify(state.Player, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, Color3.fromRGB(255, 200, 90))
-			state.Data.Slots[tostring(slot)] = result
-			Bases.RenderSlot(state, slot)
-			return result, "merged"
+	local usable = 0 -- Plätze, die frei sind oder auf denen eine Kreatur steht, die nicht gerade geklaut wird
+	local active = {} -- { { Slot, Entry } }
+	local all = {} -- alle Kreaturen, die aufgestellt werden könnten
+	for slot = 1, Bases.Level(state).Slots do
+		local entry = state.Data.Slots[tostring(slot)]
+		if not entry then
+			usable += 1
+		elseif not state.Plot.Stolen[slot] then
+			usable += 1
+			table.insert(active, { Slot = slot, Entry = entry })
+			table.insert(all, entry)
 		end
-		-- Lohnt sich nicht (alles in der Base ist stärker): Lager auflösen, damit es nicht
-		-- endlos wächst. Die neue Kreatur wird dann ganz normal behandelt.
-		local stock = Bases.Stock(state, entry)
-		local price = Bases.SellPrice(state, entry) * stock
-		state.Data.Stock[entry] = nil
-		Bases.AddMoney(state, price)
-		Bases.Notify(state.Player, `📦 Lager aufgelöst: {stock}x {Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`, Color3.fromRGB(255, 200, 90))
-		Bases.QueueMerges(state)
-		return nil, nil
 	end
-	if #same == 0 or #same + Bases.Stock(state, entry) < need then
-		state.Data.Stock[entry] = Bases.Stock(state, entry) + 1
-		Bases.QueueMerges(state)
-		return entry, "stored"
+	for entry, count in state.Data.Bag do
+		for _ = 1, math.min(count, usable) do
+			table.insert(all, entry)
+		end
 	end
-	-- Erst die aus der Base nehmen (das macht Plätze frei), den Rest aus dem Lager
-	local use = {}
-	for i = 1, math.min(need, #same) do
-		use[i] = same[i]
+	table.sort(all, function(a, b)
+		local ia, ib = Config.EntryIncome(a), Config.EntryIncome(b)
+		if ia ~= ib then
+			return ia > ib
+		end
+		return a < b
+	end)
+	local want = {} -- [eintrag] = so viele sollen stehen
+	local order = {} -- dieselben in der Reihenfolge stark -> schwach
+	for i = 1, math.min(usable, #all) do
+		want[all[i]] = (want[all[i]] or 0) + 1
+		table.insert(order, all[i])
 	end
-	useStock(state, entry, need - #use)
-	return mergeSlots(state, entry, use, true), "merged"
+	-- Wer schon steht und bleiben soll, bleibt. Der Rest wird eingepackt.
+	local changed = 0
+	for _, item in active do
+		if (want[item.Entry] or 0) > 0 then
+			want[item.Entry] -= 1
+		else
+			state.Data.Slots[tostring(item.Slot)] = nil
+			Bases.RenderSlot(state, item.Slot)
+			bagAdd(state, item.Entry, 1)
+		end
+	end
+	for _, entry in order do
+		if (want[entry] or 0) > 0 and bagTake(state, entry, 1) then
+			want[entry] -= 1
+			Bases.GiveCreature(state, entry)
+			changed += 1
+		end
+	end
+	Bases.RefreshPlot(state.Plot)
+	if changed > 0 then
+		Bases.Notify(player, `Deine besten Kreaturen stehen jetzt in der Base ({changed} neu aufgestellt).`, BAG_COLOR)
+	else
+		Bases.Notify(player, "Deine besten Kreaturen stehen schon in der Base.", BAG_COLOR)
+	end
 end
 
--- Meldung dazu: was mit der neuen Kreatur passiert ist
-function Bases.AbsorbText(state, result: string, kind: string): string
-	if kind == "merged" then
-		return `✨ Base voll: automatisch verschmolzen zu {Config.EntryName(result)}.`
+-- Eine neue Kreatur kommt an (Kiste, Meteor, Welt, geklaut). Ist ein Platz frei, kommt sie in
+-- die Base. Ist die Base voll und sie ist besser als die schwächste dort, tauschen die beiden.
+-- Wer keinen Platz in der Base bekommt, landet im Inventar. Verkauft wird nur, wenn das voll ist.
+-- Gibt zurück: { Kind = "placed" | "swapped" | "stored", Rest = wer ins Inventar kam,
+--   Sold = Eintrag, der wegen vollem Inventar verkauft wurde (oder nil), Money = sein Preis }
+function Bases.Receive(state, entry: string)
+	if Bases.FreeSlot(state) then
+		Bases.GiveCreature(state, entry)
+		return { Kind = "placed", Money = 0 }
 	end
-	local have = #standing(state, result) + Bases.Stock(state, result)
-	return `📦 Base voll: {Config.EntryName(result)} eingelagert ({have}/{Config.Stars.Need} für den nächsten Stern).`
+	local rest, kind = entry, "stored"
+	local slot = Bases.WeakestSlot(state)
+	local old = slot and state.Data.Slots[tostring(slot)]
+	if slot and old and Config.EntryIncome(entry) > Config.EntryIncome(old) then
+		state.Data.Slots[tostring(slot)] = nil
+		Bases.GiveCreature(state, entry) -- nimmt den Platz, der gerade frei wurde
+		rest, kind = old, "swapped"
+	end
+	local sold, price = Bases.Store(state, rest)
+	return { Kind = kind, Rest = rest, Sold = sold, Money = price }
+end
+
+-- Meldung dazu, was mit einer neuen Kreatur passiert ist (nil = sie steht einfach in der Base)
+function Bases.ReceiveText(got, entry: string): string?
+	local text: string? = nil
+	if got.Kind == "swapped" then
+		text = `{Config.EntryName(entry)} steht jetzt in deiner Base, {Config.EntryName(got.Rest)} ist im Inventar.`
+	elseif got.Kind == "stored" then
+		text = `🎒 Base voll: {Config.EntryName(entry)} liegt im Inventar.`
+	end
+	if got.Sold then
+		text = `{text or ""} Inventar voll: {Config.EntryName(got.Sold)} für {Config.FormatNumber(got.Money)} $ verkauft.`
+	end
+	return text
 end
 
 -- Der Platz mit der wertvollsten Kreatur (für den Tresor)
@@ -688,7 +834,7 @@ function Bases.RemovePlayer(player: Player)
 	end
 	local plot = state.Plot
 	Bases.States[player] = nil
-	mergePending[state] = nil
+	inventoryPending[state] = nil
 	for slot, model in plot.SlotModels do
 		model:Destroy()
 		plot.SlotModels[slot] = nil
@@ -720,16 +866,16 @@ function Bases.Sell(player: Player, plotIndex: number, slot: number)
 	if not state or state.Plot.Index ~= plotIndex or state.Plot.Stolen[slot] then
 		return
 	end
-	local stocked = Bases.Stock(state, state.Data.Slots[tostring(slot)] or "")
-	local entry, price = Bases.TakeForSale(state, slot)
+	local entry = state.Data.Slots[tostring(slot)]
 	if not entry then
 		return
 	end
+	state.Data.Slots[tostring(slot)] = nil
+	Bases.RenderSlot(state, slot)
+	local price = Bases.SellPrice(state, entry)
 	Bases.AddMoney(state, price)
 	remotes.MoneyPopup:FireClient(player, price)
-	-- war es die letzte ihrer Art in der Base, ist ihr Lager mit verkauft
-	local extra = if stocked > 0 and Bases.Stock(state, entry) == 0 then ` (mit {stocked} aus dem Lager)` else ""
-	Bases.Notify(player, `{Config.EntryName(entry)}{extra} für {Config.FormatNumber(price)} $ verkauft.`)
+	Bases.Notify(player, `{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
 end
 
 function Bases.Upgrade(player: Player, plotIndex: number)

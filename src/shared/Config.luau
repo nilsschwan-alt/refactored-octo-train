@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.15.2"
+Config.Version = "0.16.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -192,15 +192,24 @@ Config.MutationWeights = {
 	Regenbogen = 1,
 }
 
--- Sterne (Verschmelzen) ----------------------------------------------------------
--- 3 gleiche Kreaturen (gleiche Art, gleiche Mutation, gleich viele Sterne) werden zu einer
--- mit einem Stern mehr. Multipliers = so viel mehr Geld macht sie mit 1, 2, 3, 4, 5 Sternen.
+-- Inventar -------------------------------------------------------------------------
+-- Kreaturen, die nicht in der Base stehen, liegen im Inventar. Dort sind sie sicher vor Dieben,
+-- verdienen aber nichts. Ist das Inventar voll, wird die schwächste darin verkauft.
+Config.Inventory = {
+	Size = 100, -- so viele Kreaturen passen hinein
+}
+
+-- Sterne (Verbessern) ---------------------------------------------------------------
+-- Im Inventar kann man eine Kreatur verbessern: Sie frisst Kreaturen ihrer Art aus dem
+-- Inventar (die Mutation ist egal, aber nie eine stärkere) und bekommt dafür einen Stern.
 Config.Stars = {
 	Max = 5,
-	Need = 3, -- so viele gleiche braucht man für einen Stern mehr
-	-- Einkommen mit 1 bis 5 Sternen (mal so viel wie ohne Stern). Jede Stufe ist etwas mehr
-	-- als das Dreifache der vorigen, damit sich Verschmelzen immer lohnt.
-	Multipliers = { 3.2, 10, 32, 100, 320 },
+	-- So viel Futter kostet der 1., 2., 3., 4. und 5. Stern (eine normale Kreatur = 1 Futter)
+	Costs = { 2, 3, 5, 8, 12 },
+	-- So viel Futter ist eine Kreatur wert, je nach Mutation
+	Food = { Normal = 1, Gold = 2, Diamant = 3, Regenbogen = 5 },
+	-- Einkommen mit 1 bis 5 Sternen (mal so viel wie ohne Stern): jeder Stern verdoppelt
+	Multipliers = { 2, 4, 8, 16, 32 },
 	SizeBonus = 0.07, -- pro Stern wird die Kreatur so viel größer
 	AnnounceFrom = 3, -- ab so vielen Sternen erfährt es der ganze Server
 }
@@ -209,6 +218,18 @@ function Config.StarMultiplier(stars: number?): number
 		return 1
 	end
 	return Config.Stars.Multipliers[math.min(stars, #Config.Stars.Multipliers)]
+end
+-- So viel Futter kostet der nächste Stern (nil = hat schon alle Sterne)
+function Config.StarCost(stars: number?): number?
+	return Config.Stars.Costs[(stars or 0) + 1]
+end
+-- So viele Kreaturen stecken in einer mit so vielen Sternen (sie selbst + alles Futter)
+function Config.StarUnits(stars: number?): number
+	local units = 1
+	for i = 1, math.min(stars or 0, #Config.Stars.Costs) do
+		units += Config.Stars.Costs[i]
+	end
+	return units
 end
 
 -- Skill-Baum (Waben-Netz) -----------------------------------------------------------
@@ -245,7 +266,7 @@ Config.Skills = {
 		{ Id = "Pity", Branch = "Glueck", Hex = { 0, -2 }, Name = "Garantie", Icon = "🎯", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "Legendär-Garantie {v} Kiste(n) früher" },
 		{ Id = "Refund", Branch = "Glueck", Hex = { -1, -1 }, Name = "Gratis-Kiste", Icon = "🎁", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.03, Percent = true, Text = "{v} % Chance: eine Kiste kostet nichts" },
 		{ Id = "SellBonus", Branch = "Glueck", Hex = { -2, 0 }, Name = "Händler", Icon = "🤝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "+{v} % Geld beim Verkaufen" },
-		{ Id = "StarLuck", Branch = "Glueck", Hex = { -2, 1 }, Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verschmelzen" },
+		{ Id = "StarLuck", Branch = "Glueck", Hex = { -2, 1 }, Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verbessern" },
 		{ Id = "TokenLuck", Branch = "Glueck", Hex = { 0, -3 }, Name = "Token-Finder", Icon = "💠", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "{v} % Chance auf ein Extra-Token bei jeder Aufgabe" },
 		{ Id = "DailyLuck", Branch = "Glueck", Hex = { -1, -2 }, Name = "Frühaufsteher", Icon = "🌅", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Percent = true, Text = "Der Tagesbonus ist +{v} % größer" },
 		{ Id = "MythicLuck", Branch = "Glueck", Hex = { -2, -1 }, Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
@@ -419,7 +440,7 @@ function Config.BestPack(rebirths: number?)
 end
 
 -- Mehrfach-Öffnen: 1x, 3x oder 10x auf einmal. Discount = Rabatt (0.9 = 10 % billiger)
--- Ist die Base voll, bleiben die besten Kreaturen, der Rest wird automatisch verkauft.
+-- Ist die Base voll, stehen danach die besten dort, der Rest kommt ins Inventar.
 Config.PackCounts = {
 	{ Count = 1, Discount = 1 },
 	{ Count = 3, Discount = 1 },
@@ -823,7 +844,7 @@ end
 -- Wert: mit Sternen so viel wie alle Kreaturen zusammen, die darin stecken
 function Config.EntryValue(entry: string): number
 	local def, mutation, stars = Config.ParseEntry(entry)
-	return if def then def.Price * Config.Mutations[mutation].Multiplier * Config.Stars.Need ^ stars else 0
+	return if def then def.Price * Config.Mutations[mutation].Multiplier * Config.StarUnits(stars) else 0
 end
 
 function Config.StarText(stars: number?): string
@@ -840,13 +861,10 @@ function Config.EntryName(entry: string): string
 	return if stars > 0 then `{name} {Config.StarText(stars)}` else name
 end
 
--- Was kommt beim Verschmelzen heraus? nil, wenn die Kreatur schon alle Sterne hat.
-function Config.MergeResult(entry: string, extraStars: number?): string?
+-- So viel Futter ist diese Kreatur wert, wenn eine von ihrer Art sie beim Verbessern frisst
+function Config.FoodPoints(entry: string): number
 	local def, mutation, stars = Config.ParseEntry(entry)
-	if not def or stars >= Config.Stars.Max then
-		return nil
-	end
-	return Config.MakeEntry(def.Id, mutation, math.min(Config.Stars.Max, stars + 1 + (extraStars or 0)))
+	return if def then (Config.Stars.Food[mutation] or 1) * Config.StarUnits(stars) else 0
 end
 
 Config.RarityOrder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }

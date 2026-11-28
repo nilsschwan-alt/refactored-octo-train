@@ -1,4 +1,4 @@
--- Skill-Baum (Waben-Netz) und Fusion (3 gleiche Kreaturen zu einer mit Stern verschmelzen).
+-- Skill-Baum (Waben-Netz) und Inventar (alle Kreaturen: aufstellen, verbessern, verkaufen).
 -- Wird von Main geladen. Main gibt seine Hilfsfunktionen mit (ctx), damit hier nichts doppelt steht.
 -- Liegt in Studio unter: StarterPlayer > StarterPlayerScripts > Client > Menus
 
@@ -460,218 +460,617 @@ return function(ctx)
 		end
 	end)
 
-	-- Fusion ----------------------------------------------------------------------------
-	local MERGE_COLOR = GOLD
-	local mergeButton, mergeButtonScale, mergeBadge = hudButton(4, Color3.fromRGB(235, 150, 40), "✨", "Fusion", "V")
-	local mergePanel, showMergePanel = window(600, 500, MERGE_COLOR, "✨ Fusion")
-	label({
-		Size = UDim2.new(1, -32, 0, 64),
-		Position = UDim2.fromOffset(16, 52),
+	-- Inventar --------------------------------------------------------------------------
+	-- Alle Kreaturen als Kacheln: die aktiven (stehen in der Base) zuerst, dann der Rest.
+	-- Rechts die gewählte Kreatur mit den Knöpfen Aufstellen/Einpacken, Verbessern, Verkaufen.
+	local BAG_COLOR = Color3.fromRGB(120, 200, 255)
+	local RED = Color3.fromRGB(215, 70, 70)
+	local BLUE = Color3.fromRGB(60, 140, 235)
+	local TILE_W, TILE_H = 94, 112
+	local bagButton, bagButtonScale, bagBadge = hudButton(4, Color3.fromRGB(70, 150, 235), "🎒", "Inventar", "V")
+	local bagPanel, showBagPanel = window(830, 560, BAG_COLOR, "🎒 Inventar")
+	local bagInfo = label({
+		Size = UDim2.fromOffset(330, 24),
+		Position = UDim2.fromOffset(205, 16),
 		TextScaled = false,
 		TextSize = 17,
-		TextWrapped = true,
-		Font = Enum.Font.Gotham,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		TextColor3 = Color3.fromRGB(205, 200, 225),
-		Text = `{Config.Stars.Need} gleiche Kreaturen (gleiche Mutation, gleiche Sterne) verschmelzen zu einer mit einem Stern mehr, bis zu {Config.Stars.Max} Sterne. Bei voller Base werden doppelte eingelagert statt verkauft und zählen hier mit.`,
-		Parent = mergePanel,
+		TextColor3 = Color3.fromRGB(190, 200, 225),
+		Text = "",
+		Parent = bagPanel,
 	})
-	local mergeScroll = Instance.new("ScrollingFrame")
-	mergeScroll.Size = UDim2.new(1, -24, 1, -136)
-	mergeScroll.Position = UDim2.fromOffset(12, 124)
-	mergeScroll.BackgroundTransparency = 1
-	mergeScroll.BorderSizePixel = 0
-	mergeScroll.ScrollBarThickness = 8
-	mergeScroll.CanvasSize = UDim2.new()
-	mergeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	mergeScroll.Parent = mergePanel
-	local mergeLayout = Instance.new("UIListLayout")
-	mergeLayout.Padding = UDim.new(0, 8)
-	mergeLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	mergeLayout.Parent = mergeScroll
-	local mergeEmpty = label({
-		Size = UDim2.new(1, -60, 0, 120),
-		Position = UDim2.fromOffset(30, 190),
+
+	-- Knopf mit Text (für die Leiste oben und die Aktionen rechts)
+	local function textButton(parent: Instance, text: string, color: Color3, size: UDim2, position: UDim2): TextButton
+		local button = Instance.new("TextButton")
+		button.Size = size
+		button.Position = position
+		button.BackgroundColor3 = color
+		button.TextColor3 = WHITE
+		button.Font = Enum.Font.FredokaOne
+		button.TextScaled = true
+		button.Text = text
+		button.Parent = parent
+		corner(button, 10)
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
+		pad.PaddingTop = UDim.new(0, 7)
+		pad.PaddingBottom = UDim.new(0, 7)
+		pad.Parent = button
+		return button
+	end
+	local function setEnabled(button: TextButton, enabled: boolean, color: Color3)
+		button.Active = enabled
+		button.AutoButtonColor = enabled
+		button.BackgroundColor3 = if enabled then color else GREY
+		button.TextTransparency = if enabled then 0 else 0.35
+	end
+
+	local bestButton = textButton(bagPanel, "⬆ Beste aufstellen", BLUE, UDim2.fromOffset(250, 38), UDim2.fromOffset(12, 56))
+	local allButton = textButton(bagPanel, "⭐ Alle verbessern", GREEN, UDim2.fromOffset(250, 38), UDim2.fromOffset(272, 56))
+
+	local bagScroll = Instance.new("ScrollingFrame")
+	bagScroll.Size = UDim2.fromOffset(530, 446)
+	bagScroll.Position = UDim2.fromOffset(12, 104)
+	bagScroll.BackgroundColor3 = Color3.fromRGB(20, 18, 32)
+	bagScroll.BorderSizePixel = 0
+	bagScroll.ScrollBarThickness = 8
+	bagScroll.CanvasSize = UDim2.new()
+	bagScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	bagScroll.Parent = bagPanel
+	corner(bagScroll, 10)
+	local bagGrid = Instance.new("UIGridLayout")
+	bagGrid.CellSize = UDim2.fromOffset(TILE_W, TILE_H)
+	bagGrid.CellPadding = UDim2.fromOffset(8, 8)
+	bagGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	bagGrid.Parent = bagScroll
+	local bagPad = Instance.new("UIPadding")
+	bagPad.PaddingLeft = UDim.new(0, 8)
+	bagPad.PaddingTop = UDim.new(0, 8)
+	bagPad.PaddingBottom = UDim.new(0, 8)
+	bagPad.Parent = bagScroll
+	local bagEmpty = label({
+		Size = UDim2.fromOffset(470, 80),
+		Position = UDim2.fromOffset(42, 250),
 		TextScaled = false,
 		TextSize = 20,
 		TextWrapped = true,
 		TextColor3 = Color3.fromRGB(170, 165, 195),
-		Text = `Gerade gibt es nichts zu verschmelzen.\nSammle {Config.Stars.Need} gleiche Kreaturen, dann tauchen sie hier auf. Doppelte landen bei voller Base im Lager und zählen mit.`,
-		Parent = mergePanel,
+		Text = "Noch keine Kreaturen.\nÖffne eine Kiste im Shop!",
+		Visible = false,
+		Parent = bagPanel,
 	})
 
-	local mergeList = {} -- vom Server: { { Entry, Count, Result, Ready }, ... } (Ready = false: es fehlen noch welche)
-	local mergeShown = "" -- was gerade in der Liste steht (damit nicht unnötig neu gebaut wird)
+	-- Rechte Seite: die gewählte Kreatur
+	local detail = Instance.new("Frame")
+	detail.Size = UDim2.fromOffset(264, 494)
+	detail.Position = UDim2.fromOffset(554, 56)
+	detail.BackgroundColor3 = Color3.fromRGB(36, 32, 54)
+	detail.Parent = bagPanel
+	corner(detail, 12)
+	local detailStroke = stroke(detail, BAG_COLOR, 2)
+	local detailIcon = Instance.new("Frame")
+	detailIcon.Size = UDim2.fromOffset(264, 124)
+	detailIcon.BackgroundTransparency = 1
+	detailIcon.Parent = detail
+	local detailStars = label({
+		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.fromOffset(0, 118),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = GOLD,
+		Text = "",
+		Parent = detail,
+	})
+	local detailName = label({
+		Size = UDim2.new(1, -16, 0, 28),
+		Position = UDim2.fromOffset(8, 142),
+		Font = Enum.Font.FredokaOne,
+		Text = "",
+		Parent = detail,
+	})
+	local detailRarity = label({
+		Size = UDim2.new(1, -16, 0, 18),
+		Position = UDim2.fromOffset(8, 171),
+		TextScaled = false,
+		TextSize = 15,
+		TextColor3 = Color3.fromRGB(190, 185, 215),
+		Text = "",
+		Parent = detail,
+	})
+	local detailIncome = label({
+		Size = UDim2.new(1, -16, 0, 26),
+		Position = UDim2.fromOffset(8, 191),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(130, 255, 150),
+		Text = "",
+		Parent = detail,
+	})
+	-- Futter-Balken für den nächsten Stern
+	local feedTitle = label({
+		Size = UDim2.new(1, -16, 0, 18),
+		Position = UDim2.fromOffset(8, 224),
+		TextScaled = false,
+		TextSize = 15,
+		TextColor3 = GOLD,
+		Text = "",
+		Parent = detail,
+	})
+	local feedBar = Instance.new("Frame")
+	feedBar.Size = UDim2.new(1, -32, 0, 20)
+	feedBar.Position = UDim2.fromOffset(16, 245)
+	feedBar.BackgroundColor3 = Color3.fromRGB(20, 18, 32)
+	feedBar.Parent = detail
+	corner(feedBar, 10)
+	local feedFill = Instance.new("Frame")
+	feedFill.Size = UDim2.fromScale(0, 1)
+	feedFill.BackgroundColor3 = GOLD
+	feedFill.BorderSizePixel = 0
+	feedFill.Parent = feedBar
+	corner(feedFill, 10)
+	local feedText = label({
+		Size = UDim2.fromScale(1, 1),
+		TextScaled = false,
+		TextSize = 14,
+		TextStrokeTransparency = 0.4,
+		ZIndex = 2,
+		Text = "",
+		Parent = feedBar,
+	})
+	local feedAfter = label({
+		Size = UDim2.new(1, -16, 0, 18),
+		Position = UDim2.fromOffset(8, 268),
+		TextScaled = false,
+		TextSize = 14,
+		Font = Enum.Font.Gotham,
+		TextColor3 = Color3.fromRGB(190, 185, 215),
+		Text = "",
+		Parent = detail,
+	})
+	local equipButton = textButton(detail, "Aufstellen", BLUE, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 294))
+	local starButton = textButton(detail, "⭐ Verbessern", GREEN, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 342))
+	local sellButton = textButton(detail, "Verkaufen", RED, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 390))
+	local sellAllButton = textButton(detail, "Alle verkaufen", RED, UDim2.new(1, -24, 0, 34), UDim2.fromOffset(12, 432))
+	label({
+		Size = UDim2.new(1, -16, 0, 22),
+		Position = UDim2.fromOffset(8, 470),
+		TextScaled = false,
+		TextSize = 12,
+		TextWrapped = true,
+		Font = Enum.Font.Gotham,
+		TextColor3 = Color3.fromRGB(150, 145, 175),
+		Text = "Futter = gleiche Art aus dem Inventar, nie eine stärkere.",
+		Parent = detail,
+	})
 
-	-- Kreatur-Bild mit Sternen darunter
-	local function entryIcon(parent: GuiObject, x: number, entry: string)
-		local def, mutation, stars = Config.ParseEntry(entry)
-		local holder = Instance.new("Frame")
-		holder.Size = UDim2.fromOffset(76, 76)
-		holder.Position = UDim2.fromOffset(x, 6)
-		holder.BackgroundColor3 = Color3.fromRGB(28, 25, 42)
-		holder.Parent = parent
-		corner(holder, 10)
-		if def then
-			stroke(holder, Config.Rarities[def.Rarity].Color, 2)
-			local _, iconScale = ctx.CreatureIcon(holder, def, mutation, 64, 2)
-			iconScale.Scale = 1
+	local bag = { Size = Config.Inventory.Size, Count = 0, Slots = 0, Items = {} } -- vom Server
+	local bagShown = "" -- was gerade als Kacheln dasteht (damit nicht unnötig neu gebaut wird)
+	local selectedKey: string? = nil -- "S3" = aktive auf Platz 3, "B" .. Eintrag = im Inventar
+	local selectedLike: string? = nil -- Art und Mutation der zuletzt gewählten (falls ihr Eintrag sich ändert)
+	local tiles = {} -- [key] = { Frame, Stroke }
+	local detailShown = "" -- welche Kreatur das große Bild gerade zeigt
+	local confirm: { Button: TextButton, Until: number }? = nil -- "Sicher?" beim Verkaufen
+
+	local function itemKey(item): string
+		return if item.Slot then "S" .. item.Slot else "B" .. item.Entry
+	end
+	local function likeOf(entry: string): string
+		local def, mutation = Config.ParseEntry(entry)
+		return if def then def.Id .. "|" .. mutation else ""
+	end
+	local function ready(item): boolean
+		return item.Cost ~= nil and item.Have >= item.Cost and not item.Stolen
+	end
+	local function findItem(key: string?)
+		for _, item in bag.Items do
+			if itemKey(item) == key then
+				return item
+			end
+		end
+		return nil
+	end
+
+	-- Kleines, stilles Bild einer Kreatur (ohne Hüpfen, damit viele Kacheln nichts kosten)
+	local function staticIcon(parent: GuiObject, def, mutationId: string, size: number, y: number)
+		local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
+		local glow = Instance.new("Frame")
+		glow.AnchorPoint = CENTER
+		glow.Position = UDim2.new(0.5, 0, 0, y + size / 2)
+		glow.Size = UDim2.fromOffset(size * 0.9, size * 0.9)
+		glow.BackgroundColor3 = mutation.Color or Config.Rarities[def.Rarity].Color
+		glow.BackgroundTransparency = 0.72
+		glow.BorderSizePixel = 0
+		glow.Parent = parent
+		corner(glow, size)
+		local folder = ReplicatedStorage:FindFirstChild("KreaturenModelle")
+		local template = folder and folder:FindFirstChild(def.Id)
+		if template and template:IsA("Model") then
+			local vp = Instance.new("ViewportFrame")
+			vp.AnchorPoint = Vector2.new(0.5, 0)
+			vp.Position = UDim2.new(0.5, 0, 0, y)
+			vp.Size = UDim2.fromOffset(size, size)
+			vp.BackgroundTransparency = 1
+			vp.Ambient = Color3.fromRGB(165, 165, 180)
+			vp.LightColor = WHITE
+			vp.LightDirection = Vector3.new(-0.3, -0.8, 1)
+			if mutation.Color then
+				vp.ImageColor3 = WHITE:Lerp(mutation.Color, 0.35)
+			end
+			local model = template:Clone()
+			model:PivotTo(CFrame.new())
+			model.Parent = vp
+			local camera = Instance.new("Camera")
+			camera.FieldOfView = 30
+			camera.Parent = vp
+			vp.CurrentCamera = camera
+			local boxCF, boxSize = model:GetBoundingBox()
+			local radius = math.max(boxSize.X, boxSize.Y, boxSize.Z) * 0.62
+			local dist = radius / math.tan(math.rad(camera.FieldOfView / 2))
+			camera.CFrame = CFrame.lookAt(boxCF.Position + Vector3.new(dist * 0.35, boxSize.Y * 0.15, -dist), boxCF.Position)
+			vp.Parent = parent
+			return
+		end
+		local swatch = Instance.new("Frame")
+		swatch.AnchorPoint = CENTER
+		swatch.Position = UDim2.new(0.5, 0, 0, y + size / 2)
+		swatch.Size = UDim2.fromOffset(size * 0.7, size * 0.7)
+		swatch.BackgroundColor3 = mutation.Color or def.Color
+		swatch.Parent = parent
+		corner(swatch, math.floor(size * 0.16))
+	end
+
+	local refreshDetail
+
+	local function selectItem(key: string?)
+		selectedKey = key
+		local item = findItem(key)
+		if item then
+			selectedLike = likeOf(item.Entry)
+		end
+		for tileKey, tile in tiles do
+			tile.Stroke.Color = if tileKey == key then WHITE else tile.Color
+			tile.Stroke.Thickness = if tileKey == key then 3 else 2
+		end
+		confirm = nil
+		refreshDetail()
+	end
+
+	local function makeTile(item, order: number)
+		local def, mutation, stars = Config.ParseEntry(item.Entry)
+		if not def then
+			return
+		end
+		local key = itemKey(item)
+		local color = Config.Rarities[def.Rarity].Color
+		local tile = Instance.new("TextButton")
+		tile.Text = ""
+		tile.AutoButtonColor = false
+		tile.BackgroundColor3 = if item.Slot then Color3.fromRGB(40, 58, 52) else Color3.fromRGB(44, 40, 64)
+		tile.LayoutOrder = order
+		tile.Parent = bagScroll
+		corner(tile, 10)
+		local tileStroke = stroke(tile, color, 2)
+		tileStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		staticIcon(tile, def, mutation, 62, 14)
+		if item.Slot then
+			-- Band oben: steht in der Base
+			local ribbon = label({
+				Size = UDim2.new(1, 0, 0, 15),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = if item.Stolen then RED else GREEN,
+				TextScaled = false,
+				TextSize = 11,
+				Font = Enum.Font.GothamBold,
+				ZIndex = 3,
+				Text = if item.Stolen then "WIRD GEKLAUT" else "AKTIV",
+				Parent = tile,
+			})
+			corner(ribbon, 8)
+		elseif item.Count > 1 then
+			local count = label({
+				Size = UDim2.fromOffset(40, 18),
+				Position = UDim2.new(1, -44, 0, 3),
+				Font = Enum.Font.FredokaOne,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextStrokeTransparency = 0,
+				ZIndex = 3,
+				Text = `x{item.Count}`,
+				Parent = tile,
+			})
+			count.TextStrokeColor3 = BLACK
 		end
 		if stars > 0 then
 			local starLabel = label({
-				Size = UDim2.new(1, 0, 0, 18),
-				Position = UDim2.new(0, 0, 1, -19),
+				Size = UDim2.new(1, 0, 0, 16),
+				Position = UDim2.fromOffset(0, 62),
 				Font = Enum.Font.FredokaOne,
 				TextColor3 = GOLD,
 				TextStrokeTransparency = 0,
 				ZIndex = 3,
 				Text = Config.StarText(stars),
-				Parent = holder,
+				Parent = tile,
 			})
 			starLabel.TextStrokeColor3 = BLACK
 		end
+		label({
+			Size = UDim2.new(1, -6, 0, 16),
+			Position = UDim2.fromOffset(3, 80),
+			TextColor3 = Color3.fromRGB(130, 255, 150),
+			Text = `+{Config.FormatRate(Config.EntryIncome(item.Entry))} $/s`,
+			Parent = tile,
+		})
+		if item.Cost then
+			-- Futter-Balken ganz unten
+			local bar = Instance.new("Frame")
+			bar.Size = UDim2.new(1, -12, 0, 6)
+			bar.Position = UDim2.new(0, 6, 1, -11)
+			bar.BackgroundColor3 = Color3.fromRGB(20, 18, 32)
+			bar.BorderSizePixel = 0
+			bar.Parent = tile
+			corner(bar, 3)
+			local fill = Instance.new("Frame")
+			fill.Size = UDim2.fromScale(math.clamp(item.Have / item.Cost, 0, 1), 1)
+			fill.BackgroundColor3 = if ready(item) then GREEN else GOLD
+			fill.BorderSizePixel = 0
+			fill.Parent = bar
+			corner(fill, 3)
+		end
+		if ready(item) then
+			-- kann sofort verbessert werden
+			local up = label({
+				Size = UDim2.fromOffset(22, 22),
+				Position = UDim2.fromOffset(4, if item.Slot then 18 else 4),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = GREEN,
+				Font = Enum.Font.FredokaOne,
+				ZIndex = 4,
+				Text = "⬆",
+				Parent = tile,
+			})
+			corner(up, 11)
+		end
+		tiles[key] = { Frame = tile, Stroke = tileStroke, Color = color }
+		tile.Activated:Connect(function()
+			playSound("Click")
+			selectItem(key)
+		end)
 	end
 
-	local function rebuildMerges()
-		local parts = {}
-		for _, item in mergeList do
-			table.insert(parts, `{item.Entry}:{item.Count}:{tostring(item.Ready)}`)
-		end
-		local signature = table.concat(parts, ";")
-		mergeEmpty.Visible = #mergeList == 0
-		if signature == mergeShown then
+	function refreshDetail()
+		local item = findItem(selectedKey)
+		detail.Visible = item ~= nil
+		if not item then
+			detailShown = ""
 			return
 		end
-		mergeShown = signature
-		for _, child in mergeScroll:GetChildren() do
-			if child:IsA("Frame") then
-				child:Destroy()
+		local def, mutation, stars = Config.ParseEntry(item.Entry)
+		if not def then
+			return
+		end
+		local rarity = Config.Rarities[def.Rarity]
+		if detailShown ~= item.Entry then
+			detailShown = item.Entry
+			detailIcon:ClearAllChildren()
+			local _, iconScale = ctx.CreatureIcon(detailIcon, def, mutation, 112, 8)
+			if iconScale then
+				iconScale.Scale = 0.6
+				tween(iconScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
 			end
 		end
-		for i, item in mergeList do
-			local row = Instance.new("Frame")
-			row.Size = UDim2.new(1, -12, 0, 88)
-			row.BackgroundColor3 = Color3.fromRGB(44, 40, 64)
-			row.LayoutOrder = i
-			row.Parent = mergeScroll
-			corner(row, 12)
-			entryIcon(row, 6, item.Entry)
-			label({
-				Size = UDim2.fromOffset(40, 22),
-				Position = UDim2.fromOffset(44, 6),
-				Font = Enum.Font.FredokaOne,
-				TextStrokeTransparency = 0,
-				TextXAlignment = Enum.TextXAlignment.Right,
-				ZIndex = 3,
-				Text = `x{item.Count}`,
-				Parent = row,
-			})
-			label({ Size = UDim2.fromOffset(26, 30), Position = UDim2.fromOffset(86, 29), TextColor3 = GOLD, Font = Enum.Font.FredokaOne, Text = ">", Parent = row })
-			entryIcon(row, 116, item.Result)
-			local before = Config.EntryIncome(item.Entry) * Config.Stars.Need
-			local after = Config.EntryIncome(item.Result)
-			label({
-				Size = UDim2.fromOffset(206, 26),
-				Position = UDim2.fromOffset(202, 8),
-				Font = Enum.Font.FredokaOne,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = Config.EntryName(item.Result),
-				Parent = row,
-			})
-			label({
-				Size = UDim2.fromOffset(206, 20),
-				Position = UDim2.fromOffset(202, 36),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Color3.fromRGB(130, 255, 150),
-				Text = `+{Config.FormatRate(after)} $/s`,
-				Parent = row,
-			})
-			label({
-				Size = UDim2.fromOffset(206, 18),
-				Position = UDim2.fromOffset(202, 60),
-				Font = Enum.Font.Gotham,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Color3.fromRGB(190, 185, 215),
-				Text = `statt +{Config.FormatRate(before)} $/s für {Config.Stars.Need} Stück`,
-				Parent = row,
-			})
-			local go = Instance.new("TextButton")
-			go.Size = UDim2.fromOffset(142, 60)
-			go.Position = UDim2.new(1, -150, 0, 14)
-			go.BackgroundColor3 = GREEN
-			go.TextColor3 = WHITE
-			go.Font = Enum.Font.FredokaOne
-			go.TextScaled = true
-			go.Text = "Verschmelzen"
-			go.Parent = row
-			corner(go, 12)
-			if not item.Ready then
-				-- noch nicht genug: zeigt nur, wie viele im Lager und in der Base schon da sind
-				go.Active = false
-				go.AutoButtonColor = false
-				go.BackgroundColor3 = GREY
-				go.Text = `Noch {math.max(1, Config.Stars.Need - item.Count)}`
-			end
-			local pad = Instance.new("UIPadding")
-			pad.PaddingLeft = UDim.new(0, 8)
-			pad.PaddingRight = UDim.new(0, 8)
-			pad.Parent = go
-			go.Activated:Connect(function()
-				if not go.Active then
-					return
-				end
-				go.Active = false
-				go.BackgroundColor3 = GREY
-				go.Text = "..."
-				Remotes.Merge:FireServer(item.Entry)
-				-- falls der Server nichts ändert (z.B. gerade geklaut): Knopf wieder freigeben
-				task.delay(1.5, function()
-					if go.Parent then
-						go.Active = true
-						go.BackgroundColor3 = GREEN
-						go.Text = "Verschmelzen"
-					end
-				end)
-			end)
+		detailStroke.Color = rarity.Color
+		detailStars.Text = Config.StarText(stars)
+		local m = Config.Mutations[mutation]
+		detailName.Text = if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name
+		detailName.TextColor3 = rarity.Color
+		detailRarity.Text = if item.Slot then `{rarity.Name} · steht in der Base` elseif item.Count > 1 then `{rarity.Name} · {item.Count} Stück im Inventar` else `{rarity.Name} · im Inventar`
+		detailIncome.Text = `+{Config.FormatRate(Config.EntryIncome(item.Entry))} $/s`
+
+		local canUse = not item.Stolen
+		if item.Cost then
+			feedTitle.Text = `Futter für {Config.StarText(stars + 1)}`
+			feedBar.Visible = true
+			feedFill.Size = UDim2.fromScale(math.clamp(item.Have / item.Cost, 0, 1), 1)
+			feedFill.BackgroundColor3 = if ready(item) then GREEN else GOLD
+			feedText.Text = `{item.Have} / {item.Cost}`
+			feedAfter.Text = `danach +{Config.FormatRate(Config.EntryIncome(Config.MakeEntry(def.Id, mutation, stars + 1)))} $/s`
+			starButton.Text = if ready(item) then "⭐ Verbessern" else `Noch {item.Cost - item.Have} Futter`
+			setEnabled(starButton, ready(item), GREEN)
+		else
+			feedTitle.Text = "Alle Sterne erreicht!"
+			feedBar.Visible = false
+			feedAfter.Text = ""
+			starButton.Text = "⭐ Maximal"
+			setEnabled(starButton, false, GREEN)
+		end
+		equipButton.Text = if item.Slot then "Einpacken" else "Aufstellen"
+		setEnabled(equipButton, canUse, BLUE)
+		local price = item.Price or 0
+		if not (confirm and confirm.Button == sellButton) then
+			sellButton.Text = `Verkaufen ({Config.FormatNumber(price)} $)`
+		end
+		setEnabled(sellButton, canUse, RED)
+		sellAllButton.Visible = not item.Slot and item.Count > 1
+		if not (confirm and confirm.Button == sellAllButton) then
+			sellAllButton.Text = `Alle {item.Count} verkaufen ({Config.FormatNumber(price * item.Count)} $)`
 		end
 	end
 
-	Remotes.Merges.OnClientEvent:Connect(function(list)
-		mergeList = if type(list) == "table" then list else {}
-		-- die Plakette zählt nur, was man sofort verschmelzen kann
-		local ready = 0
-		for _, item in mergeList do
-			if item.Ready then
-				ready += 1
+	local function sortedItems()
+		local list = table.clone(bag.Items)
+		table.sort(list, function(a, b)
+			if (a.Slot ~= nil) ~= (b.Slot ~= nil) then
+				return a.Slot ~= nil -- die aktiven zuerst
+			end
+			local ia, ib = Config.EntryIncome(a.Entry), Config.EntryIncome(b.Entry)
+			if ia ~= ib then
+				return ia > ib
+			end
+			return itemKey(a) < itemKey(b)
+		end)
+		return list
+	end
+
+	local function rebuildBag()
+		local list = sortedItems()
+		local active, readyCount = 0, 0
+		local parts = {}
+		for _, item in list do
+			if item.Slot then
+				active += 1
+			end
+			if ready(item) then
+				readyCount += 1
+			end
+			table.insert(parts, `{itemKey(item)}:{item.Entry}:{item.Count}:{item.Have}:{tostring(item.Stolen)}`)
+		end
+		bagInfo.Text = `Aktiv {active}/{bag.Slots} · Inventar {bag.Count}/{bag.Size}`
+		bagEmpty.Visible = #list == 0
+		setEnabled(allButton, readyCount > 0, GREEN)
+		local signature = table.concat(parts, ";")
+		if signature ~= bagShown then
+			bagShown = signature
+			for _, child in bagScroll:GetChildren() do
+				if child:IsA("TextButton") then
+					child:Destroy()
+				end
+			end
+			table.clear(tiles)
+			for i, item in list do
+				makeTile(item, i)
 			end
 		end
-		mergeBadge.Visible = ready > 0
-		mergeBadge.Text = tostring(ready)
-		if mergePanel.Visible then
-			rebuildMerges()
+		-- Auswahl behalten. Gibt es sie nicht mehr (verbessert, aufgestellt, verkauft), die
+		-- nächste von derselben Art nehmen, sonst die erste.
+		if not findItem(selectedKey) then
+			local pick = nil
+			for _, item in list do
+				if likeOf(item.Entry) == selectedLike then
+					pick = item
+					break
+				end
+			end
+			pick = pick or list[1]
+			selectedKey = if pick then itemKey(pick) else nil
+		end
+		selectItem(selectedKey)
+	end
+
+	Remotes.Inventory.OnClientEvent:Connect(function(data)
+		if type(data) ~= "table" or type(data.Items) ~= "table" then
+			return
+		end
+		bag = data
+		-- Plakette: bei so vielen Arten kann gerade etwas verbessert werden
+		local kinds, count = {}, 0
+		for _, item in bag.Items do
+			local def = Config.ParseEntry(item.Entry)
+			if def and ready(item) and not kinds[def.Id] then
+				kinds[def.Id] = true
+				count += 1
+			end
+		end
+		bagBadge.Visible = count > 0
+		bagBadge.Text = tostring(count)
+		if bagPanel.Visible then
+			rebuildBag()
 		end
 	end)
 
-	local function toggleMerge()
+	local function send(action: string, entry: string?, slot: number?)
+		Remotes.InventoryAction:FireServer(action, entry, slot)
+	end
+	-- Verkaufen mit Nachfrage: erst beim zweiten Tippen (innerhalb von 3 Sekunden) wird verkauft
+	local function confirmed(button: TextButton): boolean
+		if confirm and confirm.Button == button and os.clock() < confirm.Until then
+			confirm = nil
+			return true
+		end
+		confirm = { Button = button, Until = os.clock() + 3 }
+		button.Text = "Sicher? Nochmal tippen"
+		task.delay(3, function()
+			if confirm and confirm.Button == button and os.clock() >= confirm.Until then
+				confirm = nil
+				refreshDetail()
+			end
+		end)
+		return false
+	end
+
+	equipButton.Activated:Connect(function()
+		local item = findItem(selectedKey)
+		if not item or not equipButton.Active then
+			return
+		end
+		playSound("Click")
+		if item.Slot then
+			send("Unequip", nil, item.Slot)
+		else
+			send("Equip", item.Entry)
+		end
+	end)
+	starButton.Activated:Connect(function()
+		local item = findItem(selectedKey)
+		if not item or not starButton.Active then
+			return
+		end
+		send("StarUp", item.Entry, item.Slot)
+		local middle = detailIcon.AbsolutePosition + detailIcon.AbsoluteSize / 2 + GuiService:GetGuiInset()
+		ctx.StarBurst(UDim2.fromOffset(middle.X, middle.Y), GOLD, 14, 120)
+	end)
+	sellButton.Activated:Connect(function()
+		local item = findItem(selectedKey)
+		if not item or not sellButton.Active then
+			return
+		end
+		-- Wertvolles (aktiv, mit Stern oder ab Episch) nur mit Nachfrage
+		local def, _, stars = Config.ParseEntry(item.Entry)
+		local precious = item.Slot ~= nil or stars > 0 or (def ~= nil and Config.RarityRank(def.Rarity) >= Config.RarityRank("Epic"))
+		if precious and not confirmed(sellButton) then
+			return
+		end
+		if item.Slot then
+			send("SellActive", nil, item.Slot)
+		else
+			send("Sell", item.Entry)
+		end
+	end)
+	sellAllButton.Activated:Connect(function()
+		local item = findItem(selectedKey)
+		if not item or item.Slot or not confirmed(sellAllButton) then
+			return
+		end
+		send("SellAll", item.Entry)
+	end)
+	bestButton.Activated:Connect(function()
+		playSound("Click")
+		send("EquipBest")
+	end)
+	allButton.Activated:Connect(function()
+		if not allButton.Active then
+			return
+		end
+		send("StarUpAll")
+	end)
+
+	local function toggleBag()
 		if ctx.Busy() then
 			return
 		end
-		if mergePanel.Visible then
-			mergePanel.Visible = false
+		if bagPanel.Visible then
+			bagPanel.Visible = false
 		else
-			rebuildMerges()
-			showMergePanel()
+			rebuildBag()
+			showBagPanel()
 		end
 		playSound("Click")
 	end
-	mergeButton.Activated:Connect(toggleMerge)
+	bagButton.Activated:Connect(toggleBag)
 
 	task.spawn(function()
 		while true do
-			if mergeBadge.Visible and not mergePanel.Visible then
-				tween(mergeButtonScale, 0.35, { Scale = 1.15 }).Completed:Wait()
-				tween(mergeButtonScale, 0.35, { Scale = 1 }).Completed:Wait()
+			if bagBadge.Visible and not bagPanel.Visible then
+				tween(bagButtonScale, 0.35, { Scale = 1.15 }).Completed:Wait()
+				tween(bagButtonScale, 0.35, { Scale = 1 }).Completed:Wait()
 			else
 				task.wait(0.5)
 			end
@@ -684,15 +1083,15 @@ return function(ctx)
 		end
 		if input.KeyCode == Enum.KeyCode.K then
 			toggleSkills()
-		elseif input.KeyCode == Enum.KeyCode.V then
-			toggleMerge()
+		elseif input.KeyCode == Enum.KeyCode.V or input.KeyCode == Enum.KeyCode.B then
+			toggleBag()
 		end
 	end)
 
 	return {
 		SkillPanel = skillPanel,
-		MergePanel = mergePanel,
+		BagPanel = bagPanel,
 		ToggleSkills = toggleSkills,
-		ToggleMerge = toggleMerge,
+		ToggleBag = toggleBag,
 	}
 end

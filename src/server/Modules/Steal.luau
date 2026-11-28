@@ -178,10 +178,6 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 		Bases.Notify(thief, `🏦 {Config.EntryName(entry)} liegt im Tresor und kann nicht geklaut werden!`, RED)
 		return
 	end
-	if not Bases.FreeSlot(tState) then
-		Bases.Notify(thief, "Deine Base ist voll, du kannst nichts mehr klauen!", RED)
-		return
-	end
 	local _, root = getHumanoid(thief)
 	local model = plot.SlotModels[slot]
 	if not root or not model or (model:GetPivot().Position - root.Position).Magnitude > Config.Steal.MaxStealDistance then
@@ -203,17 +199,6 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 	Bases.Notify(owner, `{thief.DisplayName} klaut deinen {name}! Hau den Dieb mit der Klatsche!`, RED)
 end
 
--- Base voll: Welches Monster müsste für das neue weichen? Gibt den Eintrag des schwächsten
--- zurück (und seinen Platz), aber nur, wenn das neue mehr Geld bringt.
-local function swapFor(state, entry: string): (string?, number?)
-	local slot = Bases.WeakestSlot(state)
-	local old = slot and state.Data.Slots[tostring(slot)]
-	if not old or Config.EntryIncome(old) >= Config.EntryIncome(entry) then
-		return nil, nil
-	end
-	return old, slot
-end
-
 -- Wilde Kreatur (Meteor, Welt) schnappen. onDrop(position) wird aufgerufen, wenn sie wieder runterfällt.
 -- how = Text für die große Ansage bei seltenen Funden (z.B. "im Lava-Krater gefangen")
 function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): boolean
@@ -221,22 +206,9 @@ function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): bo
 	if not tState or carrying[thief] then
 		return false
 	end
-	-- Base voll: Schnappen geht trotzdem, wenn das Neue besser ist als das schwächste Monster.
-	-- Das wird dann zu Hause dafür verkauft.
-	local swap: string? = nil
-	if not Bases.FreeSlot(tState) and not Bases.CanAbsorb(tState, entry) then
-		swap = swapFor(tState, entry)
-		if not swap then
-			Bases.Notify(thief, "Deine Base ist voll und deine Monster sind alle stärker!", RED)
-			return false
-		end
-	end
 	local ok = startCarry(thief, entry, { Source = "wild", OnDrop = onDrop, How = how })
 	if ok then
 		Bases.Notify(thief, `Du hast {Config.EntryName(entry)}! Bring es nach Hause!`, YELLOW)
-		if swap then
-			Bases.Notify(thief, `Deine Base ist voll: Zu Hause wird dafür {Config.EntryName(swap)} verkauft.`, YELLOW)
-		end
 	end
 	return ok
 end
@@ -272,8 +244,6 @@ function Steal.Return(thief: Player, reason: string?)
 
 	if reason == "hit" then
 		Bases.BigText(thief, "ERWISCHT!", RED, "Hit")
-	elseif reason == "full" then
-		Bases.Notify(thief, "Deine Base ist voll, die Beute ist weg.", RED)
 	elseif reason == "died" then
 		Bases.Notify(thief, "Beute verloren!", RED)
 	end
@@ -286,30 +256,13 @@ function Steal.Deliver(thief: Player)
 		return
 	end
 	local entry = info.Entry
-	if not Bases.FreeSlot(tState) and info.Source == "wild" and Bases.CanAbsorb(tState, entry) then
-		-- Base voll, aber eine gleiche steht schon da: verschmelzen oder einlagern
-		cleanup(thief, info)
-		local result, kind = Bases.TryAbsorb(tState, entry)
-		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
-		if result and kind then
-			Bases.Notify(thief, Bases.AbsorbText(tState, result, kind), YELLOW)
+	-- Ist die Base voll, tauscht die Beute mit der schwächsten Kreatur oder landet im Inventar.
+	local function receive()
+		local got = Bases.Receive(tState, entry)
+		local text = Bases.ReceiveText(got, entry)
+		if text then
+			Bases.Notify(thief, text, YELLOW)
 		end
-		Bases.AnnounceIfRare(thief, entry, info.How or "den Meteor geschnappt")
-		return
-	end
-	if not Bases.FreeSlot(tState) then
-		-- Wilde Beute: das schwächste Monster wird verkauft und macht Platz
-		local old, slot = nil, nil
-		if info.Source == "wild" then
-			old, slot = swapFor(tState, entry)
-		end
-		if not old or not slot then
-			Steal.Return(thief, "full")
-			return
-		end
-		local _, price = Bases.TakeForSale(tState, slot)
-		Bases.AddMoney(tState, price)
-		Bases.Notify(thief, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, YELLOW)
 	end
 
 	if info.Source == "base" then
@@ -323,7 +276,7 @@ function Steal.Deliver(thief: Player)
 		oState.Data.Slots[key] = nil
 		info.Plot.Stolen[info.Slot] = nil
 		Bases.RenderSlot(oState, info.Slot)
-		Bases.GiveCreature(tState, entry)
+		receive()
 		Bases.BigText(thief, "GEKLAUT!", GREEN, "Epic")
 		Bases.Notify(thief, `{Config.EntryName(entry)} gehört jetzt dir!`, GREEN)
 		Bases.BigText(info.Owner, "DU WURDEST BEKLAUT!", RED, "Stolen", true)
@@ -343,7 +296,7 @@ function Steal.Deliver(thief: Player)
 		end
 	else
 		cleanup(thief, info)
-		Bases.GiveCreature(tState, entry)
+		receive()
 		Bases.BigText(thief, "GESCHNAPPT!", GREEN, "Epic")
 		Bases.AnnounceIfRare(thief, entry, info.How or "den Meteor geschnappt")
 	end
