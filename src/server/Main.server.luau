@@ -26,7 +26,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "Click", "Clicked" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "TravelTo", "Click", "Clicked" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -208,6 +208,9 @@ remotes.BuySkill.OnServerEvent:Connect(function(player, id)
 	if type(id) == "string" then
 		Skills.Buy(player, id)
 	end
+end)
+remotes.TravelTo.OnServerEvent:Connect(function(player, id)
+	Worlds.TravelTo(player, id)
 end)
 remotes.GoHome.OnServerEvent:Connect(function(player)
 	Worlds.GoHome(player)

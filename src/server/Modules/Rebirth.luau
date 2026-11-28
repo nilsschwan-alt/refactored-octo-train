@@ -80,7 +80,7 @@ function Rebirth.Do(player: Player)
 		task.delay(5.2, function()
 			if player.Parent then
 				Bases.BigText(player, `NEUE WELT: {Config.Upper(newWorld.Name)}!`, newWorld.Color, "Upgrade", false)
-				Bases.Notify(player, `{newWorld.Icon} Das Portal „{newWorld.Name}“ ist jetzt offen. Es steht hinter dem Kisten-Shop.`, newWorld.Color)
+				Bases.Notify(player, `{newWorld.Icon} Das Portal „{newWorld.Name}“ ist jetzt offen. Es steht hinter dem Kisten-Shop, oder du reist direkt mit dem Knopf „Welten“.`, newWorld.Color)
 			end
 		end)
 	end
