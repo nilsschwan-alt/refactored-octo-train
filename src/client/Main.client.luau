@@ -226,6 +226,7 @@ end
 
 -- Geld-Anzeige -----------------------------------------------------------------
 local moneyBox = Instance.new("Frame")
+moneyBox.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
 moneyBox.Size = UDim2.fromOffset(240, 64)
 moneyBox.Position = UDim2.new(0, 12, 0.5, -32)
 moneyBox.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
@@ -257,31 +258,46 @@ local function updateMoney()
 	incomeLabel.Text = `+{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s automatisch`
 end
 
--- Jedes Mal, wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf
-local lastMoney = player:GetAttribute("Money") or 0
-player:GetAttributeChangedSignal("Money"):Connect(function()
-	local now = player:GetAttribute("Money") or 0
-	local gain = now - lastMoney
-	lastMoney = now
-	if gain < 1 then
-		return
-	end
-	local gainLabel = Instance.new("TextLabel")
-	gainLabel.BackgroundTransparency = 1
-	gainLabel.Size = UDim2.fromOffset(140, 26)
-	gainLabel.Position = UDim2.new(1, 8, 0, 6) -- rechts neben der Geld-Anzeige
-	gainLabel.Font = Enum.Font.FredokaOne
-	gainLabel.TextScaled = true
-	gainLabel.TextXAlignment = Enum.TextXAlignment.Left
-	gainLabel.TextColor3 = Color3.fromRGB(130, 255, 130)
-	gainLabel.TextStrokeTransparency = 0.3
-	gainLabel.Text = `+{Config.FormatNumber(gain)} $`
-	gainLabel.Parent = moneyBox
-	tween(gainLabel, 0.9, { Position = gainLabel.Position - UDim2.fromOffset(0, 30), TextTransparency = 1, TextStrokeTransparency = 1 })
-	task.delay(1, function()
-		gainLabel:Destroy()
+-- Wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf.
+-- Schnelle Zuwächse (Klicker!) werden gesammelt und als eine Summe gezeigt.
+do
+	local lastMoney = player:GetAttribute("Money") or 0
+	local pending = 0
+	local waiting = false
+	player:GetAttributeChangedSignal("Money"):Connect(function()
+		local now = player:GetAttribute("Money") or 0
+		local gain = now - lastMoney
+		lastMoney = now
+		if gain < 1 then
+			return
+		end
+		pending += gain
+		if waiting then
+			return
+		end
+		waiting = true
+		task.delay(0.3, function()
+			waiting = false
+			local total = pending
+			pending = 0
+			local gainLabel = Instance.new("TextLabel")
+			gainLabel.BackgroundTransparency = 1
+			gainLabel.Size = UDim2.fromOffset(140, 26)
+			gainLabel.Position = UDim2.new(1, 8, 0, 6) -- rechts neben der Geld-Anzeige
+			gainLabel.Font = Enum.Font.FredokaOne
+			gainLabel.TextScaled = true
+			gainLabel.TextXAlignment = Enum.TextXAlignment.Left
+			gainLabel.TextColor3 = Color3.fromRGB(130, 255, 130)
+			gainLabel.TextStrokeTransparency = 0.3
+			gainLabel.Text = `+{Config.FormatNumber(total)} $`
+			gainLabel.Parent = moneyBox
+			tween(gainLabel, 0.9, { Position = gainLabel.Position - UDim2.fromOffset(0, 30), TextTransparency = 1, TextStrokeTransparency = 1 })
+			task.delay(1, function()
+				gainLabel:Destroy()
+			end)
+		end)
 	end)
-end)
+end
 RunService.RenderStepped:Connect(function(dt)
 	local target = player:GetAttribute("Money") or 0
 	if math.abs(target - shownMoney) < 1 then
@@ -735,6 +751,7 @@ local SHOP_W, SHOP_H = 900, 560
 local SHOP_DARK = Color3.fromRGB(26, 22, 52)
 local SHOP_GREEN = Color3.fromRGB(60, 200, 90)
 local shop = Instance.new("Frame")
+shop.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
 shop.AnchorPoint = Vector2.new(0.5, 0.5)
 shop.Size = UDim2.fromOffset(SHOP_W, SHOP_H)
 shop.Position = UDim2.fromScale(0.5, 0.5)
@@ -3339,6 +3356,7 @@ end)
 
 -- Aufgaben (rechts) ---------------------------------------------------------------
 local questBox = Instance.new("Frame")
+questBox.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
 questBox.Size = UDim2.fromOffset(300, 36)
 questBox.Position = UDim2.new(1, -312, 0, 112)
 questBox.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
@@ -3481,6 +3499,7 @@ label({
 })
 
 local rebirthPanel = Instance.new("Frame")
+rebirthPanel.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
 rebirthPanel.Size = UDim2.fromOffset(620, 364)
 rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -182)
 rebirthPanel.BackgroundColor3 = Color3.fromRGB(30, 25, 45)

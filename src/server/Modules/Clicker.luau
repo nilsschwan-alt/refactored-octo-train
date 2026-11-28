@@ -16,7 +16,26 @@ local BURST = 4 -- so viele Klicks dürfen auf einmal ankommen (Netz-Ruckler)
 local GOLD = Color3.fromRGB(255, 215, 60)
 
 local remotes
-local clickers = {} -- [player] = { Last, Combo, Budget, BudgetAt }
+local clickers = {} -- [player] = { Last, Combo, Budget, BudgetAt, Rest }
+
+-- Merkzettel je Spieler (Combo, Tempo-Bremse, Rest hinter dem Komma)
+local function entry(player: Player)
+	local c = clickers[player]
+	if not c then
+		c = { Last = 0, Combo = 0, Budget = BURST, BudgetAt = os.clock(), Rest = 0 }
+		clickers[player] = c
+	end
+	return c
+end
+
+-- Macht aus einem krummen Betrag ganze Dollar. Was hinter dem Komma steht, geht nicht
+-- verloren, sondern zählt beim nächsten Klick mit (so wirkt "Klick-Kraft" auch bei 1 $).
+local function whole(c, value: number): number
+	local total = value + c.Rest
+	local dollars = math.floor(total)
+	c.Rest = total - dollars
+	return dollars
+end
 
 -- Wert eines einzelnen Klicks ohne Combo und Volltreffer
 function Clicker.BaseValue(state): number
@@ -48,11 +67,7 @@ function Clicker.Click(player: Player)
 		return
 	end
 	local now = os.clock()
-	local c = clickers[player]
-	if not c then
-		c = { Last = 0, Combo = 0, Budget = BURST, BudgetAt = now }
-		clickers[player] = c
-	end
+	local c = entry(player)
 	-- Tempo-Bremse: Das Guthaben füllt sich mit MaxPerSecond wieder auf
 	c.Budget = math.min(BURST, c.Budget + (now - c.BudgetAt) * C.MaxPerSecond)
 	c.BudgetAt = now
@@ -78,7 +93,7 @@ function Clicker.Click(player: Player)
 		kind = "crit"
 		value *= C.CritFactor + Bases.Skill(state, "CritPower")
 	end
-	value = math.max(C.MinValue, math.floor(value))
+	value = math.max(C.MinValue, whole(c, value))
 
 	Bases.AddMoney(state, value)
 	Bases.Track(state, "Clicks", 1)
@@ -103,8 +118,8 @@ function Clicker.Start(remoteFolder: Instance)
 			task.wait(1)
 			for player, state in Bases.States do
 				local perSecond = Bases.Skill(state, "AutoClick")
-				if perSecond > 0 then
-					local value = math.floor(Clicker.BaseValue(state) * perSecond)
+				if perSecond > 0 and player.Parent then
+					local value = whole(entry(player), Clicker.BaseValue(state) * perSecond)
 					if value > 0 then
 						Bases.AddMoney(state, value)
 						remotes.Clicked:FireClient(player, value, "auto", 0, 0, 1)

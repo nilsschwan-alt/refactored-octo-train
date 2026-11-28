@@ -72,6 +72,7 @@ return function(ctx)
 		panel.Size = UDim2.fromOffset(width, height)
 		panel.BackgroundColor3 = Color3.fromRGB(26, 23, 40)
 		panel.Visible = false
+		panel.Active = true -- fängt Klicks ab, damit im Fenster kein Klick-Geld entsteht
 		panel.Parent = gui
 		corner(panel, 14)
 		stroke(panel, color, 3)
