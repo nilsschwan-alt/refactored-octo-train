@@ -292,6 +292,10 @@ return function(ctx)
 		go.Text = "Reisen"
 		go.Parent = row
 		corner(go, 10)
+		local goPad = Instance.new("UIPadding") -- Schrift nicht bis an den Rand
+		goPad.PaddingTop, goPad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6)
+		goPad.PaddingLeft, goPad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
+		goPad.Parent = go
 		go.Activated:Connect(function()
 			if world and not Config.WorldUnlocked(world, rebirths()) then
 				playSound("Tick", 0.6)

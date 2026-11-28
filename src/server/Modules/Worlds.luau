@@ -134,7 +134,7 @@ end
 -- (id = Welt-Id oder "Hub"). Nur ohne Beute, mit kurzer Pause zwischen zwei Reisen.
 function Worlds.TravelTo(player: Player, id: any)
 	local state = Bases.GetState(player)
-	if not state or type(id) ~= "string" or traveling[player] then
+	if not state or type(id) ~= "string" or traveling[player] or not hubCenter then
 		return
 	end
 	local world = Config.WorldById[id]
