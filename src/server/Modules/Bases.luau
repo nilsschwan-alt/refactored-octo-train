@@ -1,6 +1,6 @@
 -- Verwaltet die Bases: Spieler zuweisen, Kreaturen anzeigen, Geld (kommt automatisch),
--- Verkaufen, Upgrades und das Base-Schloss.
--- Kreaturen stehen im Spielstand als Eintrag: "Blubbo" oder "Blubbo|Gold".
+-- Verkaufen, Verschmelzen (Sterne), Upgrades und das Base-Schloss.
+-- Kreaturen stehen im Spielstand als Eintrag: "Blubbo", "Blubbo|Gold" oder mit Sternen "Blubbo|Gold|2".
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -19,6 +19,7 @@ Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
 Bases.Track = function(_state, _kind: string, _amount: number) end
 local remotes
 local lastClick = {} -- [player] = os.clock()
+local mergePending = {} -- [state] = true, wenn die Verschmelzen-Liste an den Client raus muss
 
 local RED = Color3.fromRGB(255, 90, 90)
 
@@ -73,6 +74,24 @@ function Bases.Level(state)
 	return Config.BaseLevels[state.Data.BaseLevel]
 end
 
+-- Wirkung einer Fähigkeit aus dem Skill-Baum (Stufe x Wirkung pro Stufe, 0 = nicht gelernt)
+function Bases.Skill(state, id: string): number
+	return Config.SkillValue(state.Data.Skills, id)
+end
+
+-- Verkaufspreis einer Kreatur für diesen Spieler (mit der Fähigkeit "Händler")
+function Bases.SellPrice(state, entry: string): number
+	return math.floor(Config.EntryValue(entry) * Config.SellFactor * (1 + Bases.Skill(state, "SellBonus")))
+end
+
+-- So lange hält das Schloss / so lange ist danach Pause (mit den Schloss-Fähigkeiten)
+function Bases.LockTime(state): number
+	return math.floor(Bases.Level(state).LockTime * (1 + Bases.Skill(state, "LockTime")) + 0.5)
+end
+function Bases.LockCooldown(state): number
+	return math.max(10, Config.LockCooldown - Bases.Skill(state, "LockCooldown"))
+end
+
 -- Geld ---------------------------------------------------------------------------
 -- source = "quest": zählt nicht für die "Verdiene X $"-Aufgabe
 function Bases.AddMoney(state, amount: number, source: string?)
@@ -99,9 +118,10 @@ function Bases.Income(state): number
 	return total * Bases.Multiplier(state)
 end
 
--- Alle Boni zusammen: Base-Stufe x Wiedergeburt x Goldrausch
+-- Alle Boni zusammen: Base-Stufe x Wiedergeburt x Skill-Baum x Goldrausch
 function Bases.Multiplier(state): number
-	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * Bases.IncomeMultiplier
+	local skillBonus = 1 + Bases.Skill(state, "Income") + Bases.Skill(state, "GoldDonkey")
+	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * skillBonus * Bases.IncomeMultiplier
 end
 
 -- Schwebende "+X $"-Zahl an einer Stelle in der Welt (nur für diesen Spieler)
@@ -111,15 +131,15 @@ function Bases.Pop(player: Player, amount: number, position: Vector3, model: Ins
 	end
 end
 
--- Attribute für die Anzeige im Client (Rebirth-Menü, Shop-Chancen)
+-- Attribute für die Anzeige im Client (Rebirth-Menü, Skill-Baum, Shop-Chancen)
 function Bases.RefreshStats(state)
 	local player = state.Player
 	local data = state.Data
 	player:SetAttribute("Rebirths", data.Rebirths)
 	player:SetAttribute("Tokens", data.Tokens)
 	player:SetAttribute("BaseLevel", data.BaseLevel)
-	for id in Config.Rebirth.Upgrades do
-		player:SetAttribute("Up_" .. id, data.Upgrades[id] or 0)
+	for _, skill in Config.Skills.List do
+		player:SetAttribute("Sk_" .. skill.Id, data.Skills[skill.Id] or 0)
 	end
 	if state.RebirthValue then
 		state.RebirthValue.Value = data.Rebirths
@@ -145,7 +165,7 @@ function Bases.Click(player: Player, plot, slot: number)
 	if not entry or not model then
 		return
 	end
-	local power = 1 + (state.Data.Upgrades.ClickPower or 0) * Config.Rebirth.Upgrades.ClickPower.PerLevel
+	local power = 1 + Bases.Skill(state, "ClickPower")
 	local amount = math.max(
 		Config.Click.MinValue,
 		math.floor(Config.EntryIncome(entry) * Config.Click.IncomeSeconds * Bases.Multiplier(state) * power)
@@ -192,6 +212,7 @@ end
 
 -- Zeigt die Kreatur auf einem Platz an (oder entfernt sie, wenn der Platz leer/geklaut ist)
 function Bases.RenderSlot(state, slot: number)
+	Bases.QueueMerges(state)
 	local plot = state.Plot
 	local old = plot.SlotModels[slot]
 	if old then
@@ -203,19 +224,19 @@ function Bases.RenderSlot(state, slot: number)
 		colorRing(plot, slot, nil)
 		return
 	end
-	local def, mutation = Config.ParseEntry(entry)
+	local def, mutation, stars = Config.ParseEntry(entry)
 	if not def then
 		colorRing(plot, slot, nil)
 		return
 	end
 	colorRing(plot, slot, Config.Rarities[def.Rarity].Color)
-	local model = CreatureModels.Build(def, { Label = true, Mutation = mutation })
+	local model = CreatureModels.Build(def, { Label = true, Mutation = mutation, Stars = stars })
 	model:PivotTo(Map.SlotCFrame(plot, slot))
 	local body = model.PrimaryPart
 	local rarity = Config.Rarities[def.Rarity]
 	local name = Config.EntryName(entry)
 	addPrompt(body, "Steal", "Klauen", name, rarity.StealTime, plot, slot)
-	local sellPrice = math.floor(Config.EntryValue(entry) * Config.SellFactor)
+	local sellPrice = Bases.SellPrice(state, entry)
 	addPrompt(body, "Sell", `Verkaufen ({Config.FormatNumber(sellPrice)} $)`, name, 0.6, plot, slot)
 	-- Anklicken = Geld (nur der Besitzer bekommt etwas)
 	local clicker = Instance.new("ClickDetector")
@@ -253,6 +274,204 @@ function Bases.GiveCreature(state, entry: string): number?
 	return slot
 end
 
+-- Verschmelzen (Sterne) -------------------------------------------------------------
+-- Welche Kreaturen kann man gerade verschmelzen? Gibt { [eintrag] = { platz, platz, ... } } zurück
+-- (nur Einträge, von denen genug gleiche in der Base stehen und die noch Sterne bekommen können).
+function Bases.MergeGroups(state)
+	local groups = {}
+	for slot = 1, Bases.Level(state).Slots do
+		local entry = state.Data.Slots[tostring(slot)]
+		if entry and not state.Plot.Stolen[slot] then
+			groups[entry] = groups[entry] or {}
+			table.insert(groups[entry], slot)
+		end
+	end
+	for entry, slots in groups do
+		if #slots < Config.Stars.Need or not Config.MergeResult(entry) then
+			groups[entry] = nil
+		end
+	end
+	return groups
+end
+
+-- Schickt die Liste der möglichen Verschmelzungen an den Client (gebündelt)
+function Bases.QueueMerges(state)
+	if mergePending[state] then
+		return
+	end
+	mergePending[state] = true
+	task.delay(0.25, function()
+		mergePending[state] = nil
+		if Bases.States[state.Player] ~= state then
+			return
+		end
+		local list = {}
+		for entry, slots in Bases.MergeGroups(state) do
+			table.insert(list, { Entry = entry, Count = #slots, Result = Config.MergeResult(entry) })
+		end
+		table.sort(list, function(a, b)
+			return Config.EntryIncome(a.Result) > Config.EntryIncome(b.Result)
+		end)
+		remotes.Merges:FireClient(state.Player, list)
+	end)
+end
+
+-- Kreatur fliegt zum Ziel und schrumpft dabei weg
+local function flyInto(model: Model, target: Vector3)
+	task.spawn(function()
+		local from = model:GetPivot()
+		local base = model:GetScale()
+		local duration = 0.38
+		local start = os.clock()
+		while model.Parent do
+			local t = math.min(1, (os.clock() - start) / duration)
+			local eased = t * t
+			local pos = from.Position:Lerp(target, eased) + Vector3.new(0, math.sin(t * math.pi) * 5, 0)
+			pcall(function()
+				model:PivotTo(CFrame.new(pos) * from.Rotation * CFrame.Angles(0, t * 8, 0))
+				model:ScaleTo(base * math.max(0.08, 1 - eased * 0.9))
+			end)
+			if t >= 1 then
+				break
+			end
+			task.wait()
+		end
+		model:Destroy()
+	end)
+end
+
+-- Macht aus den Kreaturen auf diesen Plätzen eine mit mehr Sternen. Sie landet auf dem
+-- ersten Platz. Gibt den neuen Eintrag zurück.
+local function mergeSlots(state, entry: string, slots: { number }, quiet: boolean?): string
+	local plot = state.Plot
+	local player = state.Player
+	local extra = 0
+	local _, _, stars = Config.ParseEntry(entry)
+	if stars + 1 < Config.Stars.Max and math.random() < Bases.Skill(state, "StarLuck") then
+		extra = 1 -- Sternen-Glück: gleich zwei Sterne
+	end
+	local result = Config.MergeResult(entry, extra) :: string
+	local targetSlot = slots[1]
+	local target = Map.SlotCFrame(plot, targetSlot).Position + Vector3.new(0, 2, 0)
+
+	-- Modelle der Zutaten fliegen zusammen
+	for i, slot in slots do
+		local model = plot.SlotModels[slot]
+		state.Data.Slots[tostring(slot)] = nil
+		if model then
+			for _, d in model:GetDescendants() do
+				if d:IsA("ProximityPrompt") or d:IsA("ClickDetector") or d:IsA("BillboardGui") then
+					d:Destroy()
+				end
+			end
+			if quiet then
+				plot.SlotModels[slot] = nil
+				model:Destroy()
+			elseif i > 1 then
+				plot.SlotModels[slot] = nil
+				flyInto(model, target)
+			end
+			-- die Kreatur auf dem Zielplatz bleibt stehen, bis die neue erscheint
+		end
+	end
+	state.Data.Slots[tostring(targetSlot)] = result
+	for i, slot in slots do
+		if i > 1 then
+			Bases.RenderSlot(state, slot)
+		end
+	end
+
+	local def, _, newStars = Config.ParseEntry(result)
+	local color = Color3.fromRGB(255, 215, 70)
+	local function appear()
+		if Bases.States[player] ~= state or state.Data.Slots[tostring(targetSlot)] ~= result then
+			return
+		end
+		Bases.RenderSlot(state, targetSlot)
+		local model = plot.SlotModels[targetSlot]
+		if model then
+			FX.PopIn(model)
+			FX.Burst(target, color, 40 + newStars * 15)
+			FX.Ring(target - Vector3.new(0, 1.7, 0), color, 10 + newStars * 3)
+			if def then
+				FX.Ring(target - Vector3.new(0, 1.7, 0), Config.Rarities[def.Rarity].Color, 6 + newStars * 2)
+			end
+		end
+	end
+	if quiet then
+		appear()
+	else
+		task.delay(0.4, appear)
+		local name = Config.EntryName(result)
+		if extra > 0 then
+			Bases.BigText(player, `STERNEN-GLÜCK! {Config.StarText(newStars)}`, color, "MergeBig", true)
+		else
+			Bases.BigText(player, `VERSCHMOLZEN! {Config.StarText(newStars)}`, color, if newStars >= 3 then "MergeBig" else "Merge")
+		end
+		Bases.Notify(player, `{name} macht jetzt +{Config.FormatNumber(Config.EntryIncome(result))} $/s.`, color)
+		if newStars >= Config.Stars.AnnounceFrom then
+			Bases.Announce(`{player.DisplayName} hat verschmolzen: {name}!`, color)
+		end
+	end
+	Bases.RefreshPlot(plot)
+	return result
+end
+
+-- Spieler drückt "Verschmelzen" für einen Eintrag
+function Bases.Merge(player: Player, entry: string)
+	local state = Bases.States[player]
+	if not state then
+		return
+	end
+	local slots = Bases.MergeGroups(state)[entry]
+	if not slots then
+		Bases.Notify(player, `Dafür brauchst du {Config.Stars.Need} gleiche Kreaturen in deiner Base.`, RED)
+		Bases.QueueMerges(state)
+		return
+	end
+	table.sort(slots)
+	local use = {}
+	for i = 1, Config.Stars.Need do
+		use[i] = slots[i]
+	end
+	mergeSlots(state, entry, use)
+end
+
+-- Base voll und eine neue Kreatur kommt: Stehen schon genug gleiche da, wird sofort
+-- verschmolzen statt verkauft. Gibt den neuen Eintrag zurück oder nil.
+function Bases.TryAbsorb(state, entry: string): string?
+	if not Config.MergeResult(entry) then
+		return nil
+	end
+	local same = {}
+	for slot = 1, Bases.Level(state).Slots do
+		if state.Data.Slots[tostring(slot)] == entry and not state.Plot.Stolen[slot] then
+			table.insert(same, slot)
+		end
+	end
+	if #same < Config.Stars.Need - 1 then
+		return nil
+	end
+	local use = {}
+	for i = 1, Config.Stars.Need - 1 do
+		use[i] = same[i]
+	end
+	return mergeSlots(state, entry, use, true)
+end
+
+-- Der Platz mit der wertvollsten Kreatur (für den Tresor)
+function Bases.BestSlot(state): number?
+	local best, bestIncome = nil, -1
+	for slotKey, entry in state.Data.Slots do
+		local income = Config.EntryIncome(entry)
+		local slot = tonumber(slotKey)
+		if slot and (income > bestIncome or (income == bestIncome and best and slot < best)) then
+			best, bestIncome = slot, income
+		end
+	end
+	return best
+end
+
 -- Schild, Schloss-Anzeige, Upgrade-Knopf aktualisieren
 function Bases.RefreshPlot(plot)
 	local owner = plot.Owner
@@ -287,7 +506,7 @@ function Bases.RefreshPlot(plot)
 		labels[3].TextColor3 = if Bases.LocksDisabled then RED else Color3.fromRGB(150, 255, 150)
 		plot.Laser.Transparency = 1
 		local wait = math.ceil(state.LockReadyAt - now)
-		plot.LockPrompt.ActionText = if wait > 0 then `Bereit in {wait}s` else `Abschließen ({levelInfo.LockTime}s)`
+		plot.LockPrompt.ActionText = if wait > 0 then `Bereit in {wait}s` else `Abschließen ({Bases.LockTime(state)}s)`
 	end
 	plot.LockPrompt:SetAttribute("Active", true)
 	plot.Model:SetAttribute("Locked", state.Locked)
@@ -371,6 +590,7 @@ function Bases.RemovePlayer(player: Player)
 	local plot = state.Plot
 	Bases.States[player] = nil
 	lastClick[player] = nil
+	mergePending[state] = nil
 	for slot, model in plot.SlotModels do
 		model:Destroy()
 		plot.SlotModels[slot] = nil
@@ -408,7 +628,7 @@ function Bases.Sell(player: Player, plotIndex: number, slot: number)
 	end
 	state.Data.Slots[tostring(slot)] = nil
 	Bases.RenderSlot(state, slot)
-	local price = math.floor(Config.EntryValue(entry) * Config.SellFactor)
+	local price = Bases.SellPrice(state, entry)
 	Bases.AddMoney(state, price)
 	remotes.MoneyPopup:FireClient(player, price)
 	Bases.Notify(player, `{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
@@ -459,10 +679,10 @@ function Bases.Lock(player: Player, plotIndex: number)
 		Bases.Notify(player, `Schloss lädt noch ({math.ceil(state.LockReadyAt - now)}s).`, Color3.fromRGB(255, 200, 90))
 		return
 	end
-	local lockTime = Bases.Level(state).LockTime
+	local lockTime = Bases.LockTime(state)
 	state.Locked = true
 	state.LockEnd = now + lockTime
-	state.LockReadyAt = state.LockEnd + Config.LockCooldown
+	state.LockReadyAt = state.LockEnd + Bases.LockCooldown(state)
 	Bases.RefreshPlot(state.Plot)
 	Bases.Notify(player, `Base für {lockTime} Sekunden abgeschlossen!`, Color3.fromRGB(255, 120, 120))
 end

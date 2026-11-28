@@ -17,6 +17,7 @@ local Events = require(Modules.Events)
 local Coins = require(Modules.Coins)
 local Quests = require(Modules.Quests)
 local Rebirth = require(Modules.Rebirth)
+local Skills = require(Modules.Skills)
 local Leaderboard = require(Modules.Leaderboard)
 
 print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
@@ -24,7 +25,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuyUpgrade" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -191,14 +192,29 @@ remotes.BuyPack.OnServerEvent:Connect(function(player, packId, count)
 	end
 end)
 
--- Wiedergeburt und Rebirth-Shop
+-- Wiedergeburt, Skill-Baum und Verschmelzen
 remotes.Rebirth.OnServerEvent:Connect(function(player)
 	Rebirth.Do(player)
 end)
-remotes.BuyUpgrade.OnServerEvent:Connect(function(player, id)
+remotes.BuySkill.OnServerEvent:Connect(function(player, id)
 	if type(id) == "string" then
-		Rebirth.BuyUpgrade(player, id)
+		Skills.Buy(player, id)
 	end
+end)
+local lastMerge = {} -- [player] = os.clock(), damit niemand den Knopf hämmert
+remotes.Merge.OnServerEvent:Connect(function(player, entry)
+	if type(entry) ~= "string" or #entry > 80 then
+		return
+	end
+	local now = os.clock()
+	if lastMerge[player] and now - lastMerge[player] < 0.5 then
+		return
+	end
+	lastMerge[player] = now
+	Bases.Merge(player, entry)
+end)
+Players.PlayerRemoving:Connect(function(player)
+	lastMerge[player] = nil
 end)
 
 -- Schleifen ------------------------------------------------------------------

@@ -30,13 +30,14 @@ function Data.Default()
 	return {
 		Money = Config.StartMoney,
 		BaseLevel = 1,
-		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", ...
+		Slots = {}, -- ["1"] = "Blubbo", ["2"] = "Funkelfuchs|Gold", mit Sternen "Blubbo||2"
 		Cash = 0, -- alt: frühere Kasse. Reste werden beim Join aufs Konto gebucht
 		Pity = 0, -- Packs seit dem letzten Legendär+
 		LastDaily = 0, -- Tag (seit 1970) des letzten Tagesbonus
 		Rebirths = 0, -- Wiedergeburten
-		Tokens = 0, -- für den Rebirth-Shop
-		Upgrades = { Luck = 0, Magnet = 0, ClickPower = 0 },
+		Tokens = 0, -- für den Skill-Baum
+		Skills = {}, -- { Income = 2, Luck = 1, ... } gelernte Stufen im Skill-Baum
+		QuestCount = 0, -- geschaffte Aufgaben (jede x-te gibt Tokens)
 		TotalEarned = 0, -- insgesamt verdient (für die Bestenliste)
 		Quests = {}, -- { { Kind = "Coins", Goal = 20, Progress = 3, Reward = 500 }, ... }
 	}
@@ -63,18 +64,22 @@ local function sanitize(raw)
 	if type(raw.BaseLevel) == "number" then
 		data.BaseLevel = math.clamp(math.floor(raw.BaseLevel), 1, #Config.BaseLevels)
 	end
-	for _, field in { "Cash", "Pity", "LastDaily", "Rebirths", "Tokens", "TotalEarned" } do
+	for _, field in { "Cash", "Pity", "LastDaily", "Rebirths", "Tokens", "TotalEarned", "QuestCount" } do
 		if type(raw[field]) == "number" and raw[field] == raw[field] then
 			data[field] = math.max(0, raw[field])
 		end
 	end
 	data.Rebirths = math.floor(data.Rebirths)
 	data.Tokens = math.floor(data.Tokens)
-	if type(raw.Upgrades) == "table" then
-		for id, info in Config.Rebirth.Upgrades do
-			local level = raw.Upgrades[id]
+	data.QuestCount = math.floor(data.QuestCount)
+	-- Alte Spielstände hatten "Upgrades" (Glück, Münz-Magnet, Klick-Kraft): Die Stufen
+	-- gelten im Skill-Baum weiter.
+	local rawSkills = if type(raw.Skills) == "table" then raw.Skills elseif type(raw.Upgrades) == "table" then raw.Upgrades else nil
+	if rawSkills then
+		for _, skill in Config.Skills.List do
+			local level = rawSkills[skill.Id]
 			if type(level) == "number" and level == level then
-				data.Upgrades[id] = math.clamp(math.floor(level), 0, info.Max)
+				data.Skills[skill.Id] = math.clamp(math.floor(level), 0, skill.Max)
 			end
 		end
 	end
@@ -144,7 +149,8 @@ function Data.Save(userId: number, data): boolean
 		LastDaily = data.LastDaily,
 		Rebirths = data.Rebirths,
 		Tokens = data.Tokens,
-		Upgrades = table.clone(data.Upgrades),
+		Skills = table.clone(data.Skills),
+		QuestCount = data.QuestCount,
 		TotalEarned = math.floor(data.TotalEarned),
 		Quests = {},
 	}

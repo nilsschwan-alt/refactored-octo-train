@@ -22,8 +22,9 @@ end
 
 -- Eine Kreatur würfeln (mit Pity und Glück). Gibt (eintrag, warPity) zurück.
 local function roll(state, pack)
-	local weights = Config.PackWeights(pack, state.Data.Upgrades.Luck)
-	local pity = state.Data.Pity + 1 >= Config.PityThreshold
+	local skills = state.Data.Skills
+	local weights = Config.PackWeights(pack, skills)
+	local pity = state.Data.Pity + 1 >= Config.PityFor(skills)
 	if pity then
 		local filtered = {}
 		local total = 0
@@ -37,7 +38,7 @@ local function roll(state, pack)
 	end
 	local rarity = Config.RollWeighted(weights)
 	local def = Config.RandomCreatureOfRarity(rarity, pack)
-	local mutation = Config.RollWeighted(Config.MutationWeights)
+	local mutation = Config.RollWeighted(Config.MutationWeightsFor(skills))
 	if Config.RarityRank(rarity) >= LEGENDARY then
 		state.Data.Pity = 0
 	else
@@ -83,14 +84,33 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	end
 	Bases.AddMoney(state, -cost)
 
+	-- Fähigkeit "Gratis-Kiste": jede Kiste hat eine kleine Chance, nichts zu kosten
+	local freeChance = Bases.Skill(state, "Refund")
+	local freeCount = 0
+	if freeChance > 0 then
+		for _ = 1, count do
+			if math.random() < freeChance then
+				freeCount += 1
+			end
+		end
+	end
+	local refund = math.floor(cost / count * freeCount)
+
 	local entries, pities = {}, {}
 	local soldCount, soldMoney = 0, 0
+	local merged = {} -- Namen der Kreaturen, die bei voller Base automatisch verschmolzen wurden
 	for i = 1, count do
 		local entry, pity = roll(state, pack)
 		entries[i] = entry
 		pities[i] = pity
 		if not Bases.FreeSlot(state) then
-			-- Base voll: ist die neue besser als die schlechteste? Dann tauschen.
+			-- Base voll. Stehen schon genug gleiche da? Dann verschmelzen statt verkaufen.
+			local absorbed = Bases.TryAbsorb(state, entry)
+			if absorbed then
+				table.insert(merged, Config.EntryName(absorbed))
+				continue
+			end
+			-- Sonst: ist die neue besser als die schlechteste? Dann tauschen.
 			local slot, worstIncome = worstSlot(state)
 			local sellEntry = entry
 			if slot and Config.EntryIncome(entry) > worstIncome then
@@ -98,7 +118,7 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 				state.Data.Slots[tostring(slot)] = nil
 				Bases.RenderSlot(state, slot)
 			end
-			local price = math.floor(Config.EntryValue(sellEntry) * Config.SellFactor)
+			local price = Bases.SellPrice(state, sellEntry)
 			soldCount += 1
 			soldMoney += price
 			if sellEntry ~= entry then
@@ -115,6 +135,20 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	Bases.Track(state, "OpenPacks", count)
 
 	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney)
+	local showDelay = if count > 1 then 6 else 4 -- erst nach der Öffnungs-Animation
+	if refund > 0 then
+		Bases.AddMoney(state, refund, "quest")
+		task.delay(showDelay, function()
+			if player.Parent then
+				Bases.BigText(player, `GRATIS-KISTE! +{Config.FormatNumber(refund)} $ zurück`, Color3.fromRGB(90, 220, 110), "Quest")
+			end
+		end)
+	end
+	if #merged > 0 then
+		task.delay(showDelay + 0.5, function()
+			Bases.Notify(player, `✨ Base voll: automatisch verschmolzen zu {table.concat(merged, ", ")}.`, Color3.fromRGB(255, 215, 70))
+		end)
+	end
 	if soldCount > 0 then
 		task.delay(if count > 1 then 6 else 4, function()
 			Bases.Notify(
