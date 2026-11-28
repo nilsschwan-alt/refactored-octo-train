@@ -189,11 +189,11 @@ return function(ctx)
 		local r = Instance.new("Frame")
 		r.AnchorPoint = CENTER
 		r.Position = UDim2.fromOffset(position.X, position.Y)
-		r.Size = UDim2.fromOffset(14, 14)
+		r.Size = UDim2.fromOffset(18, 18)
 		r.BackgroundTransparency = 1
 		r.Parent = fx
 		corner(r, 999)
-		local s = stroke(r, color, 4)
+		local s = stroke(r, color, 5)
 		tween(r, 0.3, { Size = UDim2.fromOffset(size, size) }, Enum.EasingStyle.Quad)
 		tween(s, 0.3, { Transparency = 1, Thickness = 1 }, Enum.EasingStyle.Quad)
 		task.delay(0.32, function()
@@ -244,7 +244,7 @@ return function(ctx)
 		end
 		Remotes.Click:FireServer()
 		-- sofort etwas zeigen, die Zahl kommt gleich vom Server
-		ring(position, STEP_COLORS[math.min(comboStep, #STEP_COLORS)], 60 + comboStep * 12)
+		ring(position, STEP_COLORS[math.min(comboStep, #STEP_COLORS)], 84 + comboStep * 16)
 		playSound("ClickTick", 1 + math.min(combo, 120) / 120 * 0.6)
 	end
 
@@ -272,7 +272,7 @@ return function(ctx)
 		if kind == "auto" then
 			-- Auto-Klicker: kleine Zahl neben der Geld-Anzeige
 			local view = fx.AbsoluteSize
-			floatText(Vector2.new(330, view.Y / 2 + 16), `🤖 {amount}`, Color3.fromRGB(150, 220, 255), 22, 26, 0.9)
+			floatText(Vector2.new(330, view.Y / 2 + 36), `🤖 {amount}`, Color3.fromRGB(150, 220, 255), 22, 18, 0.9)
 			return
 		end
 		showCombo(count, step, mult)
@@ -295,7 +295,7 @@ return function(ctx)
 			end
 		else
 			local color = if step > 0 then STEP_COLORS[math.min(step, #STEP_COLORS)] else GREEN
-			floatText(at, amount, color, 24 + math.min(step, 4) * 2, 70, 0.8)
+			floatText(at, amount, color, 30 + math.min(step, 4) * 3, 80, 0.8)
 		end
 	end)
 end
