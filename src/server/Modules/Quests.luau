@@ -9,6 +9,8 @@ local Bases = require(script.Parent.Bases)
 local Quests = {}
 
 local Q = Config.Quests
+local S = Config.Skills
+local BLUE = Color3.fromRGB(120, 220, 255)
 local remotes
 local pending = {} -- [state] = true, wenn ein Update an den Client raus muss
 
@@ -56,6 +58,11 @@ local function newQuest(state, avoid)
 	return { Kind = kind, Goal = goal, Progress = 0, Reward = reward }
 end
 
+-- Belohnung mit der Fähigkeit "Quest-Profi"
+local function payout(state, quest): number
+	return math.floor(quest.Reward * (1 + Bases.Skill(state, "QuestBonus")))
+end
+
 -- Schickt die Aufgaben an den Client (gebündelt, höchstens 5x pro Sekunde)
 function Quests.Send(state)
 	if pending[state] then
@@ -73,10 +80,12 @@ function Quests.Send(state)
 				Text = describe(quest),
 				Progress = math.floor(math.min(quest.Progress, quest.Goal)),
 				Goal = quest.Goal,
-				Reward = quest.Reward,
+				Reward = payout(state, quest),
 			})
 		end
-		remotes.Quests:FireClient(state.Player, list)
+		-- dritter Wert: in so vielen Aufgaben gibt es das nächste Token
+		local tokenIn = S.QuestsPerToken - (state.Data.QuestCount % S.QuestsPerToken)
+		remotes.Quests:FireClient(state.Player, list, tokenIn)
 	end)
 end
 
@@ -116,10 +125,19 @@ function Quests.Add(state, kind: string, amount: number)
 	for n = #finished, 1, -1 do
 		local quest = table.remove(state.Data.Quests, finished[n])
 		local player = state.Player
-		Bases.AddMoney(state, quest.Reward, "quest")
-		Bases.BigText(player, `AUFGABE GESCHAFFT! +{Config.FormatNumber(quest.Reward)} $`, Color3.fromRGB(120, 255, 160), "Quest")
-		remotes.MoneyPopup:FireClient(player, quest.Reward)
+		local reward = payout(state, quest)
+		Bases.AddMoney(state, reward, "quest")
+		Bases.BigText(player, `AUFGABE GESCHAFFT! +{Config.FormatNumber(reward)} $`, Color3.fromRGB(120, 255, 160), "Quest")
+		remotes.MoneyPopup:FireClient(player, reward)
 		Bases.Notify(player, `✅ {describe(quest)}`, Color3.fromRGB(120, 255, 160))
+		-- jede x-te Aufgabe gibt Tokens für den Skill-Baum
+		local data = state.Data
+		data.QuestCount += 1
+		if data.QuestCount % S.QuestsPerToken == 0 then
+			data.Tokens += S.TokensPerQuest
+			Bases.RefreshStats(state)
+			Bases.Notify(player, `💠 +{S.TokensPerQuest} Token für den Skill-Baum!`, BLUE)
+		end
 	end
 	if #finished > 0 then
 		Quests.Fill(state)

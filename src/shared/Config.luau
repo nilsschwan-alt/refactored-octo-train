@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.9.1"
+Config.Version = "0.10.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -192,6 +192,127 @@ Config.MutationWeights = {
 	Regenbogen = 1,
 }
 
+-- Sterne (Verschmelzen) ----------------------------------------------------------
+-- 3 gleiche Kreaturen (gleiche Art, gleiche Mutation, gleich viele Sterne) werden zu einer
+-- mit einem Stern mehr. Multipliers = so viel mehr Geld macht sie mit 1, 2, 3, 4, 5 Sternen.
+Config.Stars = {
+	Max = 5,
+	Need = 3, -- so viele gleiche braucht man für einen Stern mehr
+	-- Einkommen mit 1 bis 5 Sternen (mal so viel wie ohne Stern). Jede Stufe ist etwas mehr
+	-- als das Dreifache der vorigen, damit sich Verschmelzen immer lohnt.
+	Multipliers = { 3.2, 10, 32, 100, 320 },
+	SizeBonus = 0.07, -- pro Stern wird die Kreatur so viel größer
+	AnnounceFrom = 3, -- ab so vielen Sternen erfährt es der ganze Server
+}
+function Config.StarMultiplier(stars: number?): number
+	if not stars or stars <= 0 then
+		return 1
+	end
+	return Config.Stars.Multipliers[math.min(stars, #Config.Stars.Multipliers)]
+end
+
+-- Skill-Baum (Waben-Netz) -----------------------------------------------------------
+-- Bezahlt wird mit Tokens. Tokens gibt es für Wiedergeburten und für geschaffte Aufgaben.
+-- Jede Fähigkeit ist eine Wabe. Hex = Platz im Netz (Mitte ist 0,0). Lernen kann man nur
+-- Waben, die an die Mitte oder an eine schon gelernte Wabe angrenzen.
+-- Max = höchste Stufe, Costs = Token-Preis je Stufe, PerLevel = Wirkung pro Stufe.
+-- Text: {v} wird durch die Wirkung ersetzt (bei Percent = true als Prozent).
+Config.Skills = {
+	QuestsPerToken = 2, -- jede 2. geschaffte Aufgabe gibt Tokens
+	TokensPerQuest = 1,
+	Branches = {
+		Geld = { Name = "Geld", Icon = "💰", Color = Color3.fromRGB(255, 200, 60) },
+		Glueck = { Name = "Glück", Icon = "🍀", Color = Color3.fromRGB(90, 220, 110) },
+		Dieb = { Name = "Dieb & Schutz", Icon = "🛡️", Color = Color3.fromRGB(255, 95, 110) },
+	},
+	List = {
+		-- Geld
+		{ Id = "Income", Branch = "Geld", Hex = { 1, 0 }, Name = "Sparschwein", Icon = "🐷", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.05, Percent = true, Text = "+{v} % Einkommen" },
+		{ Id = "ClickPower", Branch = "Geld", Hex = { 1, -1 }, Name = "Klick-Kraft", Icon = "👆", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Percent = true, Text = "+{v} % Geld pro Klick" },
+		{ Id = "Magnet", Branch = "Geld", Hex = { 2, 0 }, Name = "Münz-Magnet", Icon = "🧲", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 3, Text = "Münzen aus +{v} Studs Entfernung einsammeln" },
+		{ Id = "CoinValue", Branch = "Geld", Hex = { 2, -1 }, Name = "Dicke Münzen", Icon = "💵", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Münzen sind +{v} % mehr wert" },
+		{ Id = "BigCoins", Branch = "Geld", Hex = { 2, -2 }, Name = "Riesen-Münzen", Icon = "🌟", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance: Münze wird zur Riesen-Münze" },
+		{ Id = "QuestBonus", Branch = "Geld", Hex = { 1, -2 }, Name = "Quest-Profi", Icon = "📜", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.15, Percent = true, Text = "Aufgaben bringen +{v} % Geld" },
+		{ Id = "GoldDonkey", Branch = "Geld", Hex = { 3, -2 }, Name = "Goldesel", Icon = "👑", Max = 1, Costs = { 8 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Einkommen, für immer" },
+		-- Glück
+		{ Id = "Luck", Branch = "Glueck", Hex = { 0, -1 }, Name = "Glück", Icon = "🍀", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Selten und besser: +{v} % wahrscheinlicher" },
+		{ Id = "Mutation", Branch = "Glueck", Hex = { -1, 0 }, Name = "Mutations-Gespür", Icon = "🌈", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Mutationen: +{v} % wahrscheinlicher" },
+		{ Id = "Pity", Branch = "Glueck", Hex = { 0, -2 }, Name = "Garantie", Icon = "🎯", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "Legendär-Garantie {v} Kiste(n) früher" },
+		{ Id = "Refund", Branch = "Glueck", Hex = { -1, -1 }, Name = "Gratis-Kiste", Icon = "🎁", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.03, Percent = true, Text = "{v} % Chance: eine Kiste kostet nichts" },
+		{ Id = "SellBonus", Branch = "Glueck", Hex = { -2, 0 }, Name = "Händler", Icon = "🤝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "+{v} % Geld beim Verkaufen" },
+		{ Id = "StarLuck", Branch = "Glueck", Hex = { -2, 1 }, Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verschmelzen" },
+		{ Id = "MythicLuck", Branch = "Glueck", Hex = { -2, -1 }, Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
+		-- Dieb & Schutz
+		{ Id = "CarrySpeed", Branch = "Dieb", Hex = { -1, 1 }, Name = "Schnelle Beine", Icon = "👟", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.6, Text = "+{v} Tempo, wenn du Beute trägst" },
+		{ Id = "LockTime", Branch = "Dieb", Hex = { 0, 1 }, Name = "Dickes Schloss", Icon = "🔒", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Schloss hält +{v} % länger" },
+		{ Id = "HitRange", Branch = "Dieb", Hex = { -2, 2 }, Name = "Lange Klatsche", Icon = "🏏", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1.5, Text = "Klatsche reicht +{v} Studs weiter" },
+		{ Id = "LockCooldown", Branch = "Dieb", Hex = { -1, 2 }, Name = "Schnelles Schloss", Icon = "⏰", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 8, Text = "Schloss ist {v} Sekunden früher wieder bereit" },
+		{ Id = "LootBonus", Branch = "Dieb", Hex = { 0, 2 }, Name = "Beute-Bonus", Icon = "💎", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 30, Text = "Geklaut: sofort {v} Sekunden Einkommen der Beute" },
+		{ Id = "Comfort", Branch = "Dieb", Hex = { 1, 1 }, Name = "Trostpflaster", Icon = "💝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Wirst du beklaut: {v} % vom Wert als Geld" },
+		{ Id = "Vault", Branch = "Dieb", Hex = { -1, 3 }, Name = "Tresor", Icon = "🏦", Max = 1, Costs = { 8 }, PerLevel = 1, Text = "Deine beste Kreatur kann niemand klauen" },
+	},
+}
+Config.SkillById = {}
+for _, skill in Config.Skills.List do
+	Config.SkillById[skill.Id] = skill
+end
+
+-- Wirkung einer Fähigkeit: skills = { Income = 2, ... } (Stufen), gibt Stufe x PerLevel zurück
+function Config.SkillValue(skills, id: string): number
+	local skill = Config.SkillById[id]
+	local level = skills and skills[id] or 0
+	return if skill then level * skill.PerLevel else 0
+end
+
+-- Beschreibung für eine Stufe, z.B. "+15 % Einkommen"
+function Config.SkillText(skill, level: number): string
+	local value = skill.PerLevel * level
+	if skill.Percent then
+		value *= 100
+	end
+	local shown = if math.abs(value - math.floor(value + 0.5)) < 0.001 then tostring(math.floor(value + 0.5)) else string.format("%.1f", value)
+	return (string.gsub(skill.Text, "{v}", shown))
+end
+
+-- Grenzt Wabe a an Wabe b? (Sechseck-Netz, 6 Nachbarn)
+function Config.HexAdjacent(a, b): boolean
+	local dq, dr = a[1] - b[1], a[2] - b[2]
+	return (dq == 1 and dr == 0)
+		or (dq == -1 and dr == 0)
+		or (dq == 0 and dr == 1)
+		or (dq == 0 and dr == -1)
+		or (dq == 1 and dr == -1)
+		or (dq == -1 and dr == 1)
+end
+
+-- Darf man die Fähigkeit lernen? Sie muss an die Mitte oder an eine gelernte Wabe grenzen.
+function Config.SkillReachable(skills, skill): boolean
+	if Config.HexAdjacent(skill.Hex, { 0, 0 }) then
+		return true
+	end
+	for _, other in Config.Skills.List do
+		if other ~= skill and (skills and skills[other.Id] or 0) > 0 and Config.HexAdjacent(skill.Hex, other.Hex) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Nach so vielen Kisten ohne Legendär+ gibt es die Garantie (Fähigkeit "Garantie" zieht ab)
+function Config.PityFor(skills): number
+	return math.max(5, Config.PityThreshold - Config.SkillValue(skills, "Pity"))
+end
+
+-- Mutations-Chancen mit der Fähigkeit "Mutations-Gespür"
+function Config.MutationWeightsFor(skills, base)
+	local bonus = 1 + Config.SkillValue(skills, "Mutation")
+	local weights = {}
+	for id, w in base or Config.MutationWeights do
+		weights[id] = if id == "Normal" then w else w * bonus
+	end
+	return weights
+end
+
 -- Kisten (im Code heißen sie Packs) -----------------------------------------------
 -- Jede Kiste hat ihre eigenen Kreaturen (siehe oben, Feld Pack).
 -- Rebirths = so viele Wiedergeburten braucht man, um die Kiste kaufen zu dürfen.
@@ -297,10 +418,12 @@ function Config.PackCost(pack, count: number): number
 	return math.huge
 end
 
--- Glück (aus dem Rebirth-Shop) macht Selten und besser wahrscheinlicher.
+-- Glück (Skill-Baum) macht Selten und besser wahrscheinlicher, "Glückspilz" dazu Mythisch.
 -- Seltenheiten, für die die Kiste keine Kreatur hat, fallen raus.
-function Config.PackWeights(pack, luckLevel: number?)
-	local bonus = 1 + (luckLevel or 0) * Config.Rebirth.Upgrades.Luck.PerLevel
+-- skills = { Luck = 2, ... } (Stufen des Spielers) oder nil
+function Config.PackWeights(pack, skills)
+	local bonus = 1 + Config.SkillValue(skills, "Luck")
+	local mythicBonus = 1 + Config.SkillValue(skills, "MythicLuck")
 	local has = {}
 	for _, creature in pack.Creatures do
 		has[creature.Rarity] = true
@@ -308,7 +431,11 @@ function Config.PackWeights(pack, luckLevel: number?)
 	local weights = {}
 	for rarity, w in pack.Weights do
 		if has[rarity] then
-			weights[rarity] = if Config.RarityRank(rarity) >= Config.RarityRank("Rare") then w * bonus else w
+			local weight = if Config.RarityRank(rarity) >= Config.RarityRank("Rare") then w * bonus else w
+			if rarity == "Mythic" then
+				weight *= mythicBonus
+			end
+			weights[rarity] = weight
 		end
 	end
 	return weights
@@ -360,7 +487,7 @@ Config.Leaderboard = {
 
 -- Wiedergeburt (Rebirth) ---------------------------------------------------------
 -- Kostet Geld, setzt Geld und Base-Stufe zurück, die besten Kreaturen bleiben.
--- Dafür: dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop.
+-- Dafür: dauerhaft mehr Einkommen und Tokens für den Skill-Baum.
 Config.Rebirth = {
 	-- Kosten der 1., 2., 3. ... Wiedergeburt. Faustregel: etwa 20 Kisten der besten Sorte,
 	-- die man gerade kaufen darf. Jede der ersten vier schaltet eine neue Kiste frei.
@@ -368,13 +495,7 @@ Config.Rebirth = {
 	CostGrowth = 5, -- danach kostet jede weitere 5x so viel
 	IncomePerRebirth = 0.5, -- +50 % Einkommen pro Wiedergeburt
 	KeepCreatures = 4, -- so viele der besten Kreaturen bleiben
-	TokensPerRebirth = 2,
-	Upgrades = {
-		Luck = { Name = "Glück", Icon = "🍀", Desc = "Selten+ in Kisten wahrscheinlicher", Max = 5, PerLevel = 0.2, Costs = { 1, 2, 3, 4, 5 } },
-		Magnet = { Name = "Münz-Magnet", Icon = "🧲", Desc = "Münzen von weiter weg einsammeln", Max = 5, PerLevel = 3, Costs = { 1, 1, 2, 2, 3 } },
-		ClickPower = { Name = "Klick-Kraft", Icon = "👆", Desc = "Mehr Geld pro Klick", Max = 5, PerLevel = 1, Costs = { 1, 2, 2, 3, 4 } },
-	},
-	UpgradeOrder = { "Luck", "Magnet", "ClickPower" },
+	TokensPerRebirth = 3, -- Tokens für den Skill-Baum
 }
 function Config.RebirthCost(rebirths: number): number
 	local costs = Config.Rebirth.Costs
@@ -502,6 +623,10 @@ Config.Sounds = {
 		{ "Ping", 1.5, 0.8, 0.35 },
 	},
 	Announce = { { "Ping", 1.5, 0.4, 0 }, { "Ping", 2, 0.4, 0.12 } },
+	-- Verschmelzen: Zischen beim Zusammenfliegen, dann der Schlag, wenn die neue Kreatur erscheint
+	Merge = { { "ZoomUp", 1, 0.9, 0 }, { "Anvil", 1.2, 1.1, 0.38 }, { "Bell", 1.5, 0.9, 0.38, 1.4 } },
+	MergeBig = { { "ZoomUp", 0.9, 1, 0 }, { "Smash", 1, 0.6, 0.38, 1.8 }, { "StingWin", 1, 0.8, 0.42 } }, -- ab 3 Sternen
+	Skill = { { "MetalRing", 1.3, 0.6, 0, 0.9 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.14 } }, -- Fähigkeit gelernt
 	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },
 	Hit = { { "Swoosh", 1.6, 0.7, 0 }, { "Ping", 0.6, 0.6, 0.03 } },
 	Swoosh = { { "Swoosh", 1, 0.6, 0 } },
@@ -523,40 +648,62 @@ Config.Sounds = {
 -- Normale Laufgeschwindigkeit
 Config.WalkSpeed = 16
 
--- Kreaturen-Einträge im Spielstand: "Blubbo" oder "Blubbo|Gold"
+-- Kreaturen-Einträge im Spielstand: "Blubbo", "Blubbo|Gold", mit Sternen "Blubbo|Gold|2"
+-- oder ohne Mutation "Blubbo||2". Gibt (Kreatur, Mutation, Sterne) zurück.
 function Config.ParseEntry(entry: string)
-	local id, mutation = string.match(entry, "^([^|]+)|?(.*)$")
-	local def = id and Config.CreatureById[id]
+	local parts = string.split(entry, "|")
+	local def = Config.CreatureById[parts[1]]
+	local mutation = parts[2]
 	if mutation == nil or mutation == "" or not Config.Mutations[mutation] then
 		mutation = "Normal"
 	end
-	return def, mutation
+	local stars = math.clamp(math.floor(tonumber(parts[3]) or 0), 0, Config.Stars.Max)
+	return def, mutation, stars
 end
 
-function Config.MakeEntry(id: string, mutation: string?): string
-	if mutation and mutation ~= "Normal" then
-		return id .. "|" .. mutation
+function Config.MakeEntry(id: string, mutation: string?, stars: number?): string
+	local m = if mutation and mutation ~= "Normal" then mutation else ""
+	if stars and stars > 0 then
+		return `{id}|{m}|{stars}`
+	end
+	if m ~= "" then
+		return id .. "|" .. m
 	end
 	return id
 end
 
 function Config.EntryIncome(entry: string): number
-	local def, mutation = Config.ParseEntry(entry)
-	return if def then def.Income * Config.Mutations[mutation].Multiplier else 0
+	local def, mutation, stars = Config.ParseEntry(entry)
+	return if def then def.Income * Config.Mutations[mutation].Multiplier * Config.StarMultiplier(stars) else 0
 end
 
+-- Wert: mit Sternen so viel wie alle Kreaturen zusammen, die darin stecken
 function Config.EntryValue(entry: string): number
-	local def, mutation = Config.ParseEntry(entry)
-	return if def then def.Price * Config.Mutations[mutation].Multiplier else 0
+	local def, mutation, stars = Config.ParseEntry(entry)
+	return if def then def.Price * Config.Mutations[mutation].Multiplier * Config.Stars.Need ^ stars else 0
+end
+
+function Config.StarText(stars: number?): string
+	return if stars and stars > 0 then string.rep("★", stars) else ""
 end
 
 function Config.EntryName(entry: string): string
-	local def, mutation = Config.ParseEntry(entry)
+	local def, mutation, stars = Config.ParseEntry(entry)
 	if not def then
 		return "?"
 	end
 	local m = Config.Mutations[mutation]
-	return if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name
+	local name = if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name
+	return if stars > 0 then `{name} {Config.StarText(stars)}` else name
+end
+
+-- Was kommt beim Verschmelzen heraus? nil, wenn die Kreatur schon alle Sterne hat.
+function Config.MergeResult(entry: string, extraStars: number?): string?
+	local def, mutation, stars = Config.ParseEntry(entry)
+	if not def or stars >= Config.Stars.Max then
+		return nil
+	end
+	return Config.MakeEntry(def.Id, mutation, math.min(Config.Stars.Max, stars + 1 + (extraStars or 0)))
 end
 
 Config.RarityOrder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }

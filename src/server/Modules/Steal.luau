@@ -39,12 +39,18 @@ function Steal.IsCarrying(player: Player): boolean
 	return carrying[player] ~= nil
 end
 
+-- Tempo mit Beute für diesen Spieler (Fähigkeit "Schnelle Beine" macht schneller)
+local function carrySpeed(player: Player): number
+	local state = Bases.GetState(player)
+	return Steal.CarrySpeed + (if state then Bases.Skill(state, "CarrySpeed") else 0)
+end
+
 -- Tempo für alle Spieler neu setzen (z.B. Start/Ende der Diebes-Nacht)
 function Steal.ApplySpeeds()
 	for _, player in Players:GetPlayers() do
 		local hum = getHumanoid(player)
 		if hum and hum.WalkSpeed > 0 then
-			hum.WalkSpeed = if carrying[player] then Steal.CarrySpeed else Steal.WalkSpeed
+			hum.WalkSpeed = if carrying[player] then carrySpeed(player) else Steal.WalkSpeed
 		end
 	end
 end
@@ -74,8 +80,8 @@ local function startCarry(thief: Player, entry: string, info)
 	if not hum or not head then
 		return false
 	end
-	local def, mutation = Config.ParseEntry(entry)
-	local carried = CreatureModels.Build(def, { Scale = 0.55, Anchored = false, Mutation = mutation })
+	local def, mutation, stars = Config.ParseEntry(entry)
+	local carried = CreatureModels.Build(def, { Scale = 0.55, Anchored = false, Mutation = mutation, Stars = stars })
 	carried:PivotTo(head.CFrame * CFrame.new(0, 0.8, 0))
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = head
@@ -99,7 +105,7 @@ local function startCarry(thief: Player, entry: string, info)
 	info.OldJumpPower = hum.JumpPower
 	carrying[thief] = info
 
-	hum.WalkSpeed = Steal.CarrySpeed
+	hum.WalkSpeed = carrySpeed(thief)
 	if not Config.Steal.CanJumpWhileCarrying then
 		hum.UseJumpPower = true
 		hum.JumpPower = 0
@@ -133,6 +139,10 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 	end
 	local entry = oState.Data.Slots[tostring(slot)]
 	if not entry or plot.Stolen[slot] then
+		return
+	end
+	if Bases.Skill(oState, "Vault") > 0 and Bases.BestSlot(oState) == slot then
+		Bases.Notify(thief, `🏦 {Config.EntryName(entry)} liegt im Tresor und kann nicht geklaut werden!`, RED)
 		return
 	end
 	if not Bases.FreeSlot(tState) then
@@ -244,6 +254,17 @@ function Steal.Deliver(thief: Player)
 		Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {Config.EntryName(entry)} geklaut!`, RED)
 		Bases.AnnounceIfRare(thief, entry, "geklaut")
 		Bases.Track(tState, "Steal", 1)
+		-- Skill-Baum: Beute-Bonus für den Dieb, Trostpflaster für den Beklauten
+		local loot = math.floor(Config.EntryIncome(entry) * Bases.Multiplier(tState) * Bases.Skill(tState, "LootBonus"))
+		if loot > 0 then
+			Bases.AddMoney(tState, loot)
+			Bases.Notify(thief, `💎 Beute-Bonus: +{Config.FormatNumber(loot)} $`, GREEN)
+		end
+		local comfort = math.floor(Config.EntryValue(entry) * Bases.Skill(oState, "Comfort"))
+		if comfort > 0 then
+			Bases.AddMoney(oState, comfort)
+			Bases.Notify(info.Owner, `💝 Trostpflaster: +{Config.FormatNumber(comfort)} $`, YELLOW)
+		end
 	else
 		cleanup(thief, info)
 		Bases.GiveCreature(tState, entry)
@@ -278,11 +299,13 @@ function Steal.Hit(hitter: Player): boolean
 	if not myRoot then
 		return false
 	end
+	local hState = Bases.GetState(hitter)
+	local range = Config.Steal.HitRange + (if hState then Bases.Skill(hState, "HitRange") else 0)
 	local hitSomeone = false
 	for thief, _ in carrying do
 		if thief ~= hitter then
 			local hum, root = getHumanoid(thief)
-			if hum and (root.Position - myRoot.Position).Magnitude <= Config.Steal.HitRange then
+			if hum and (root.Position - myRoot.Position).Magnitude <= range then
 				Steal.Return(thief, "hit")
 				hitSomeone = true
 				FX.Burst(root.Position, Color3.fromRGB(255, 220, 60), 50)
@@ -294,7 +317,7 @@ function Steal.Hit(hitter: Player): boolean
 				end
 				task.delay(Config.Steal.StunTime, function()
 					if hum.Parent and hum.WalkSpeed == 0 then
-						hum.WalkSpeed = if carrying[thief] then Steal.CarrySpeed else Steal.WalkSpeed
+						hum.WalkSpeed = if carrying[thief] then carrySpeed(thief) else Steal.WalkSpeed
 					end
 				end)
 			end

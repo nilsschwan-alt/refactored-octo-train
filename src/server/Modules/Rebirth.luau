@@ -1,5 +1,5 @@
 -- Wiedergeburt: Geld und Base-Stufe gehen zurück auf Anfang, die besten Kreaturen bleiben.
--- Dafür gibt's dauerhaft mehr Einkommen und Tokens für den Rebirth-Shop (Glück, Münz-Magnet, Klick-Kraft).
+-- Dafür gibt's dauerhaft mehr Einkommen und Tokens für den Skill-Baum (siehe Skills.luau).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -75,28 +75,6 @@ function Rebirth.Do(player: Player)
 		FX.PopIn(model)
 		FX.Burst(model:GetPivot().Position + Vector3.new(0, 2, 0), PURPLE, 30)
 	end
-end
-
-function Rebirth.BuyUpgrade(player: Player, id: string)
-	local state = Bases.GetState(player)
-	local info = R.Upgrades[id]
-	if not state or not info then
-		return
-	end
-	local level = state.Data.Upgrades[id] or 0
-	if level >= info.Max then
-		Bases.Notify(player, `{info.Name} ist schon auf Maximum!`, RED)
-		return
-	end
-	local cost = info.Costs[level + 1] or math.huge
-	if state.Data.Tokens < cost then
-		Bases.Notify(player, `Du brauchst {cost} Tokens. Tokens gibt's bei jeder Wiedergeburt.`, RED)
-		return
-	end
-	state.Data.Tokens -= cost
-	state.Data.Upgrades[id] = level + 1
-	Bases.RefreshStats(state)
-	Bases.BigText(player, `{info.Icon} {string.upper(info.Name)} STUFE {level + 1}!`, PURPLE, "Upgrade")
 end
 
 return Rebirth

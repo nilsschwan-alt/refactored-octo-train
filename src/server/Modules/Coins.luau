@@ -1,6 +1,6 @@
 -- Münzen auf der Straße: einfach drüberlaufen und einsammeln.
 -- Der Wert passt sich an: eine Münze ist ein paar Sekunden DEINES Einkommens wert.
--- Ab und zu gibt's eine Riesen-Münze. Der Münz-Magnet (Rebirth-Shop) vergrößert den Sammel-Radius.
+-- Ab und zu gibt's eine Riesen-Münze. Der Münz-Magnet (Skill-Baum) vergrößert den Sammel-Radius.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -67,8 +67,10 @@ local function collect(player: Player, coin: BasePart)
 	if not info or not state then
 		return
 	end
-	local value = math.max(C.MinValue, Bases.Income(state) * C.ValueSeconds)
-	if info.Big then
+	local value = math.max(C.MinValue, Bases.Income(state) * C.ValueSeconds) * (1 + Bases.Skill(state, "CoinValue"))
+	-- Fähigkeit "Riesen-Münzen": eine normale Münze wird beim Einsammeln manchmal zur Riesen-Münze
+	local big = info.Big or math.random() < Bases.Skill(state, "BigCoins")
+	if big then
 		value *= C.BigFactor
 	end
 	value = math.floor(value)
@@ -77,7 +79,7 @@ local function collect(player: Player, coin: BasePart)
 	Bases.AddMoney(state, value)
 	Bases.Track(state, "Coins", 1)
 	Bases.Pop(player, value, position + Vector3.new(0, 2, 0), nil, GOLD)
-	if info.Big then
+	if big then
 		FX.Burst(position, GOLD, 40)
 		Bases.BigText(player, `RIESEN-MÜNZE +{Config.FormatNumber(value)} $`, GOLD, "Collect")
 	end
@@ -96,7 +98,7 @@ local function update()
 		local char = player.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		if state and root then
-			local radius = C.PickupRadius + (state.Data.Upgrades.Magnet or 0) * Config.Rebirth.Upgrades.Magnet.PerLevel
+			local radius = C.PickupRadius + Bases.Skill(state, "Magnet")
 			for coin in coins do
 				local offset = coin.Position - root.Position
 				if (offset * Vector3.new(1, 0.5, 1)).Magnitude <= radius + coin.Size.Y / 2 then

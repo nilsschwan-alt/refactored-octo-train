@@ -206,11 +206,13 @@ local function buildFromBlocks(def, s: number, mutationId: string, mutation): (M
 	return model, body, h / 2 + s * 0.6 + 1.2
 end
 
--- opts = { Scale = number?, Anchored = boolean?, Label = boolean?, Mutation = string?, PriceText = string? }
+-- opts = { Scale = number?, Anchored = boolean?, Label = boolean?, Mutation = string?, Stars = number?, PriceText = string? }
 function CreatureModels.Build(def, opts): Model
 	opts = opts or {}
 	local rarity = Config.Rarities[def.Rarity]
-	local s = rarity.Size * (opts.Scale or 1)
+	local stars = opts.Stars or 0
+	-- jeder Stern macht die Kreatur ein Stück größer
+	local s = rarity.Size * (opts.Scale or 1) * (1 + stars * Config.Stars.SizeBonus)
 	local mutationId = opts.Mutation or "Normal"
 	local mutation = Config.Mutations[mutationId] or Config.Mutations.Normal
 
@@ -236,6 +238,29 @@ function CreatureModels.Build(def, opts): Model
 		light.Brightness = 2
 		light.Parent = body
 	end
+	-- Sterne: goldener Schein, ab 3 Sternen steigen kleine Sterne auf
+	if stars > 0 then
+		local glow = Instance.new("PointLight")
+		glow.Name = "SternenLicht"
+		glow.Color = GOLD
+		glow.Range = s * (2 + stars * 0.5)
+		glow.Brightness = 0.6 + stars * 0.3
+		glow.Parent = body
+		if stars >= 3 then
+			local rise = Instance.new("ParticleEmitter")
+			rise.Name = "SternenFunken"
+			rise.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			rise.Color = ColorSequence.new(GOLD, Color3.new(1, 1, 1))
+			rise.Size = NumberSequence.new(0.5, 0)
+			rise.Lifetime = NumberRange.new(1, 1.8)
+			rise.Rate = 4 + stars * 3
+			rise.Speed = NumberRange.new(2, 4)
+			rise.SpreadAngle = Vector2.new(35, 35)
+			rise.EmissionDirection = Enum.NormalId.Top
+			rise.LightEmission = 1
+			rise.Parent = body
+		end
+	end
 	if rarity.Sparkles or mutationId ~= "Normal" then
 		local sparkles = Instance.new("ParticleEmitter")
 		sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
@@ -252,18 +277,33 @@ function CreatureModels.Build(def, opts): Model
 	-- Namensschild
 	if opts.Label then
 		local gui = Instance.new("BillboardGui")
-		local lines = if opts.PriceText then 3 else 2
+		local lines = (if opts.PriceText then 3 else 2) + (if stars > 0 then 1 else 0)
+		local firstLine = if stars > 0 then 1 else 0 -- über dem Namen steht die Sternen-Zeile
 		-- Größe teils in Studs, teils in Pixeln: aus der Nähe gut lesbar, von weitem
 		-- schmal genug, dass sich die Schilder benachbarter Kreaturen nicht überlappen
 		gui.Size = UDim2.new(4, 70, 0.55 * lines, 12 * lines)
-		gui.StudsOffsetWorldSpace = Vector3.new(0, labelY, 0)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, labelY + (if stars > 0 then 0.4 else 0), 0)
 		gui.MaxDistance = 70
 		gui.AlwaysOnTop = false
 		gui.Adornee = body
 		gui.Parent = body
 
+		if stars > 0 then
+			local starLine = Instance.new("TextLabel")
+			starLine.Name = "Sterne"
+			starLine.Size = UDim2.new(1, 0, 1 / lines, 0)
+			starLine.BackgroundTransparency = 1
+			starLine.Font = Enum.Font.FredokaOne
+			starLine.TextScaled = true
+			starLine.TextColor3 = GOLD
+			starLine.TextStrokeTransparency = 0.2
+			starLine.Text = Config.StarText(stars)
+			starLine.Parent = gui
+		end
+
 		local name = Instance.new("TextLabel")
 		name.Size = UDim2.new(1, 0, 1 / lines, 0)
+		name.Position = UDim2.fromScale(0, firstLine / lines)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.FredokaOne
 		name.TextScaled = true
@@ -280,18 +320,18 @@ function CreatureModels.Build(def, opts): Model
 
 		local info = Instance.new("TextLabel")
 		info.Size = UDim2.new(1, 0, 1 / lines, 0)
-		info.Position = UDim2.fromScale(0, 1 / lines)
+		info.Position = UDim2.fromScale(0, (firstLine + 1) / lines)
 		info.BackgroundTransparency = 1
 		info.Font = Enum.Font.GothamBold
 		info.TextScaled = true
 		info.TextColor3 = Color3.fromRGB(120, 255, 120)
 		info.TextStrokeTransparency = 0.3
-		info.Text = `{rarity.Name} · +{Config.FormatNumber(def.Income * mutation.Multiplier)} $/s`
+		info.Text = `{rarity.Name} · +{Config.FormatNumber(def.Income * mutation.Multiplier * Config.StarMultiplier(stars))} $/s`
 		info.Parent = gui
 
 		if opts.PriceText then
 			local price = info:Clone()
-			price.Position = UDim2.fromScale(0, 2 / lines)
+			price.Position = UDim2.fromScale(0, (firstLine + 2) / lines)
 			price.TextColor3 = Color3.fromRGB(255, 220, 60)
 			price.Text = opts.PriceText
 			price.Parent = gui

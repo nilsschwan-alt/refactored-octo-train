@@ -1238,7 +1238,12 @@ function updateShop()
 		return
 	end
 	local money = player:GetAttribute("Money") or 0
-	local luck = player:GetAttribute("Up_Luck") or 0
+	-- Fähigkeiten aus dem Skill-Baum, die Chancen und Garantie verändern
+	local skills = {
+		Luck = player:GetAttribute("Sk_Luck") or 0,
+		MythicLuck = player:GetAttribute("Sk_MythicLuck") or 0,
+		Pity = player:GetAttribute("Sk_Pity") or 0,
+	}
 	local rebirths = player:GetAttribute("Rebirths") or 0
 	for _, r in shopRows do
 		local pack = r.Pack
@@ -1260,18 +1265,21 @@ function updateShop()
 	for _, b in detailButtons do
 		b.Button.BackgroundColor3 = if money >= b.Price then SHOP_GREEN else Color3.fromRGB(105, 100, 125)
 	end
-	local weights = Config.PackWeights(selectedPack, luck)
+	local weights = Config.PackWeights(selectedPack, skills)
 	for _, c in detailChances do
 		c.Label.Text = percentText(Config.Percent(weights, c.Rarity) / c.Share)
 	end
 	local pity = player:GetAttribute("Pity") or 0
-	local left = math.max(1, Config.PityThreshold - pity)
+	local threshold = Config.PityFor(skills)
+	local left = math.max(1, threshold - pity)
 	pityLabel.Text = `Garantie: Legendär oder besser in spätestens {left} Kisten`
-	pityFill.Size = UDim2.fromScale(math.clamp(pity / Config.PityThreshold, 0.08, 1), 1)
+	pityFill.Size = UDim2.fromScale(math.clamp(pity / threshold, 0.08, 1), 1)
 end
 player:GetAttributeChangedSignal("Money"):Connect(updateShop)
 player:GetAttributeChangedSignal("Pity"):Connect(updateShop)
-player:GetAttributeChangedSignal("Up_Luck"):Connect(updateShop)
+for _, attr in { "Sk_Luck", "Sk_MythicLuck", "Sk_Pity" } do
+	player:GetAttributeChangedSignal(attr):Connect(updateShop)
+end
 
 -- Nach einer Wiedergeburt: Schlösser neu prüfen und gleich die neue Kiste zeigen
 local shopRebirths = player:GetAttribute("Rebirths") or 0
@@ -3310,7 +3318,7 @@ local questLayout = Instance.new("UIListLayout")
 questLayout.Padding = UDim.new(0, 6)
 questLayout.SortOrder = Enum.SortOrder.LayoutOrder
 questLayout.Parent = questBox
-label({
+local questTitle = label({
 	Size = UDim2.new(1, 0, 0, 24),
 	Font = Enum.Font.FredokaOne,
 	TextColor3 = Color3.fromRGB(255, 220, 60),
@@ -3319,10 +3327,22 @@ label({
 	LayoutOrder = 0,
 	Parent = questBox,
 })
+-- rechts daneben: wann es das nächste Token für den Skill-Baum gibt
+local questToken = label({
+	Size = UDim2.new(0.58, 0, 0, 18),
+	Position = UDim2.new(0.42, 0, 0, 3),
+	TextColor3 = Color3.fromRGB(120, 220, 255),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	Text = "",
+	Parent = questTitle,
+})
 local questRows = {}
 local lastProgress = {}
 
-Remotes.Quests.OnClientEvent:Connect(function(list)
+Remotes.Quests.OnClientEvent:Connect(function(list, tokenIn: number?)
+	if tokenIn then
+		questToken.Text = if tokenIn <= 1 then "💠 Token: nächste Aufgabe!" else `💠 Token in {tokenIn} Aufgaben`
+	end
 	for i, quest in list do
 		local row = questRows[i]
 		if not row then
@@ -3422,8 +3442,8 @@ label({
 })
 
 local rebirthPanel = Instance.new("Frame")
-rebirthPanel.Size = UDim2.fromOffset(620, 500)
-rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -250)
+rebirthPanel.Size = UDim2.fromOffset(620, 364)
+rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -182)
 rebirthPanel.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
 rebirthPanel.Visible = false
 rebirthPanel.Parent = gui
@@ -3522,63 +3542,17 @@ local tokenLabel = label({
 	Parent = rebirthPanel,
 })
 
-local upgradeRow = Instance.new("Frame")
-upgradeRow.Size = UDim2.new(1, -24, 0, 180)
-upgradeRow.Position = UDim2.fromOffset(12, 304)
-upgradeRow.BackgroundTransparency = 1
-upgradeRow.Parent = rebirthPanel
-local upgradeLayout = Instance.new("UIListLayout")
-upgradeLayout.FillDirection = Enum.FillDirection.Horizontal
-upgradeLayout.Padding = UDim.new(0, 10)
-upgradeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-upgradeLayout.Parent = upgradeRow
-
-local upgradeCards = {}
-for _, id in Config.Rebirth.UpgradeOrder do
-	local info = Config.Rebirth.Upgrades[id]
-	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1 / #Config.Rebirth.UpgradeOrder, -8, 1, 0)
-	card.BackgroundColor3 = Color3.fromRGB(45, 40, 65)
-	card.Parent = upgradeRow
-	corner(card, 12)
-	label({
-		Size = UDim2.new(1, -12, 0, 30),
-		Position = UDim2.fromOffset(6, 6),
-		Font = Enum.Font.FredokaOne,
-		Text = `{info.Icon} {info.Name}`,
-		Parent = card,
-	})
-	label({
-		Size = UDim2.new(1, -16, 0, 36),
-		Position = UDim2.fromOffset(8, 38),
-		Font = Enum.Font.Gotham,
-		TextWrapped = true,
-		TextColor3 = Color3.fromRGB(200, 200, 215),
-		Text = info.Desc,
-		Parent = card,
-	})
-	local levelLabel = label({
-		Size = UDim2.new(1, -16, 0, 22),
-		Position = UDim2.fromOffset(8, 80),
-		TextColor3 = Color3.fromRGB(255, 220, 60),
-		Text = "",
-		Parent = card,
-	})
-	local buy = Instance.new("TextButton")
-	buy.Size = UDim2.new(1, -16, 0, 50)
-	buy.Position = UDim2.new(0, 8, 1, -58)
-	buy.TextColor3 = Color3.new(1, 1, 1)
-	buy.Font = Enum.Font.FredokaOne
-	buy.TextScaled = true
-	buy.Text = ""
-	buy.Parent = card
-	corner(buy, 10)
-	buy.Activated:Connect(function()
-		playSound("Click")
-		Remotes.BuyUpgrade:FireServer(id)
-	end)
-	upgradeCards[id] = { Level = levelLabel, Button = buy, Info = info }
-end
+-- Tokens gibt man im Skill-Baum aus (Menus.luau)
+local skillLink = Instance.new("TextButton")
+skillLink.Size = UDim2.new(1, -32, 0, 46)
+skillLink.Position = UDim2.fromOffset(16, 302)
+skillLink.BackgroundColor3 = Color3.fromRGB(60, 120, 215)
+skillLink.TextColor3 = Color3.new(1, 1, 1)
+skillLink.Font = Enum.Font.FredokaOne
+skillLink.TextScaled = true
+skillLink.Text = "💠 Tokens im Skill-Baum ausgeben"
+skillLink.Parent = rebirthPanel
+corner(skillLink, 12)
 
 local function updateRebirth()
 	local rebirths = player:GetAttribute("Rebirths") or 0
@@ -3587,7 +3561,7 @@ local function updateRebirth()
 	local cost = Config.RebirthCost(rebirths)
 	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
 	local unlock = Config.RebirthUnlock(rebirths)
-	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens.`
+	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens für den Skill-Baum.`
 	if unlock then
 		rebirthUnlock.Text = `🎁 Schaltet frei: {unlock.Name} mit neuen, stärkeren Kreaturen!`
 		rebirthUnlock.TextColor3 = unlock.Color:Lerp(WHITE, 0.35)
@@ -3599,21 +3573,8 @@ local function updateRebirth()
 	costText.Text = `{Config.FormatNumber(money)} / {Config.FormatNumber(cost)} $`
 	doRebirth.BackgroundColor3 = if money >= cost then PURPLE else Color3.fromRGB(90, 90, 100)
 	tokenLabel.Text = `💠 Tokens: {tokens}`
-	for id, card in upgradeCards do
-		local level = player:GetAttribute("Up_" .. id) or 0
-		local info = card.Info
-		card.Level.Text = `Stufe {level} / {info.Max}`
-		if level >= info.Max then
-			card.Button.Text = "MAX"
-			card.Button.BackgroundColor3 = Color3.fromRGB(200, 160, 40)
-		else
-			local price = info.Costs[level + 1]
-			card.Button.Text = `Kaufen: {price} 💠`
-			card.Button.BackgroundColor3 = if tokens >= price then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(90, 90, 100)
-		end
-	end
 end
-for _, attr in { "Money", "Rebirths", "Tokens", "Up_Luck", "Up_Magnet", "Up_ClickPower" } do
+for _, attr in { "Money", "Rebirths", "Tokens" } do
 	player:GetAttributeChangedSignal(attr):Connect(function()
 		if rebirthPanel.Visible then
 			updateRebirth()
@@ -3652,12 +3613,11 @@ local function toggleRebirth()
 	end
 	rebirthPanel.Visible = not rebirthPanel.Visible
 	if rebirthPanel.Visible then
-		shop.Visible = false
 		updateRebirth()
 		local camera = workspace.CurrentCamera
 		if camera then
 			local size = camera.ViewportSize
-			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 540)
+			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 404)
 		end
 		rebirthScale.Scale *= 0.8
 		tween(rebirthScale, 0.25, { Scale = rebirthScale.Scale / 0.8 }, Enum.EasingStyle.Back)
@@ -3668,11 +3628,40 @@ rebirthButton.Activated:Connect(toggleRebirth)
 rebirthClose.Activated:Connect(function()
 	rebirthPanel.Visible = false
 end)
-shop:GetPropertyChangedSignal("Visible"):Connect(function()
-	if shop.Visible then
-		rebirthPanel.Visible = false
-	end
+
+-- Skill-Baum und Fusion (eigene Datei: Menus.luau)
+local menus = require(script.Parent:WaitForChild("Menus"))({
+	Gui = gui,
+	Corner = corner,
+	Label = label,
+	Stroke = stroke,
+	Tween = tween,
+	PlaySound = playSound,
+	StarBurst = starBurst,
+	CreatureIcon = creatureIcon,
+	Busy = function()
+		return opening
+	end,
+})
+skillLink.Activated:Connect(function()
+	menus.ToggleSkills()
 end)
+
+-- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
+do
+	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.MergePanel }
+	for _, panel in panels do
+		panel:GetPropertyChangedSignal("Visible"):Connect(function()
+			if panel.Visible then
+				for _, other in panels do
+					if other ~= panel then
+						other.Visible = false
+					end
+				end
+			end
+		end)
+	end
+end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.R then
 		toggleRebirth()
