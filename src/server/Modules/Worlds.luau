@@ -91,7 +91,8 @@ local function toWorld(player: Player, state, world): boolean
 	end
 	travel(player, islands[world.Id].Spawn, world, function()
 		Bases.BigText(player, `{world.Icon} {Config.Upper(world.Name)}`, world.Color, nil, false)
-		Bases.Notify(player, `Jeder Klick bringt hier x{world.ClickFactor} Geld. Halte Ausschau nach wilden Monstern!`, world.Color)
+		local factor = string.gsub(tostring(world.ClickFactor), "%.", ",") -- deutsches Komma
+		Bases.Notify(player, `Jeder Klick bringt hier x{factor} Geld. Halte Ausschau nach wilden Monstern!`, world.Color)
 	end)
 	return true
 end
