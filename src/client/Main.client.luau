@@ -252,10 +252,11 @@ do
 			hudScale.Scale = math.clamp(screen * 0.62 / height, 0.6, 1)
 			hud.Position = UDim2.fromOffset(10, 8)
 		else
-			-- Oberkante bleibt unter dem Chat-Fenster (ca. 140 px), unten 8 px Luft
-			local scale = math.clamp((screen - 148) / height, 0.6, 1)
+			-- Oberkante bleibt unter Chat-Fenster und Eingabezeile (bis ca. 242 px), unten 8 px Luft.
+			-- Ist das Fenster sehr niedrig, rückt die Leiste nach oben, statt unten abzuschneiden.
+			local scale = math.clamp((screen - 258) / height, 0.6, 1)
 			hudScale.Scale = scale
-			hud.Position = UDim2.fromOffset(10, math.max(140, (screen - height * scale) / 2 + 24))
+			hud.Position = UDim2.fromOffset(10, math.max(8, math.min(250, screen - 8 - height * scale)))
 		end
 	end
 	hudGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
