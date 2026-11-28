@@ -138,6 +138,16 @@ local function tween(obj: Instance, time: number, props, style: Enum.EasingStyle
 	return t
 end
 
+-- Gemeinsamer Fenster-Stil (eigene Datei: Stil.luau): Kopfleiste, dicke Knöpfe, Karten
+local Stil = require(script.Parent:WaitForChild("Stil"))({
+	Gui = gui,
+	Corner = corner,
+	Label = label,
+	Stroke = stroke,
+	Tween = tween,
+	PlaySound = playSound,
+})
+
 -- Konfetti ---------------------------------------------------------------------
 local CONFETTI_COLORS = {
 	Color3.fromRGB(255, 80, 80),
@@ -726,7 +736,20 @@ local function showBigText(text: string, color: Color3, sound: string?, doFlash:
 		end
 	end)
 end
-Remotes.BigText.OnClientEvent:Connect(showBigText)
+Remotes.BigText.OnClientEvent:Connect(function(text: string, color: Color3, sound: string?, doFlash: boolean?)
+	if sound == "Achievement" then
+		-- Erfolge platzen nicht in eine Kisten-Öffnung: warten, bis die Show vorbei ist
+		-- (während der Show ist die normale Oberfläche ausgeblendet)
+		task.wait(0.6)
+		if not gui.Enabled then
+			while not gui.Enabled do
+				task.wait(0.2)
+			end
+			task.wait(0.8)
+		end
+	end
+	showBigText(text, color, sound, doFlash)
+end)
 
 -- Server-Ansage (für alle) mit Konfetti -----------------------------------------
 local announceBox = label({
@@ -1002,24 +1025,15 @@ shop.BackgroundColor3 = WHITE
 shop.Visible = false
 shop.Parent = gui
 corner(shop, 22)
-stroke(shop, WHITE, 4)
+stroke(shop, Stil.Outline, 4)
 local shopGradient = Instance.new("UIGradient")
-shopGradient.Color = ColorSequence.new(Color3.fromRGB(72, 54, 140), SHOP_DARK)
+shopGradient.Color = ColorSequence.new(Color3.fromRGB(60, 46, 124), SHOP_DARK)
 shopGradient.Rotation = 90
 shopGradient.Parent = shop
 local shopScale = Instance.new("UIScale")
 shopScale.Parent = shop
-
-label({
-	Size = UDim2.fromOffset(300, 44),
-	Position = UDim2.fromOffset(22, 12),
-	Font = Enum.Font.FredokaOne,
-	TextColor3 = Color3.fromRGB(255, 225, 80),
-	TextStrokeTransparency = 0.3,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "✨ KISTEN-SHOP",
-	Parent = shop,
-})
+-- Kopfleiste im gleichen Stil wie die anderen Fenster
+Stil.Header(shop, Color3.fromRGB(140, 92, 240), "✨ Kisten-Shop")
 
 -- Glücks-Garantie als Balken: füllt sich mit jeder Kiste ohne Legendär
 local pityBar = Instance.new("Frame")
@@ -1049,20 +1063,7 @@ local pityLabel = label({
 })
 stroke(pityLabel, BLACK, 2)
 
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.fromOffset(42, 42)
-closeButton.Position = UDim2.new(1, -56, 0, 13)
-closeButton.BackgroundColor3 = Color3.fromRGB(235, 70, 80)
-closeButton.Text = "X"
-closeButton.TextColor3 = WHITE
-closeButton.Font = Enum.Font.FredokaOne
-closeButton.TextScaled = true
-closeButton.Parent = shop
-corner(closeButton, 21)
-stroke(closeButton, WHITE, 3).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-closeButton.Activated:Connect(function()
-	shop.Visible = false
-end)
+Stil.Close(shop)
 
 -- 3D-Modell einer Kiste (aus ReplicatedStorage.PackModelle), falls es eins gibt
 local function packTemplate(pack): Model?
@@ -1254,27 +1255,14 @@ local function buildDetail(pack)
 		buttonLayout.Parent = buttonRow
 		for _, option in Config.PackCounts do
 			local cost = Config.PackCost(pack, option.Count)
-			local buy = Instance.new("TextButton")
-			buy.Size = UDim2.new(1 / #Config.PackCounts, -6, 1, 0)
-			buy.BackgroundColor3 = SHOP_GREEN
-			buy.TextColor3 = WHITE
-			buy.Font = Enum.Font.FredokaOne
-			buy.TextScaled = true
-			buy.TextStrokeTransparency = 0.4
-			buy.Text = `{option.Count}x\n{Config.FormatNumber(cost)} $`
-			buy.Parent = buttonRow
-			corner(buy, 14)
-			stroke(buy, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			local buyGradient = Instance.new("UIGradient")
-			buyGradient.Color = ColorSequence.new(WHITE, Color3.fromRGB(190, 190, 190))
-			buyGradient.Rotation = 90
-			buyGradient.Parent = buy
-			local pad = Instance.new("UIPadding")
-			pad.PaddingTop = UDim.new(0, 7)
-			pad.PaddingBottom = UDim.new(0, 7)
-			pad.PaddingLeft = UDim.new(0, 6)
-			pad.PaddingRight = UDim.new(0, 6)
-			pad.Parent = buy
+			-- dicker Knopf im gemeinsamen Stil (Stil.luau)
+			local buy = Stil.Button(
+				buttonRow,
+				`{option.Count}x\n{Config.FormatNumber(cost)} $`,
+				SHOP_GREEN,
+				UDim2.new(1 / #Config.PackCounts, -6, 1, 0),
+				UDim2.new()
+			)
 			if option.Discount < 1 then
 				local tag = label({
 					Size = UDim2.fromOffset(54, 22),
@@ -1283,14 +1271,15 @@ local function buildDetail(pack)
 					BackgroundColor3 = Color3.fromRGB(255, 60, 90),
 					Font = Enum.Font.FredokaOne,
 					Text = `-{math.floor((1 - option.Discount) * 100 + 0.5)} %`,
-					ZIndex = 3,
-					Parent = buy,
+					ZIndex = 5,
+					Parent = buy.Holder,
 				})
 				tag.Rotation = 12
 				corner(tag, 6)
 			end
-			buy.Activated:Connect(function()
+			buy.Button.Activated:Connect(function()
 				playSound("Click")
+				buy.Pop()
 				Remotes.BuyPack:FireServer(pack.Id, option.Count)
 			end)
 			table.insert(detailButtons, { Button = buy, Price = cost })
@@ -1523,7 +1512,7 @@ function updateShop()
 		r.Stroke.Color = if selected then WHITE else pack.Color
 	end
 	for _, b in detailButtons do
-		b.Button.BackgroundColor3 = if money >= b.Price then SHOP_GREEN else Color3.fromRGB(105, 100, 125)
+		b.Button.SetEnabled(money >= b.Price, SHOP_GREEN)
 	end
 	local weights = Config.PackWeights(selectedPack, skills)
 	for _, c in detailChances do
@@ -3706,199 +3695,6 @@ Remotes.Quests.OnClientEvent:Connect(function(list, tokenIn: number?)
 	end
 end)
 
--- Wiedergeburt (Rebirth) ---------------------------------------------------------
-local PURPLE = Color3.fromRGB(170, 90, 255)
-local rebirthButton, rebirthButtonScale = hudButton(2, PURPLE, "🔄", "Rebirth", "R")
-
-local rebirthPanel = Instance.new("Frame")
-rebirthPanel.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
-rebirthPanel.Size = UDim2.fromOffset(620, 364)
-rebirthPanel.Position = UDim2.new(0.5, -310, 0.5, -182)
-rebirthPanel.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
-rebirthPanel.Visible = false
-rebirthPanel.Parent = gui
-corner(rebirthPanel, 14)
-stroke(rebirthPanel, PURPLE, 3)
-local rebirthScale = Instance.new("UIScale")
-rebirthScale.Parent = rebirthPanel
-
-label({
-	Size = UDim2.new(1, -70, 0, 40),
-	Position = UDim2.fromOffset(16, 8),
-	Font = Enum.Font.FredokaOne,
-	TextColor3 = Color3.fromRGB(210, 160, 255),
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "🔄 Wiedergeburt",
-	Parent = rebirthPanel,
-})
-local rebirthClose = Instance.new("TextButton")
-rebirthClose.Size = UDim2.fromOffset(40, 40)
-rebirthClose.Position = UDim2.new(1, -50, 0, 10)
-rebirthClose.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-rebirthClose.Text = "X"
-rebirthClose.TextColor3 = Color3.new(1, 1, 1)
-rebirthClose.Font = Enum.Font.GothamBold
-rebirthClose.TextScaled = true
-rebirthClose.Parent = rebirthPanel
-corner(rebirthClose, 8)
-
-local rebirthInfo = label({
-	Size = UDim2.new(1, -32, 0, 28),
-	Position = UDim2.fromOffset(16, 52),
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = Color3.fromRGB(130, 255, 130),
-	Text = "",
-	Parent = rebirthPanel,
-})
--- Eigene, große Zeile dafür, was die nächste Wiedergeburt freischaltet
-local rebirthUnlock = label({
-	Size = UDim2.new(1, -32, 0, 30),
-	Position = UDim2.fromOffset(16, 84),
-	Font = Enum.Font.FredokaOne,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = Color3.fromRGB(255, 225, 120),
-	Text = "",
-	Parent = rebirthPanel,
-})
-stroke(rebirthUnlock, BLACK, 1.5)
-local rebirthDesc = label({
-	Size = UDim2.new(1, -32, 0, 44),
-	Position = UDim2.fromOffset(16, 118),
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextYAlignment = Enum.TextYAlignment.Top,
-	TextColor3 = Color3.fromRGB(200, 200, 215),
-	TextScaled = false,
-	TextSize = 17,
-	TextWrapped = true,
-	Font = Enum.Font.Gotham,
-	Text = "",
-	Parent = rebirthPanel,
-})
-local costBar = Instance.new("Frame")
-costBar.Size = UDim2.new(1, -32, 0, 26)
-costBar.Position = UDim2.fromOffset(16, 170)
-costBar.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-costBar.Parent = rebirthPanel
-corner(costBar, 10)
-local costFill = Instance.new("Frame")
-costFill.Size = UDim2.fromScale(0, 1)
-costFill.BackgroundColor3 = PURPLE
-costFill.Parent = costBar
-corner(costFill, 10)
-local costText = label({
-	Size = UDim2.fromScale(1, 1),
-	TextStrokeTransparency = 0.3,
-	ZIndex = 2,
-	Text = "",
-	Parent = costBar,
-})
-local doRebirth = Instance.new("TextButton")
-doRebirth.Size = UDim2.new(1, -32, 0, 52)
-doRebirth.Position = UDim2.fromOffset(16, 204)
-doRebirth.BackgroundColor3 = PURPLE
-doRebirth.TextColor3 = Color3.new(1, 1, 1)
-doRebirth.Font = Enum.Font.FredokaOne
-doRebirth.TextScaled = true
-doRebirth.Text = "WIEDERGEBURT!"
-doRebirth.Parent = rebirthPanel
-corner(doRebirth, 12)
-local tokenLabel = label({
-	Size = UDim2.new(1, -32, 0, 28),
-	Position = UDim2.fromOffset(16, 266),
-	Font = Enum.Font.FredokaOne,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = Color3.fromRGB(120, 220, 255),
-	Text = "",
-	Parent = rebirthPanel,
-})
-
--- Tokens gibt man im Skill-Baum aus (Menus.luau)
-local skillLink = Instance.new("TextButton")
-skillLink.Size = UDim2.new(1, -32, 0, 46)
-skillLink.Position = UDim2.fromOffset(16, 302)
-skillLink.BackgroundColor3 = Color3.fromRGB(60, 120, 215)
-skillLink.TextColor3 = Color3.new(1, 1, 1)
-skillLink.Font = Enum.Font.FredokaOne
-skillLink.TextScaled = true
-skillLink.Text = "💠 Tokens im Skill-Baum ausgeben"
-skillLink.Parent = rebirthPanel
-corner(skillLink, 12)
-
-local function updateRebirth()
-	local rebirths = player:GetAttribute("Rebirths") or 0
-	local money = player:GetAttribute("Money") or 0
-	local tokens = player:GetAttribute("Tokens") or 0
-	local cost = Config.RebirthCost(rebirths)
-	rebirthInfo.Text = `Wiedergeburten: {rebirths}   ·   Einkommen x{Config.RebirthMultiplier(rebirths)} → x{Config.RebirthMultiplier(rebirths + 1)}`
-	local unlock = Config.RebirthUnlock(rebirths)
-	rebirthDesc.Text = `Du behältst deine {Config.Rebirth.KeepCreatures + (player:GetAttribute("Sk_Heritage") or 0)} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens für den Skill-Baum.`
-	if unlock then
-		rebirthUnlock.Text = `🎁 Schaltet frei: {unlock.Name} mit neuen, stärkeren Kreaturen!`
-		rebirthUnlock.TextColor3 = unlock.Color:Lerp(WHITE, 0.35)
-	else
-		rebirthUnlock.Text = "⭐ Alle Kisten freigeschaltet. Jede Wiedergeburt macht dich weiter reicher!"
-		rebirthUnlock.TextColor3 = Color3.fromRGB(255, 225, 120)
-	end
-	costFill.Size = UDim2.fromScale(math.clamp(money / cost, 0, 1), 1)
-	costText.Text = `{Config.FormatNumber(money)} / {Config.FormatNumber(cost)} $`
-	doRebirth.BackgroundColor3 = if money >= cost then PURPLE else Color3.fromRGB(90, 90, 100)
-	tokenLabel.Text = `💠 Tokens: {tokens}`
-end
-for _, attr in { "Money", "Rebirths", "Tokens" } do
-	player:GetAttributeChangedSignal(attr):Connect(function()
-		if rebirthPanel.Visible then
-			updateRebirth()
-		end
-	end)
-end
-
--- Sicherheitsabfrage: zweimal klicken
-local confirmUntil = 0
-doRebirth.Activated:Connect(function()
-	local rebirths = player:GetAttribute("Rebirths") or 0
-	if (player:GetAttribute("Money") or 0) < Config.RebirthCost(rebirths) then
-		playSound("Click", 0.6)
-		return
-	end
-	if os.clock() > confirmUntil then
-		confirmUntil = os.clock() + 3
-		doRebirth.Text = "SICHER? NOCHMAL KLICKEN!"
-		playSound("Click")
-		task.delay(3, function()
-			if os.clock() >= confirmUntil then
-				doRebirth.Text = "WIEDERGEBURT!"
-			end
-		end)
-		return
-	end
-	confirmUntil = 0
-	doRebirth.Text = "WIEDERGEBURT!"
-	Remotes.Rebirth:FireServer()
-	rebirthPanel.Visible = false
-end)
-
-local function toggleRebirth()
-	if opening then
-		return
-	end
-	rebirthPanel.Visible = not rebirthPanel.Visible
-	if rebirthPanel.Visible then
-		updateRebirth()
-		local camera = workspace.CurrentCamera
-		if camera then
-			local size = camera.ViewportSize
-			rebirthScale.Scale = math.min(1, size.X / 660, size.Y / 404)
-		end
-		rebirthScale.Scale *= 0.8
-		tween(rebirthScale, 0.25, { Scale = rebirthScale.Scale / 0.8 }, Enum.EasingStyle.Back)
-	end
-	playSound("Click")
-end
-rebirthButton.Activated:Connect(toggleRebirth)
-rebirthClose.Activated:Connect(function()
-	rebirthPanel.Visible = false
-end)
-
 -- Skill-Baum und Inventar (eigene Datei: Menus.luau)
 local menus = require(script.Parent:WaitForChild("Menus"))({
 	Gui = gui,
@@ -3910,17 +3706,29 @@ local menus = require(script.Parent:WaitForChild("Menus"))({
 	PlaySound = playSound,
 	StarBurst = starBurst,
 	CreatureIcon = creatureIcon,
+	Stil = Stil,
 	Busy = function()
 		return opening
 	end,
 })
-skillLink.Activated:Connect(function()
-	menus.ToggleSkills()
-end)
+
+-- Wiedergeburt: Fenster, Knopf und Taste R (eigene Datei: Wiedergeburt.luau)
+local rebirth = require(script.Parent:WaitForChild("Wiedergeburt"))({
+	HudButton = hudButton,
+	Label = label,
+	Tween = tween,
+	PlaySound = playSound,
+	Stil = Stil,
+	OpenSkills = menus.ToggleSkills,
+	Busy = function()
+		return opening
+	end,
+})
 
 -- Welten: Portale, Licht-Stimmung, Reise-Blitz und Knopf "Heim" (eigene Datei: Welten.luau)
 local welten = require(script.Parent:WaitForChild("Welten"))({
 	Gui = gui,
+	Stil = Stil,
 	HudButton = hudButton,
 	Corner = corner,
 	Label = label,
@@ -3961,7 +3769,7 @@ require(script.Parent:WaitForChild("Klicker"))({
 
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
 do
-	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.BagPanel, welten.Panel }
+	local panels = { shop, rebirth.Panel, menus.SkillPanel, menus.BagPanel, welten.Panel }
 	for _, panel in panels do
 		panel:GetPropertyChangedSignal("Visible"):Connect(function()
 			if panel.Visible then
@@ -3980,23 +3788,5 @@ do
 		end)
 	end
 end
-UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.R then
-		toggleRebirth()
-	end
-end)
-
--- Rebirth-Knopf pulsiert, sobald man sich die Wiedergeburt leisten kann
-task.spawn(function()
-	while true do
-		local cost = Config.RebirthCost(player:GetAttribute("Rebirths") or 0)
-		if (player:GetAttribute("Money") or 0) >= cost and not rebirthPanel.Visible then
-			tween(rebirthButtonScale, 0.35, { Scale = 1.15 }).Completed:Wait()
-			tween(rebirthButtonScale, 0.35, { Scale = 1 }).Completed:Wait()
-		else
-			task.wait(0.5)
-		end
-	end
-end)
 
 print(`[Client] Hallo {player.Name}, willkommen bei {Config.GameName}!`)

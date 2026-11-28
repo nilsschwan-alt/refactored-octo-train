@@ -10,10 +10,17 @@ local Bases = require(script.Parent.Bases)
 local Achievements = {}
 
 local GOLD = Color3.fromRGB(255, 215, 70)
+local remotes
+local lastSent = setmetatable({}, { __mode = "k" }) -- [player] = Zeit der letzten Liste
 local byKind = {} -- [kind] = { erfolg, erfolg, ... }
 for _, achievement in Config.Achievements do
 	byKind[achievement.Kind] = byKind[achievement.Kind] or {}
 	table.insert(byKind[achievement.Kind], achievement)
+end
+
+-- Schickt Zähler und erreichte Stufen an den Client (für die Liste im Skill-Fenster)
+function Achievements.Send(state)
+	remotes.Achievements:FireClient(state.Player, state.Data.Stats, state.Data.Achieved)
 end
 
 -- Fortschritt melden: kind = "OpenPacks", "Clicks", "Earn", "StarUp", ...
@@ -40,13 +47,24 @@ function Achievements.Add(state, kind: string, amount: number)
 			local text = achievement.Text:gsub("{n}", Config.FormatNumber(achievement.Goals[tier]))
 			Bases.BigText(player, `🏆 ERFOLG! +{gained} 💠`, GOLD, "Achievement", true)
 			Bases.Notify(player, `🏆 {achievement.Icon} {text}: +{gained} Token für den Skill-Baum!`, GOLD)
+			Achievements.Send(state)
 		end
 	end
 end
 
 -- Hängt sich hinter die Aufgaben: Alles, was dort gezählt wird, zählt auch für die Erfolge.
 -- Muss nach Quests.Init aufgerufen werden.
-function Achievements.Init()
+function Achievements.Init(remoteFolder)
+	remotes = remoteFolder
+	-- Der Client fragt nach der Liste, solange das Fenster offen ist (höchstens 2x pro Sekunde)
+	remotes.Achievements.OnServerEvent:Connect(function(player)
+		local state = Bases.GetState(player)
+		local now = os.clock()
+		if state and now - (lastSent[player] or 0) >= 0.5 then
+			lastSent[player] = now
+			Achievements.Send(state)
+		end
+	end)
 	local inner = Bases.Track
 	Bases.Track = function(state, kind: string, amount: number)
 		inner(state, kind, amount)

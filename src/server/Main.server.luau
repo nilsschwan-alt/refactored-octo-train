@@ -27,7 +27,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Inventory", "InventoryAction", "Travel", "GoHome", "TravelTo", "Click", "Clicked", "EventFx" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Inventory", "InventoryAction", "Achievements", "Travel", "GoHome", "TravelTo", "Click", "Clicked", "EventFx" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -49,7 +49,7 @@ do
 	end
 end
 Quests.Init(remotes)
-Achievements.Init() -- nach den Aufgaben: zählt alles mit, was dort gezählt wird
+Achievements.Init(remotes) -- nach den Aufgaben: zählt alles mit, was dort gezählt wird
 Leaderboard.Start(mapFolder)
 
 -- Klatsche (zum Schlagen von Dieben) -------------------------------------------

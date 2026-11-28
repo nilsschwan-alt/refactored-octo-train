@@ -232,65 +232,72 @@ function Config.StarUnits(stars: number?): number
 	return units
 end
 
--- Skill-Baum (Waben-Netz) -----------------------------------------------------------
--- Bezahlt wird mit Tokens. Tokens gibt es für Wiedergeburten und für geschaffte Aufgaben.
--- Jede Fähigkeit ist eine Wabe. Hex = Platz im Netz (Mitte ist 0,0). Lernen kann man nur
--- Waben, die an die Mitte oder an eine schon gelernte Wabe angrenzen.
+-- Skill-Baum (Karten in drei Bereichen) ---------------------------------------------
+-- Bezahlt wird mit Tokens. Tokens gibt es für Aufgaben, Erfolge und Wiedergeburten.
+-- Jede Fähigkeit ist eine Karte. Pro Bereich gibt es 3 Reihen mit je 4 Karten.
 -- Max = höchste Stufe, Costs = Token-Preis je Stufe, PerLevel = Wirkung pro Stufe.
 -- Text: {v} wird durch die Wirkung ersetzt (bei Percent = true als Prozent).
 Config.Skills = {
 	QuestsPerToken = 1, -- jede geschaffte Aufgabe gibt Tokens (2 = nur jede zweite)
 	TokensPerQuest = 1,
+	-- Jeder Bereich hat 3 Reihen mit je 4 Fähigkeiten (in der Reihenfolge der Liste unten).
+	-- Reihe 2 und 3 gehen erst auf, wenn man so viele Stufen in diesem Bereich gelernt hat:
+	RowNeed = { 0, 4, 10 },
 	Branches = {
 		Geld = { Name = "Geld & Klick", Icon = "💰", Color = Color3.fromRGB(255, 200, 60) },
 		Glueck = { Name = "Glück", Icon = "🍀", Color = Color3.fromRGB(90, 220, 110) },
 		Dieb = { Name = "Dieb & Schutz", Icon = "🛡️", Color = Color3.fromRGB(255, 95, 110) },
 	},
 	List = {
-		-- Geld & Klick (innen: 2 Waben, Mitte: 4, außen: 6)
-		{ Id = "Income", Branch = "Geld", Hex = { 1, 0 }, Name = "Sparschwein", Icon = "🐷", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.05, Percent = true, Text = "+{v} % Einkommen" },
-		{ Id = "ClickPower", Branch = "Geld", Hex = { 1, -1 }, Name = "Klick-Kraft", Icon = "👆", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Geld pro Klick" },
-		{ Id = "AutoClick", Branch = "Geld", Hex = { 2, 0 }, Name = "Auto-Klicker", Icon = "🤖", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "{v} Klick(s) pro Sekunde ganz von allein" },
-		{ Id = "Crit", Branch = "Geld", Hex = { 2, -1 }, Name = "Volltreffer", Icon = "💥", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.02, Percent = true, Text = "+{v} % Chance auf einen Volltreffer (viel mehr Geld)" },
-		{ Id = "CritPower", Branch = "Geld", Hex = { 2, -2 }, Name = "Wumms", Icon = "🌟", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1, Text = "Volltreffer bringen noch {v}x mehr" },
-		{ Id = "QuestBonus", Branch = "Geld", Hex = { 1, -2 }, Name = "Quest-Profi", Icon = "📜", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.15, Percent = true, Text = "Aufgaben bringen +{v} % Geld" },
-		{ Id = "ComboTime", Branch = "Geld", Hex = { 3, 0 }, Name = "Langer Atem", Icon = "⏱️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Die Combo hält {v} Sekunden länger" },
-		{ Id = "ComboPower", Branch = "Geld", Hex = { 3, -1 }, Name = "Combo-Meister", Icon = "🔥", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "Der Combo-Bonus ist +{v} % stärker" },
-		{ Id = "GoldDonkey", Branch = "Geld", Hex = { 3, -2 }, Name = "Goldesel", Icon = "👑", Max = 1, Costs = { 8 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Einkommen, für immer" },
-		{ Id = "WorldClick", Branch = "Geld", Hex = { 3, -3 }, Name = "Welten-Bummler", Icon = "🌍", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "In den Welten +{v} % Geld pro Klick" },
-		{ Id = "Jackpot", Branch = "Geld", Hex = { 2, -3 }, Name = "Jackpot", Icon = "🎰", Max = 3, Costs = { 3, 4, 5 }, PerLevel = 0.002, Percent = true, Text = "{v} % Chance pro Klick auf den Jackpot" },
-		{ Id = "GoldRush", Branch = "Geld", Hex = { 1, -3 }, Name = "Goldgräber", Icon = "⛏️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Im Goldrausch noch +{v} % Einkommen dazu" },
+		-- Geld & Klick (die ersten 4 = Reihe 1, die nächsten 4 = Reihe 2, die letzten 4 = Reihe 3)
+		{ Id = "Income", Branch = "Geld", Name = "Sparschwein", Icon = "🐷", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.05, Percent = true, Text = "+{v} % Einkommen" },
+		{ Id = "ClickPower", Branch = "Geld", Name = "Klick-Kraft", Icon = "👆", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Geld pro Klick" },
+		{ Id = "AutoClick", Branch = "Geld", Name = "Auto-Klicker", Icon = "🤖", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "{v} Klick(s) pro Sekunde ganz von allein" },
+		{ Id = "Crit", Branch = "Geld", Name = "Volltreffer", Icon = "💥", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.02, Percent = true, Text = "+{v} % Chance auf einen Volltreffer (viel mehr Geld)" },
+		{ Id = "CritPower", Branch = "Geld", Name = "Wumms", Icon = "🌟", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1, Text = "Volltreffer bringen noch {v}x mehr" },
+		{ Id = "QuestBonus", Branch = "Geld", Name = "Quest-Profi", Icon = "📜", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.15, Percent = true, Text = "Aufgaben bringen +{v} % Geld" },
+		{ Id = "ComboTime", Branch = "Geld", Name = "Langer Atem", Icon = "⏱️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Die Combo hält {v} Sekunden länger" },
+		{ Id = "ComboPower", Branch = "Geld", Name = "Combo-Meister", Icon = "🔥", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "Der Combo-Bonus ist +{v} % stärker" },
+		{ Id = "GoldDonkey", Branch = "Geld", Name = "Goldesel", Icon = "👑", Max = 1, Costs = { 8 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Einkommen, für immer" },
+		{ Id = "WorldClick", Branch = "Geld", Name = "Welten-Bummler", Icon = "🌍", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "In den Welten +{v} % Geld pro Klick" },
+		{ Id = "Jackpot", Branch = "Geld", Name = "Jackpot", Icon = "🎰", Max = 3, Costs = { 3, 4, 5 }, PerLevel = 0.002, Percent = true, Text = "{v} % Chance pro Klick auf den Jackpot" },
+		{ Id = "GoldRush", Branch = "Geld", Name = "Goldgräber", Icon = "⛏️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Im Goldrausch noch +{v} % Einkommen dazu" },
 		-- Glück
-		{ Id = "Luck", Branch = "Glueck", Hex = { 0, -1 }, Name = "Glück", Icon = "🍀", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Selten und besser: +{v} % wahrscheinlicher" },
-		{ Id = "Mutation", Branch = "Glueck", Hex = { -1, 0 }, Name = "Mutations-Gespür", Icon = "🌈", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Mutationen: +{v} % wahrscheinlicher" },
-		{ Id = "Pity", Branch = "Glueck", Hex = { 0, -2 }, Name = "Garantie", Icon = "🎯", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "Legendär-Garantie {v} Kiste(n) früher" },
-		{ Id = "Refund", Branch = "Glueck", Hex = { -1, -1 }, Name = "Gratis-Kiste", Icon = "🎁", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.03, Percent = true, Text = "{v} % Chance: eine Kiste kostet nichts" },
-		{ Id = "SellBonus", Branch = "Glueck", Hex = { -2, 0 }, Name = "Händler", Icon = "🤝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "+{v} % Geld beim Verkaufen" },
-		{ Id = "StarLuck", Branch = "Glueck", Hex = { -2, 1 }, Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verbessern" },
-		{ Id = "TokenLuck", Branch = "Glueck", Hex = { 0, -3 }, Name = "Token-Finder", Icon = "💠", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "{v} % Chance auf ein Extra-Token bei jeder Aufgabe" },
-		{ Id = "DailyLuck", Branch = "Glueck", Hex = { -1, -2 }, Name = "Frühaufsteher", Icon = "🌅", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Percent = true, Text = "Der Tagesbonus ist +{v} % größer" },
-		{ Id = "MythicLuck", Branch = "Glueck", Hex = { -2, -1 }, Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
-		{ Id = "Heritage", Branch = "Glueck", Hex = { -3, 0 }, Name = "Erbstück", Icon = "🧳", Max = 2, Costs = { 3, 5 }, PerLevel = 1, Text = "Bei der Wiedergeburt bleiben {v} Kreatur(en) mehr, die Stein-Burg gibt es dann gleich dazu" },
-		{ Id = "StartMoney", Branch = "Glueck", Hex = { -3, 1 }, Name = "Startkapital", Icon = "💼", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 5, Percent = true, Text = "+{v} % Startgeld nach der Wiedergeburt" },
-		{ Id = "UpgradeDiscount", Branch = "Glueck", Hex = { -3, 2 }, Name = "Baumeister", Icon = "🔨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "Der Base-Ausbau kostet {v} % weniger" },
+		{ Id = "Luck", Branch = "Glueck", Name = "Glück", Icon = "🍀", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Selten und besser: +{v} % wahrscheinlicher" },
+		{ Id = "Mutation", Branch = "Glueck", Name = "Mutations-Gespür", Icon = "🌈", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Mutationen: +{v} % wahrscheinlicher" },
+		{ Id = "Pity", Branch = "Glueck", Name = "Garantie", Icon = "🎯", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "Legendär-Garantie {v} Kiste(n) früher" },
+		{ Id = "Refund", Branch = "Glueck", Name = "Gratis-Kiste", Icon = "🎁", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.03, Percent = true, Text = "{v} % Chance: eine Kiste kostet nichts" },
+		{ Id = "SellBonus", Branch = "Glueck", Name = "Händler", Icon = "🤝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "+{v} % Geld beim Verkaufen" },
+		{ Id = "StarLuck", Branch = "Glueck", Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verbessern" },
+		{ Id = "TokenLuck", Branch = "Glueck", Name = "Token-Finder", Icon = "💠", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "{v} % Chance auf ein Extra-Token bei jeder Aufgabe" },
+		{ Id = "DailyLuck", Branch = "Glueck", Name = "Frühaufsteher", Icon = "🌅", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Percent = true, Text = "Der Tagesbonus ist +{v} % größer" },
+		{ Id = "MythicLuck", Branch = "Glueck", Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
+		{ Id = "Heritage", Branch = "Glueck", Name = "Erbstück", Icon = "🧳", Max = 2, Costs = { 3, 5 }, PerLevel = 1, Text = "Bei der Wiedergeburt bleiben {v} Kreatur(en) mehr, die Stein-Burg gibt es dann gleich dazu" },
+		{ Id = "StartMoney", Branch = "Glueck", Name = "Startkapital", Icon = "💼", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 5, Percent = true, Text = "+{v} % Startgeld nach der Wiedergeburt" },
+		{ Id = "UpgradeDiscount", Branch = "Glueck", Name = "Baumeister", Icon = "🔨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "Der Base-Ausbau kostet {v} % weniger" },
 		-- Dieb & Schutz
-		{ Id = "CarrySpeed", Branch = "Dieb", Hex = { -1, 1 }, Name = "Schnelle Beine", Icon = "👟", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.6, Text = "+{v} Tempo, wenn du Beute trägst" },
-		{ Id = "LockTime", Branch = "Dieb", Hex = { 0, 1 }, Name = "Dickes Schloss", Icon = "🔒", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Schloss hält +{v} % länger" },
-		{ Id = "HitRange", Branch = "Dieb", Hex = { -2, 2 }, Name = "Lange Klatsche", Icon = "🏏", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1.5, Text = "Klatsche reicht +{v} Studs weiter" },
-		{ Id = "LockCooldown", Branch = "Dieb", Hex = { -1, 2 }, Name = "Schnelles Schloss", Icon = "⏰", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 8, Text = "Schloss ist {v} Sekunden früher wieder bereit" },
-		{ Id = "LootBonus", Branch = "Dieb", Hex = { 0, 2 }, Name = "Beute-Bonus", Icon = "💎", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 30, Text = "Geklaut: sofort {v} Sekunden Einkommen der Beute" },
-		{ Id = "Comfort", Branch = "Dieb", Hex = { 1, 1 }, Name = "Trostpflaster", Icon = "💝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Wirst du beklaut: {v} % vom Wert als Geld" },
-		{ Id = "ThiefSlow", Branch = "Dieb", Hex = { -3, 3 }, Name = "Klebefalle", Icon = "🕸️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.08, Percent = true, Text = "Wer dich beklaut, trägt {v} % langsamer" },
-		{ Id = "StunTime", Branch = "Dieb", Hex = { -2, 3 }, Name = "Dicker Brummer", Icon = "💫", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Getroffene Diebe stehen {v} Sekunden länger still" },
-		{ Id = "Vault", Branch = "Dieb", Hex = { -1, 3 }, Name = "Tresor", Icon = "🏦", Max = 1, Costs = { 8 }, PerLevel = 1, Text = "Deine beste Kreatur kann niemand klauen" },
-		{ Id = "HitCooldown", Branch = "Dieb", Hex = { 0, 3 }, Name = "Flinke Klatsche", Icon = "⚡", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "Die Klatsche ist {v} % schneller wieder bereit" },
-		{ Id = "PortalShield", Branch = "Dieb", Hex = { 1, 2 }, Name = "Portal-Schutz", Icon = "🛡️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 2, Text = "Nach dem Portal {v} Sekunden länger geschützt" },
-		{ Id = "WalkSpeed", Branch = "Dieb", Hex = { 2, 1 }, Name = "Flitzer", Icon = "💨", Max = 4, Costs = { 2, 2, 3, 4 }, PerLevel = 0.5, Text = "+{v} Lauftempo, immer" },
+		{ Id = "CarrySpeed", Branch = "Dieb", Name = "Schnelle Beine", Icon = "👟", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.6, Text = "+{v} Tempo, wenn du Beute trägst" },
+		{ Id = "LockTime", Branch = "Dieb", Name = "Dickes Schloss", Icon = "🔒", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Schloss hält +{v} % länger" },
+		{ Id = "HitRange", Branch = "Dieb", Name = "Lange Klatsche", Icon = "🏏", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1.5, Text = "Klatsche reicht +{v} Studs weiter" },
+		{ Id = "LockCooldown", Branch = "Dieb", Name = "Schnelles Schloss", Icon = "⏰", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 8, Text = "Schloss ist {v} Sekunden früher wieder bereit" },
+		{ Id = "LootBonus", Branch = "Dieb", Name = "Beute-Bonus", Icon = "💎", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 30, Text = "Geklaut: sofort {v} Sekunden Einkommen der Beute" },
+		{ Id = "Comfort", Branch = "Dieb", Name = "Trostpflaster", Icon = "💝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Wirst du beklaut: {v} % vom Wert als Geld" },
+		{ Id = "ThiefSlow", Branch = "Dieb", Name = "Klebefalle", Icon = "🕸️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.08, Percent = true, Text = "Wer dich beklaut, trägt {v} % langsamer" },
+		{ Id = "StunTime", Branch = "Dieb", Name = "Dicker Brummer", Icon = "💫", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Getroffene Diebe stehen {v} Sekunden länger still" },
+		{ Id = "Vault", Branch = "Dieb", Name = "Tresor", Icon = "🏦", Max = 1, Costs = { 8 }, PerLevel = 1, Text = "Deine beste Kreatur kann niemand klauen" },
+		{ Id = "HitCooldown", Branch = "Dieb", Name = "Flinke Klatsche", Icon = "⚡", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "Die Klatsche ist {v} % schneller wieder bereit" },
+		{ Id = "PortalShield", Branch = "Dieb", Name = "Portal-Schutz", Icon = "🛡️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 2, Text = "Nach dem Portal {v} Sekunden länger geschützt" },
+		{ Id = "WalkSpeed", Branch = "Dieb", Name = "Flitzer", Icon = "💨", Max = 4, Costs = { 2, 2, 3, 4 }, PerLevel = 0.5, Text = "+{v} Lauftempo, immer" },
 	},
 }
 Config.SkillById = {}
+Config.SkillsByBranch = {} -- [Bereich] = { Fähigkeiten in der Reihenfolge der Liste }
 for _, skill in Config.Skills.List do
 	Config.SkillById[skill.Id] = skill
+	local list = Config.SkillsByBranch[skill.Branch] or {}
+	Config.SkillsByBranch[skill.Branch] = list
+	table.insert(list, skill)
+	skill.Row = math.min(#Config.Skills.RowNeed, math.ceil(#list / 4)) -- 1, 2 oder 3
 end
 
 -- Wirkung einer Fähigkeit: skills = { Income = 2, ... } (Stufen), gibt Stufe x PerLevel zurück
@@ -311,28 +318,26 @@ function Config.SkillText(skill, level: number): string
 	return (string.gsub(skill.Text, "{v}", shown))
 end
 
--- Grenzt Wabe a an Wabe b? (Sechseck-Netz, 6 Nachbarn)
-function Config.HexAdjacent(a, b): boolean
-	local dq, dr = a[1] - b[1], a[2] - b[2]
-	return (dq == 1 and dr == 0)
-		or (dq == -1 and dr == 0)
-		or (dq == 0 and dr == 1)
-		or (dq == 0 and dr == -1)
-		or (dq == 1 and dr == -1)
-		or (dq == -1 and dr == 1)
+-- So viele Stufen hat man in einem Bereich schon gelernt (alle Fähigkeiten zusammen)
+function Config.BranchLevels(skills, branch: string): number
+	local total = 0
+	for _, skill in Config.SkillsByBranch[branch] or {} do
+		total += skills and skills[skill.Id] or 0
+	end
+	return total
 end
 
--- Darf man die Fähigkeit lernen? Sie muss an die Mitte oder an eine gelernte Wabe grenzen.
+-- So viele Stufen braucht man im Bereich, damit die Reihe dieser Fähigkeit aufgeht
+function Config.SkillNeed(skill): number
+	return Config.Skills.RowNeed[skill.Row] or 0
+end
+
+-- Darf man die Fähigkeit lernen? Ihre Reihe muss offen sein (schon Gelerntes geht immer weiter).
 function Config.SkillReachable(skills, skill): boolean
-	if Config.HexAdjacent(skill.Hex, { 0, 0 }) then
+	if (skills and skills[skill.Id] or 0) > 0 then
 		return true
 	end
-	for _, other in Config.Skills.List do
-		if other ~= skill and (skills and skills[other.Id] or 0) > 0 and Config.HexAdjacent(skill.Hex, other.Hex) then
-			return true
-		end
-	end
-	return false
+	return Config.BranchLevels(skills, skill.Branch) >= Config.SkillNeed(skill)
 end
 
 -- Nach so vielen Kisten ohne Legendär+ gibt es die Garantie (Fähigkeit "Garantie" zieht ab)
