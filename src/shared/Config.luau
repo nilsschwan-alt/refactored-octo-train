@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.11.0"
+Config.Version = "0.12.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -455,6 +455,93 @@ Config.Coins = {
 }
 
 -- Auf eigene Kreaturen klicken = sofort Geld
+-- Welten ---------------------------------------------------------------------
+-- Vier eigene Inseln, erreichbar durch die Portale hinter dem Kisten-Shop.
+-- Jede Welt gehört zu einer Kiste und geht mit derselben Wiedergeburt auf.
+-- Dort liegen wertvollere Münzen, und immer wieder taucht ein wildes Monster aus der
+-- Kiste dieser Welt auf: schnappen und zu Fuß nach Hause tragen (wie beim Meteor).
+Config.Worlds = {
+	ArrivalShield = 6, -- so viele Sekunden kann einen niemand hauen, wenn man mit Beute aus einer Welt kommt
+	PortalCooldown = 2.5, -- Pause zwischen zwei Reisen
+	HomeCooldown = 5, -- Pause für den Knopf "Nach Hause"
+	CoinsPerWorld = 25, -- so viele Münzen liegen in jeder Welt höchstens herum
+	Wild = {
+		Interval = 150, -- so viele Sekunden nach dem Schnappen kommt das nächste wilde Monster
+		FirstAfter = 20, -- das erste kommt kurz nach dem Start
+		Lifetime = 600, -- so lange wartet es, danach kommt ein neues an anderer Stelle
+		Weights = { Uncommon = 45, Rare = 35, Epic = 15, Legendary = 4.5, Mythic = 0.5 },
+		MutationWeights = { Normal = 80, Gold = 13, Diamant = 5.5, Regenbogen = 1.5 },
+		AnnounceFrom = "Epic", -- ab dieser Seltenheit erfährt es der ganze Server
+	},
+	-- CoinFactor: Münzen sind dort so viel mehr wert als auf der Straße
+	-- Tint: Farbstich des Bildes in der Welt, Clock: Uhrzeit dort (0 = Nacht, weglassen = wie draußen)
+	List = {
+		{
+			Id = "Kristall",
+			Name = "Kristall-Tal",
+			Icon = "💎",
+			Pack = "Kristall",
+			Rebirths = 1,
+			CoinFactor = 1.5,
+			Color = Color3.fromRGB(190, 110, 255),
+			CoinColor = Color3.fromRGB(255, 130, 235),
+			Tint = Color3.fromRGB(242, 230, 255),
+		},
+		{
+			Id = "Lava",
+			Name = "Lava-Krater",
+			Icon = "🌋",
+			Pack = "Lava",
+			Rebirths = 2,
+			CoinFactor = 2,
+			Color = Color3.fromRGB(255, 110, 35),
+			CoinColor = Color3.fromRGB(255, 150, 50),
+			Tint = Color3.fromRGB(255, 232, 214),
+			Clock = 17.6,
+		},
+		{
+			Id = "Eis",
+			Name = "Eis-Gipfel",
+			Icon = "❄️",
+			Pack = "Eis",
+			Rebirths = 3,
+			CoinFactor = 2.5,
+			Color = Color3.fromRGB(120, 215, 255),
+			CoinColor = Color3.fromRGB(150, 230, 255),
+			Tint = Color3.fromRGB(228, 240, 255),
+		},
+		{
+			Id = "Galaxie",
+			Name = "Sternen-Insel",
+			Icon = "🌌",
+			Pack = "Galaxie",
+			Rebirths = 4,
+			CoinFactor = 3,
+			Color = Color3.fromRGB(110, 120, 255),
+			CoinColor = Color3.fromRGB(190, 150, 255),
+			Tint = Color3.fromRGB(224, 218, 255),
+			Clock = 0,
+		},
+	},
+}
+Config.WorldById = {}
+for index, world in Config.Worlds.List do
+	world.Index = index
+	Config.WorldById[world.Id] = world
+end
+function Config.WorldUnlocked(world, rebirths: number?): boolean
+	return (rebirths or 0) >= world.Rebirths
+end
+-- Welche Welt geht genau mit dieser Zahl an Wiedergeburten auf?
+function Config.WorldAtRebirth(rebirths: number)
+	for _, world in Config.Worlds.List do
+		if world.Rebirths == rebirths then
+			return world
+		end
+	end
+	return nil
+end
+
 Config.Click = {
 	Cooldown = 0.1, -- höchstens 10 Klicks pro Sekunde
 	IncomeSeconds = 1, -- ein Klick = 1 Sekunde Einkommen DIESER Kreatur
@@ -626,6 +713,7 @@ Config.Sounds = {
 	-- Verschmelzen: Zischen beim Zusammenfliegen, dann der Schlag, wenn die neue Kreatur erscheint
 	Merge = { { "ZoomUp", 1, 0.9, 0 }, { "Anvil", 1.2, 1.1, 0.38 }, { "Bell", 1.5, 0.9, 0.38, 1.4 } },
 	MergeBig = { { "ZoomUp", 0.9, 1, 0 }, { "Smash", 1, 0.6, 0.38, 1.8 }, { "StingWin", 1, 0.8, 0.42 } }, -- ab 3 Sternen
+	Travel = { { "ZoomUp", 1.2, 0.8, 0 }, { "Bell", 2, 0.5, 0.25, 1 } }, -- durchs Portal
 	Skill = { { "MetalRing", 1.3, 0.6, 0, 0.9 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.14 } }, -- Fähigkeit gelernt
 	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },
 	Hit = { { "Swoosh", 1.6, 0.7, 0 }, { "Ping", 0.6, 0.6, 0.03 } },

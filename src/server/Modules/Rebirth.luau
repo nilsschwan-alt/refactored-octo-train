@@ -69,6 +69,15 @@ function Rebirth.Do(player: Player)
 			end
 		end)
 	end
+	local newWorld = Config.WorldAtRebirth(data.Rebirths) -- neue Welt durch diese Wiedergeburt?
+	if newWorld then
+		task.delay(5.2, function()
+			if player.Parent then
+				Bases.BigText(player, `NEUE WELT: {Config.Upper(newWorld.Name)}!`, newWorld.Color, "Upgrade", false)
+				Bases.Notify(player, `{newWorld.Icon} Das Portal „{newWorld.Name}“ ist jetzt offen. Es steht hinter dem Kisten-Shop.`, newWorld.Color)
+			end
+		end)
+	end
 	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)
 	FX.Ring(center, PURPLE, 60)
 	for _, model in state.Plot.SlotModels do

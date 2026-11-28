@@ -1018,7 +1018,8 @@ local function buildPackShopArea(info, parent: Instance)
 	for i = 0, 7 do
 		local a = i / 8 * math.pi * 2
 		local pos = shop + Vector3.new(math.cos(a) * 32, 0, math.sin(a) * 32)
-		if pos.X > archX + 6 then
+		-- hinten stehen die Welt-Portale, dort keine Fahnen
+		if pos.X > archX + 6 and math.cos(a) < 0.5 then
 			part({
 				Name = "Fahnenmast",
 				Size = Vector3.new(0.5, 14, 0.5),

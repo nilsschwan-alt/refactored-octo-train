@@ -18,6 +18,7 @@ local Coins = require(Modules.Coins)
 local Quests = require(Modules.Quests)
 local Rebirth = require(Modules.Rebirth)
 local Skills = require(Modules.Skills)
+local Worlds = require(Modules.Worlds)
 local Leaderboard = require(Modules.Leaderboard)
 
 print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
@@ -25,7 +26,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -39,6 +40,7 @@ Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
 Events.Start(mapFolder)
 Coins.Start(mapFolder)
+Worlds.Start(mapFolder, remotes)
 Quests.Init(remotes)
 Leaderboard.Start(mapFolder)
 
@@ -200,6 +202,9 @@ remotes.BuySkill.OnServerEvent:Connect(function(player, id)
 	if type(id) == "string" then
 		Skills.Buy(player, id)
 	end
+end)
+remotes.GoHome.OnServerEvent:Connect(function(player)
+	Worlds.GoHome(player)
 end)
 local lastMerge = {} -- [player] = os.clock(), damit niemand den Knopf hämmert
 remotes.Merge.OnServerEvent:Connect(function(player, entry)
