@@ -226,22 +226,39 @@ local function sunburst(parent: Instance, color: Color3, size: number): Frame
 end
 
 -- Linke Leiste: oben die Geld-Anzeige, darunter die Knöpfe untereinander ---------------
--- Alles sitzt in einem Rahmen am linken Rand. Auf kleinen Bildschirmen (Handy quer)
--- schrumpft die ganze Leiste, damit sie immer ins Bild passt.
+-- Die Leiste hat eine eigene Ebene UNTER den Fenstern, damit ein offenes Fenster sie
+-- immer überdeckt. Am PC bleibt sie unter dem Chat (oben links), auf kleinen Bildschirmen
+-- schrumpft sie. Am Handy stehen die Knöpfe in zwei Spalten weiter oben, damit unten
+-- links Platz für den Lauf-Stick bleibt.
+gui.DisplayOrder = 1
 local hud = Instance.new("Frame")
 hud.Name = "LinkeLeiste"
-hud.AnchorPoint = Vector2.new(0, 0.5)
-hud.Position = UDim2.new(0, 10, 0.5, 0)
-hud.Size = UDim2.fromOffset(236, 474) -- Geld 72 + Abstand 12 + 6 Knöpfe je 58 mit 8 Abstand
 hud.BackgroundTransparency = 1
-hud.Parent = gui
+local HUD_TOUCH = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 do
+	local hudGui = Instance.new("ScreenGui")
+	hudGui.Name = "SpielLeiste"
+	hudGui.ResetOnSpawn = false
+	hudGui.DisplayOrder = 0
+	hudGui.Parent = player.PlayerGui
+	hud.Parent = hudGui
+	local height = if HUD_TOUCH then 84 + 3 * 72 - 4 else 84 + 6 * 72 - 4
+	hud.Size = UDim2.fromOffset(236, height)
 	local hudScale = Instance.new("UIScale")
 	hudScale.Parent = hud
 	local function fit()
-		hudScale.Scale = math.clamp((gui.AbsoluteSize.Y - 24) / 474, 0.5, 1)
+		local screen = hudGui.AbsoluteSize.Y
+		if HUD_TOUCH then
+			hudScale.Scale = math.clamp(screen * 0.62 / height, 0.6, 1)
+			hud.Position = UDim2.fromOffset(10, 8)
+		else
+			-- Oberkante bleibt unter dem Chat-Fenster (ca. 140 px), unten 8 px Luft
+			local scale = math.clamp((screen - 148) / height, 0.6, 1)
+			hudScale.Scale = scale
+			hud.Position = UDim2.fromOffset(10, math.max(140, (screen - height * scale) / 2 + 24))
+		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	hudGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	fit()
 end
 
@@ -252,29 +269,34 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 	local holder = Instance.new("Frame")
 	holder.Name = text .. "Knopf"
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
-	holder.Size = UDim2.fromOffset(58, 62)
-	holder.Position = UDim2.fromOffset(29, 84 + (slot - 1) * 66 + 31)
+	holder.Size = UDim2.fromOffset(64, 68)
+	if HUD_TOUCH then
+		-- Handy: zwei Spalten
+		holder.Position = UDim2.fromOffset(32 + ((slot - 1) % 2) * 72, 84 + math.floor((slot - 1) / 2) * 72 + 34)
+	else
+		holder.Position = UDim2.fromOffset(32, 84 + (slot - 1) * 72 + 34)
+	end
 	holder.BackgroundTransparency = 1
 	holder.Parent = hud
 	local scale = Instance.new("UIScale")
 	scale.Parent = holder
 	-- dunkle Unterkante: der Knopf wirkt dick und drückt sich beim Klick hinein
 	local lip = Instance.new("Frame")
-	lip.Size = UDim2.fromOffset(58, 58)
+	lip.Size = UDim2.fromOffset(64, 64)
 	lip.Position = UDim2.fromOffset(0, 4)
 	lip.BackgroundColor3 = color:Lerp(BLACK, 0.6)
 	lip.BorderSizePixel = 0
 	lip.Parent = holder
-	corner(lip, 15)
+	corner(lip, 16)
 	local button = Instance.new("TextButton")
-	button.Size = UDim2.fromOffset(58, 58)
+	button.Size = UDim2.fromOffset(64, 64)
 	button.BackgroundColor3 = WHITE
 	button.AutoButtonColor = false
 	button.BorderSizePixel = 0
 	button.Text = ""
 	button.ZIndex = 2
 	button.Parent = holder
-	corner(button, 15)
+	corner(button, 16)
 	local shade = Instance.new("UIGradient") -- oben heller, unten kräftiger
 	shade.Rotation = 90
 	shade.Color = ColorSequence.new(color:Lerp(WHITE, 0.4), color:Lerp(BLACK, 0.12))
@@ -289,27 +311,37 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 	shine.ZIndex = 2
 	shine.Parent = button
 	corner(shine, 7)
+	local iconBack = Instance.new("Frame") -- dunkler Kreis, damit sich jedes Symbol abhebt
+	iconBack.AnchorPoint = Vector2.new(0.5, 0.5)
+	iconBack.Size = UDim2.fromOffset(40, 40)
+	iconBack.Position = UDim2.new(0.5, 0, 0, 25)
+	iconBack.BackgroundColor3 = BLACK
+	iconBack.BackgroundTransparency = 0.78
+	iconBack.BorderSizePixel = 0
+	iconBack.ZIndex = 2
+	iconBack.Parent = button
+	corner(iconBack, 20)
 	local iconLabel = label({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(34, 34),
-		Position = UDim2.new(0.5, 0, 0, 23),
+		Position = UDim2.new(0.5, 0, 0, 25),
 		ZIndex = 3,
 		Text = icon,
 		Parent = button,
 	})
 	local nameLabel = label({
-		Size = UDim2.new(1, -6, 0, 15),
-		Position = UDim2.new(0, 3, 1, -19),
+		Size = UDim2.new(1, -4, 0, 17),
+		Position = UDim2.new(0, 2, 1, -21),
 		Font = Enum.Font.FredokaOne,
 		ZIndex = 3,
 		Text = text,
 		Parent = button,
 	})
 	stroke(nameLabel, color:Lerp(BLACK, 0.7), 2)
-	if key and UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled then
+	if key and UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled then -- nur am PC
 		local hint = label({
-			Size = UDim2.fromOffset(17, 17),
-			Position = UDim2.fromOffset(-5, -5),
+			Size = UDim2.fromOffset(19, 19),
+			Position = UDim2.fromOffset(-6, -6),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = Color3.fromRGB(30, 28, 44),
 			Font = Enum.Font.GothamBold,
@@ -392,7 +424,7 @@ do
 	-- grüne Pille hinter dem Einkommen
 	local pill = Instance.new("Frame")
 	pill.Name = "EinkommenPille"
-	pill.Size = UDim2.fromOffset(152, 22)
+	pill.Size = UDim2.fromOffset(120, 22)
 	pill.Position = UDim2.fromOffset(72, 42)
 	pill.BackgroundColor3 = Color3.fromRGB(40, 150, 80)
 	pill.BackgroundTransparency = 0.35
@@ -413,19 +445,28 @@ local moneyLabel = label({
 })
 local incomeLabel = label({
 	Size = UDim2.fromOffset(140, 16),
-	Position = UDim2.fromOffset(78, 45),
+	Position = UDim2.fromOffset(82, 45),
 	Font = Enum.Font.FredokaOne,
+	TextScaled = false,
+	TextSize = 16,
 	TextColor3 = Color3.fromRGB(170, 255, 170),
 	TextXAlignment = Enum.TextXAlignment.Left,
 	ZIndex = 2,
-	Text = "▲ +0 $ pro Sekunde",
+	Text = "▲ +0 $/s",
 	Parent = moneyBox,
 })
+-- die grüne Pille ist immer so breit wie der Text
+incomeLabel:GetPropertyChangedSignal("TextBounds"):Connect(function()
+	local pill = moneyBox:FindFirstChild("EinkommenPille")
+	if pill and pill:IsA("Frame") then
+		pill.Size = UDim2.fromOffset(math.clamp(incomeLabel.TextBounds.X + 20, 60, 156), 22)
+	end
+end)
 
 -- Die Zahl zählt sichtbar hoch/runter statt zu springen
 local shownMoney = player:GetAttribute("Money") or 0
 local function updateMoney()
-	incomeLabel.Text = `▲ +{Config.FormatRate(player:GetAttribute("Income") or 0)} $ pro Sekunde`
+	incomeLabel.Text = `▲ +{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s`
 end
 
 -- Wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf.
