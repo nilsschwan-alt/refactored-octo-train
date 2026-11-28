@@ -231,7 +231,9 @@ end
 -- schrumpft sie. Die Knöpfe stehen in zwei Spalten: So bleibt die Leiste niedrig und es
 -- ist Platz für neue Knöpfe (einfach den nächsten Platz nehmen, die Leiste wächst mit).
 -- Am Handy sitzt sie ganz oben, damit unten links Platz für den Lauf-Stick bleibt.
-gui.DisplayOrder = 1
+-- Ebenen von unten nach oben: EventEffekte 0 (leuchtender Rand, Meteor-Pfeil), SpielLeiste 1,
+-- SpielUI 2, KlickEffekte 5, SpielOverlay 10
+gui.DisplayOrder = 2
 local hud = Instance.new("Frame")
 hud.Name = "LinkeLeiste"
 hud.BackgroundTransparency = 1
@@ -242,7 +244,7 @@ do
 	local hudGui = Instance.new("ScreenGui")
 	hudGui.Name = "SpielLeiste"
 	hudGui.ResetOnSpawn = false
-	hudGui.DisplayOrder = 0
+	hudGui.DisplayOrder = 1
 	hudGui.Parent = player.PlayerGui
 	hud.Parent = hudGui
 	local height = 84 + HUD_ROWS * 72 - 4
@@ -355,7 +357,7 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 	local badge = label({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(22, 22),
-		Position = UDim2.new(1, -7, 0, 7), -- ganz auf dem Knopf, ragt nicht in den Nachbarn
+		Position = UDim2.new(1, -11, 0, 11), -- sitzt in der Ecke des Knopfs, ohne den Nachbarn zu berühren
 		BackgroundTransparency = 0,
 		BackgroundColor3 = Color3.fromRGB(235, 60, 70),
 		Font = Enum.Font.FredokaOne,
@@ -459,15 +461,25 @@ local incomeLabel = label({
 incomeLabel:GetPropertyChangedSignal("TextBounds"):Connect(function()
 	local pill = moneyBox:FindFirstChild("EinkommenPille")
 	if pill and pill:IsA("Frame") then
-		pill.Size = UDim2.fromOffset(math.clamp(incomeLabel.TextBounds.X + 20, 60, 156), 22)
+		pill.Size = UDim2.fromOffset(math.clamp(incomeLabel.TextBounds.X + 20, 60, 160), 22)
 	end
 end)
 
 -- Die Zahl zählt sichtbar hoch/runter statt zu springen
 local shownMoney = player:GetAttribute("Money") or 0
 local function updateMoney()
-	incomeLabel.Text = `▲ +{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s`
+	-- Im Goldrausch wird die Pille golden und zeigt den Faktor
+	local rush = workspace:GetAttribute("EventName") == "Goldrausch" and workspace:GetAttribute("EventPhase") == "active"
+	local factor = if rush then ` x{Config.Events.Goldrausch.IncomeMultiplier}` else ""
+	incomeLabel.Text = `▲ +{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s{factor}`
+	incomeLabel.TextColor3 = if rush then Color3.fromRGB(255, 240, 150) else Color3.fromRGB(170, 255, 170)
+	local pill = moneyBox:FindFirstChild("EinkommenPille")
+	if pill and pill:IsA("Frame") then
+		pill.BackgroundColor3 = if rush then Color3.fromRGB(200, 140, 20) else Color3.fromRGB(40, 150, 80)
+	end
 end
+workspace:GetAttributeChangedSignal("EventPhase"):Connect(updateMoney)
+workspace:GetAttributeChangedSignal("EventName"):Connect(updateMoney)
 
 -- Wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf.
 -- Kommt schnell hintereinander Geld (Klicker!), zählt dieselbe Zahl weiter hoch, statt
@@ -586,13 +598,14 @@ end)
 
 -- Kleine Meldungen (oben) ------------------------------------------------------
 local notifyList = Instance.new("Frame")
-notifyList.Size = UDim2.new(0, 460, 0, 170)
+notifyList.Size = UDim2.new(0, 460, 0, 220)
 notifyList.Position = UDim2.new(0.5, -230, 0, 60)
 notifyList.BackgroundTransparency = 1
 notifyList.Parent = gui
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 6)
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder -- der Event-Countdown steht immer ganz oben
 layout.Parent = notifyList
 
 Remotes.Notify.OnClientEvent:Connect(function(text: string, color: Color3)
@@ -753,30 +766,36 @@ Remotes.Announce.OnClientEvent:Connect(function(text: string, color: Color3)
 	end)
 end)
 
--- Event-Countdown (oben rechts) -------------------------------------------------
+-- Event-Countdown: oben in der Mitte als erste Zeile der Meldungen. Läuft ein Event, rutschen
+-- die Meldungen darunter (oben rechts würde ihn die Roblox-Spielerliste verdecken).
+local eventHolder = Instance.new("Frame")
+eventHolder.Name = "EventCountdown"
+eventHolder.Size = UDim2.fromOffset(300, 44)
+eventHolder.BackgroundTransparency = 1
+eventHolder.LayoutOrder = -1
+eventHolder.Visible = false
+eventHolder.Parent = notifyList
 local eventBox = label({
-	Size = UDim2.fromOffset(300, 44),
-	Position = UDim2.new(1, -312, 0, 60),
+	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Color3.fromRGB(30, 20, 50),
 	BackgroundTransparency = 0.15,
 	Font = Enum.Font.FredokaOne,
 	TextColor3 = Color3.fromRGB(255, 220, 60),
 	Text = "",
-	Visible = false,
-	Parent = gui,
+	Parent = eventHolder,
 })
 corner(eventBox, 10)
-stroke(eventBox, Color3.fromRGB(255, 220, 60), 2)
+stroke(eventBox, Color3.fromRGB(255, 220, 60), 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 RunService.RenderStepped:Connect(function()
 	local title = workspace:GetAttribute("EventTitle")
 	local endsAt = workspace:GetAttribute("EventEndsAt")
 	if not title or not endsAt then
-		eventBox.Visible = false
+		eventHolder.Visible = false
 		return
 	end
 	local left = math.max(0, math.ceil(endsAt - workspace:GetServerTimeNow()))
-	eventBox.Visible = true
+	eventHolder.Visible = true
 	if workspace:GetAttribute("EventPhase") == "warn" then
 		eventBox.Text = `{title} in {left}s`
 	else
@@ -3891,6 +3910,19 @@ local welten = require(script.Parent:WaitForChild("Welten"))({
 	Stroke = stroke,
 	Tween = tween,
 	PlaySound = playSound,
+})
+
+-- Optik zu den Events: Meteor-Pfeil, Goldregen, Nacht-Stimmung (eigene Datei: EventEffekte.luau)
+require(script.Parent:WaitForChild("EventEffekte"))({
+	Corner = corner,
+	Label = label,
+	Stroke = stroke,
+	Tween = tween,
+	PlaySound = playSound,
+	Shake = shake,
+	Busy = function()
+		return opening
+	end,
 })
 
 -- Klicker: überall klicken oder tippen gibt Geld, mit Combo (eigene Datei: Klicker.luau)

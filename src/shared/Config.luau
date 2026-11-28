@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.14.3"
+Config.Version = "0.15.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -631,7 +631,8 @@ Config.Events = {
 	MaxPause = 300, -- spätestens alle 5 Minuten
 	Warning = 10, -- so viele Sekunden vorher kommt der Countdown
 	FirstEventAfter = 45, -- das erste Event kommt schon nach X Sekunden (gut zum Testen)
-	Weights = { Meteor = 50, Goldrausch = 30, Diebesnacht = 20 },
+	-- Wie oft welches Event kommt (größere Zahl = öfter)
+	Weights = { Meteor = 35, Goldrausch = 25, Diebesnacht = 20, Klickfieber = 20 },
 
 	Meteor = {
 		Duration = 90, -- so lange liegt die Kreatur herum, bis sie verschwindet
@@ -641,15 +642,38 @@ Config.Events = {
 		Weights = { Epic = 55, Legendary = 37, Mythic = 8 },
 		-- Mutationen beim Meteor sind wahrscheinlicher
 		MutationWeights = { Normal = 55, Gold = 25, Diamant = 14, Regenbogen = 6 },
+		TargetRadius = 12, -- so groß ist der rote Zielkreis, der den Einschlag ankündigt
+		ShakeRange = 260, -- bis zu dieser Entfernung wackelt beim Einschlag die Kamera
+		ArrowHide = 22, -- so nah dran verschwindet der Wegweiser-Pfeil
 	},
 	Goldrausch = {
 		Duration = 60,
-		IncomeMultiplier = 2,
+		IncomeMultiplier = 2, -- gilt für das Einkommen UND für jeden Klick
 	},
 	Diebesnacht = {
 		Duration = 60,
 		WalkSpeed = 22, -- alle laufen schneller
 		CarrySpeed = 18, -- auch mit Beute
+		-- Schatten-Diebe: schleichen zu jeder Base, schnappen sich ein Monster und hauen damit ab.
+		-- Mit der Klatsche verjagen gibt eine Belohnung. Entkommt einer, ist das Monster bis zum
+		-- Morgen weg (es kommt am Ende der Nacht von allein zurück).
+		Shadows = {
+			First = 5, -- der erste kommt nach so vielen Sekunden
+			Interval = 13, -- danach alle X Sekunden einer pro Base
+			MaxPerBase = 2, -- mehr sind nie gleichzeitig an einer Base
+			StopBefore = 14, -- so viele Sekunden vor dem Morgen kommt keiner mehr
+			Speed = 11, -- Tempo auf dem Weg zur Base (Spieler laufen 16)
+			GrabTime = 2.5, -- so lange braucht er am Monster, bis er es hat
+			FleeSpeed = 8, -- Tempo mit Beute
+			RewardSeconds = 20, -- Belohnung fürs Verjagen = so viele Sekunden Einkommen
+			RewardMin = 50, -- aber mindestens so viel
+			TokenChance = 0.15, -- Chance auf ein Token pro verjagtem Schatten
+		},
+	},
+	Klickfieber = {
+		Duration = 60,
+		ComboSpeed = 2, -- jeder Klick zählt so oft für die Combo (und sie reißt nicht ab)
+		CritFactor = 3, -- Volltreffer-Chance mal so viel
 	},
 }
 
@@ -741,6 +765,13 @@ Config.Sounds = {
 	Skill = { { "MetalRing", 1.3, 0.6, 0, 0.9 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.14 } }, -- Fähigkeit gelernt
 	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },
 	Hit = { { "Swoosh", 1.6, 0.7, 0 }, { "Ping", 0.6, 0.6, 0.03 } },
+	-- Events
+	MeteorImpact = { { "Punch", 0.8, 1, 0, 1.6 }, { "Boom", 1, 0.9, 0, 1.4 }, { "Thud", 0.7, 0.8, 0 } }, -- Einschlag
+	GoldStart = { { "Bell", 1.5, 0.8, 0, 1.2 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.15 }, { "Ping", 3, 0.6, 0.25 } }, -- Goldrausch geht los
+	NightStart = { { "StingSmall", 0.8, 0.7, 0, 2.2 }, { "Swoosh", 0.5, 0.6, 0 } }, -- Diebes-Nacht geht los
+	ShadowNear = { { "Swoosh", 0.45, 0.7, 0 }, { "Ping", 0.4, 0.5, 0.1 } }, -- ein Schatten-Dieb ist an deiner Base
+	FeverStart = { { "Riser", 1.4, 0.5, 0, 1.4 }, { "StingStabs", 1.2, 0.7, 0.2, 1.6 } }, -- Klick-Fieber geht los
+	EventEnd = { { "Bell", 1, 0.7, 0, 1.2 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.15 } }, -- Bilanz am Ende
 	Swoosh = { { "Swoosh", 1, 0.6, 0 } },
 	Pop = { { "Click", 1.6, 0.25, 0 }, { "Ping", 2.6, 0.12, 0 } },
 	Quest = { { "Ping", 1.5, 0.5, 0 }, { "Ping", 2, 0.5, 0.1 }, { "Ping", 3, 0.6, 0.2 } },

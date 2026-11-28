@@ -14,6 +14,7 @@ local Bases = {}
 Bases.Plots = {}
 Bases.States = {} -- [player] = state
 Bases.IncomeMultiplier = 1 -- wird vom Goldrausch-Event verändert
+Bases.EventEarned = nil :: { [Player]: number }? -- zählt während eines Events mit, wer wie viel verdient
 Bases.LocksDisabled = false -- Diebes-Nacht: keine Schlösser
 -- Aufgaben-Fortschritt melden. Wird von Quests.Init gesetzt (so gibt es keine Schleife zwischen den Modulen).
 Bases.Track = function(_state, _kind: string, _amount: number) end
@@ -96,6 +97,10 @@ end
 function Bases.AddMoney(state, amount: number, source: string?)
 	state.Data.Money = math.max(0, state.Data.Money + amount)
 	if amount > 0 then
+		local earned = Bases.EventEarned
+		if earned then
+			earned[state.Player] = (earned[state.Player] or 0) + amount
+		end
 		state.Data.TotalEarned += amount
 		if source ~= "quest" then
 			Bases.Track(state, "Earn", amount)
@@ -117,12 +122,19 @@ function Bases.Income(state): number
 	return total * Bases.Multiplier(state)
 end
 
+-- Goldrausch-Faktor für diesen Spieler (1 = gerade kein Goldrausch).
+-- Fähigkeit "Goldgräber": im Goldrausch noch etwas obendrauf
+function Bases.RushFactor(state): number
+	if Bases.IncomeMultiplier <= 1 then
+		return 1
+	end
+	return Bases.IncomeMultiplier * (1 + Bases.Skill(state, "GoldRush"))
+end
+
 -- Alle Boni zusammen: Base-Stufe x Wiedergeburt x Skill-Baum x Goldrausch
 function Bases.Multiplier(state): number
 	local skillBonus = 1 + Bases.Skill(state, "Income") + Bases.Skill(state, "GoldDonkey")
-	-- Fähigkeit "Goldgräber": im Goldrausch noch etwas obendrauf
-	local rush = if Bases.IncomeMultiplier > 1 then 1 + Bases.Skill(state, "GoldRush") else 1
-	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * skillBonus * Bases.IncomeMultiplier * rush
+	return Bases.Level(state).IncomeBonus * Config.RebirthMultiplier(state.Data.Rebirths) * skillBonus * Bases.RushFactor(state)
 end
 
 -- Preis für den Ausbau auf diese Stufe (Fähigkeit "Baumeister" macht ihn billiger)
@@ -444,6 +456,22 @@ function Bases.BestSlot(state): number?
 		end
 	end
 	return best
+end
+
+-- Der Platz mit der schwächsten Kreatur, die gerade in der Base steht
+-- (für den Tausch bei voller Base und für die Schatten-Diebe)
+function Bases.WeakestSlot(state): number?
+	local worst, worstIncome = nil, math.huge
+	for slotKey, entry in state.Data.Slots do
+		local slot = tonumber(slotKey)
+		if slot and not state.Plot.Stolen[slot] then
+			local income = Config.EntryIncome(entry)
+			if income < worstIncome or (income == worstIncome and worst and slot > worst) then
+				worst, worstIncome = slot, income
+			end
+		end
+	end
+	return worst
 end
 
 -- Schild, Schloss-Anzeige, Upgrade-Knopf aktualisieren

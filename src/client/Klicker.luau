@@ -39,6 +39,11 @@ return function(ctx)
 	fx.DisplayOrder = 5
 	fx.Parent = player:WaitForChild("PlayerGui")
 
+	-- Läuft gerade dieses Event? ("Goldrausch", "Klickfieber")
+	local function eventOn(name: string): boolean
+		return workspace:GetAttribute("EventName") == name and workspace:GetAttribute("EventPhase") == "active"
+	end
+
 	local function skill(id: string): number
 		local info = Config.SkillById[id]
 		return if info then (player:GetAttribute("Sk_" .. id) or 0) * info.PerLevel else 0
@@ -135,6 +140,9 @@ return function(ctx)
 	RunService.RenderStepped:Connect(function()
 		if combo == 0 then
 			return
+		end
+		if eventOn("Klickfieber") then
+			comboUntil = os.clock() + comboSpan -- im Klick-Fieber reißt die Combo nicht ab
 		end
 		local left = comboUntil - os.clock()
 		if left <= 0 then
@@ -295,8 +303,10 @@ return function(ctx)
 				ctx.StarBurst(UDim2.fromOffset(lastPosition.X + inset.X, lastPosition.Y + inset.Y), GOLD, 8, 110)
 			end
 		else
-			local color = if step > 0 then STEP_COLORS[math.min(step, #STEP_COLORS)] else GREEN
-			floatText(at, amount, color, 30 + math.min(step, 4) * 3, 80, 0.8)
+			-- im Goldrausch sind die Zahlen golden und etwas größer
+			local rush = eventOn("Goldrausch")
+			local color = if rush then GOLD elseif step > 0 then STEP_COLORS[math.min(step, #STEP_COLORS)] else GREEN
+			floatText(at, amount, color, 30 + math.min(step, 4) * 3 + (if rush then 6 else 0), 80, 0.8)
 		end
 	end)
 end
