@@ -651,12 +651,13 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	state.Data.BaseLevel += 1
 	Bases.RefreshStats(state)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
+	Bases.RenderAll(state) -- das größere Haus ordnet die Plätze neu an
 	Bases.RefreshRings(state)
 	Bases.RefreshPlot(state.Plot)
 	Bases.BigText(player, `BASE-UPGRADE: {string.upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
 	local center = state.Plot.CFrame.Position + Vector3.new(0, 0.5, 0)
 	FX.Ring(center, Color3.fromRGB(80, 255, 120), 50)
-	for _, offset in { Vector3.new(-20, 4, -20), Vector3.new(20, 4, -20), Vector3.new(-20, 4, 20), Vector3.new(20, 4, 20) } do
+	for _, offset in { Vector3.new(-18, 6, -28), Vector3.new(18, 6, -28), Vector3.new(-12, 4, -8), Vector3.new(12, 4, -8) } do
 		FX.Burst(state.Plot.CFrame:PointToWorldSpace(offset), Color3.fromRGB(80, 255, 120), 40)
 	end
 	Bases.Notify(player, `Jetzt {nextLevel.Slots} Plätze und x{nextLevel.IncomeBonus} Einkommen.`, Color3.fromRGB(80, 255, 120))

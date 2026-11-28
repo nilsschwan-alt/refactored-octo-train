@@ -974,8 +974,8 @@ local function buildStreet(info, parent: Instance)
 	for col = 1, perRow do
 		local x = (col - (perRow + 1) / 2) * Config.Map.BaseSpacing
 		for _, side in { -1, 1 } do
-			-- endet genau an der Base-Kante und liegt minimal tiefer, damit nichts flackert
-			local len = info.BaseZ - info.BaseSize / 2 - walkOuter
+			-- endet genau an der Veranda des Hauses und liegt minimal tiefer, damit nichts flackert
+			local len = (info.BaseFront or (info.BaseZ - info.BaseSize / 2)) - walkOuter
 			part({
 				Name = "Eingangsweg",
 				Size = Vector3.new(16, 1, len),

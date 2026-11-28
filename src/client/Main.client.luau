@@ -1,7 +1,7 @@
 -- Client-Skript: alles, was der Spieler sieht.
 -- Geld-Anzeige, Meldungen, große Texte, Server-Ansagen mit Konfetti, Geld-Popups,
--- Event-Countdown, Pack-Shop mit Chancen, Pack-Öffnung, Regenbogen-Farben
--- und welche E-Knöpfe man sieht.
+-- Event-Countdown, Pack-Shop mit Chancen, Pack-Öffnung, Regenbogen-Farben,
+-- welche E-Knöpfe man sieht und Hausdächer, die verschwinden, wenn man im Haus steht.
 -- Liegt in Studio unter: StarterPlayer > StarterPlayerScripts > Client > Main
 
 local CollectionService = game:GetService("CollectionService")
@@ -3178,6 +3178,57 @@ local function findPlot(inst: Instance): Instance?
 		current = current.Parent
 	end
 	return nil
+end
+
+-- Hausdächer: Stehe ich in einem Haus, wird dessen Dach für mich durchsichtig, damit die
+-- Kamera von oben hineinschauen kann. Alle anderen sehen das Dach weiter.
+do
+	local fade = {} -- [Base-Modell] = 0 (Dach sichtbar) bis 1 (ausgeblendet)
+	local function apply(model: Instance, alpha: number)
+		local deko = model:FindFirstChild("Deko")
+		if not deko then
+			return
+		end
+		for _, d in deko:GetChildren() do
+			if d:IsA("BasePart") and CollectionService:HasTag(d, "HausDach") then
+				d.LocalTransparencyModifier = alpha
+			end
+		end
+	end
+	RunService.Heartbeat:Connect(function(dt)
+		local map = workspace:FindFirstChild("KreaturenMap")
+		local bases = map and map:FindFirstChild("Bases")
+		if not bases then
+			return
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		for _, model in bases:GetChildren() do
+			local target = 0
+			local floor = model:FindFirstChild("Boden")
+			if root and floor and floor:IsA("BasePart") then
+				local p = floor.CFrame:PointToObjectSpace(root.Position)
+				-- die vorderen 5 Studs des Bodens sind die Veranda vor dem Tor, die zählt nicht
+				if math.abs(p.X) <= floor.Size.X / 2 and p.Z >= -floor.Size.Z / 2 + 5 and p.Z <= floor.Size.Z / 2 and p.Y > -2 and p.Y < 45 then
+					target = 1
+				end
+			end
+			local alpha = fade[model] or 0
+			if alpha ~= target then
+				local step = dt * 4
+				alpha = if target > alpha then math.min(target, alpha + step) else math.max(target, alpha - step)
+				fade[model] = alpha
+				apply(model, alpha)
+			end
+		end
+	end)
+	-- Wird das Haus neu gebaut (Upgrade), während ich drin stehe: neue Dachteile gleich ausblenden
+	CollectionService:GetInstanceAddedSignal("HausDach"):Connect(function(inst)
+		local model = findPlot(inst)
+		if model and inst:IsA("BasePart") then
+			inst.LocalTransparencyModifier = fade[model] or 0
+		end
+	end)
 end
 
 local function refreshPrompt(prompt: ProximityPrompt)
