@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.13.1"
+Config.Version = "0.14.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -465,7 +465,7 @@ end
 Config.Worlds = {
 	ArrivalShield = 6, -- so viele Sekunden kann einen niemand hauen, wenn man mit Beute aus einer Welt kommt
 	PortalCooldown = 2.5, -- Pause zwischen zwei Reisen
-	HomeCooldown = 5, -- Pause für den Knopf "Nach Hause"
+	HomeCooldown = 5, -- Pause für die Knöpfe "Heim" und "Welten"
 	Wild = {
 		Interval = 150, -- so viele Sekunden nach dem Schnappen kommt das nächste wilde Monster
 		FirstAfter = 20, -- das erste kommt kurz nach dem Start

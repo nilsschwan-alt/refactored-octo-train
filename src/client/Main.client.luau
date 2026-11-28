@@ -3706,7 +3706,7 @@ skillLink.Activated:Connect(function()
 end)
 
 -- Welten: Portale, Licht-Stimmung, Reise-Blitz und Knopf "Heim" (eigene Datei: Welten.luau)
-require(script.Parent:WaitForChild("Welten"))({
+local welten = require(script.Parent:WaitForChild("Welten"))({
 	Gui = gui,
 	Corner = corner,
 	Label = label,
@@ -3730,7 +3730,7 @@ require(script.Parent:WaitForChild("Klicker"))({
 
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
 do
-	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.MergePanel }
+	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.MergePanel, welten.Panel }
 	for _, panel in panels do
 		panel:GetPropertyChangedSignal("Visible"):Connect(function()
 			if panel.Visible then

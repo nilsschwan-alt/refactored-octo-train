@@ -25,6 +25,7 @@ local remotes
 local islands = {} -- [Welt-Id] = Rückgabe von Islands.Build
 local portals = {} -- { CFrame, World (Ziel) oder From (Welt, aus der man heimkommt) }
 local hubSpawn = {} -- [Welt-Id] = hier kommt man auf der Hauptinsel wieder an
+local hubCenter: CFrame -- Mitte des Portal-Platzes (Ziel für den Knopf "Welten")
 local wildNext = {} -- [Welt-Id] = os.clock(), ab wann das nächste wilde Monster kommen darf
 local lastTravel = {} -- [player] = os.clock()
 local lastNotice = {}
@@ -78,22 +79,28 @@ local function travel(player: Player, target: CFrame, world, after: (() -> ())?)
 	end)
 end
 
+-- In eine Welt reisen (prüft Wiedergeburt und Beute). Gibt true zurück, wenn es losgeht.
+local function toWorld(player: Player, state, world): boolean
+	if not Config.WorldUnlocked(world, state.Data.Rebirths) then
+		notice(player, `🔒 {world.Name}: erst ab Wiedergeburt {world.Rebirths}.`, RED)
+		return false
+	end
+	if Steal.IsCarrying(player) then
+		notice(player, "Mit Beute geht es nicht in eine Welt. Bring sie erst nach Hause!", RED)
+		return false
+	end
+	travel(player, islands[world.Id].Spawn, world, function()
+		Bases.BigText(player, `{world.Icon} {Config.Upper(world.Name)}`, world.Color, nil, false)
+		Bases.Notify(player, `Jeder Klick bringt hier x{world.ClickFactor} Geld. Halte Ausschau nach wilden Monstern!`, world.Color)
+	end)
+	return true
+end
+
 -- Jemand steht in einem Portal
 local function enter(player: Player, state, portal)
 	local world = portal.World
 	if world then
-		if not Config.WorldUnlocked(world, state.Data.Rebirths) then
-			notice(player, `🔒 {world.Name}: erst ab Wiedergeburt {world.Rebirths}.`, RED)
-			return
-		end
-		if Steal.IsCarrying(player) then
-			notice(player, "Mit Beute geht es nicht durchs Portal. Bring sie erst nach Hause!", RED)
-			return
-		end
-		travel(player, islands[world.Id].Spawn, world, function()
-			Bases.BigText(player, `{world.Icon} {Config.Upper(world.Name)}`, world.Color, nil, false)
-			Bases.Notify(player, `Jeder Klick bringt hier x{world.ClickFactor} Geld. Halte Ausschau nach wilden Monstern!`, world.Color)
-		end)
+		toWorld(player, state, world)
 	else
 		travel(player, hubSpawn[portal.From.Id], nil, function()
 			if Steal.IsCarrying(player) then
@@ -121,6 +128,36 @@ function Worlds.GoHome(player: Player)
 	end
 	lastHome[player] = now
 	travel(player, Bases.SpawnCFrame(state), nil)
+end
+
+-- Knopf "Welten": von überall direkt in eine offene Welt oder auf den Portal-Platz
+-- (id = Welt-Id oder "Hub"). Nur ohne Beute, mit kurzer Pause zwischen zwei Reisen.
+function Worlds.TravelTo(player: Player, id: any)
+	local state = Bases.GetState(player)
+	if not state or type(id) ~= "string" or traveling[player] or not hubCenter then
+		return
+	end
+	local world = Config.WorldById[id]
+	if id ~= "Hub" and not (world and islands[id]) then
+		return
+	end
+	local now = os.clock()
+	if lastHome[player] and now - lastHome[player] < W.HomeCooldown then
+		notice(player, "Einen Moment, du bist gerade erst gereist.", RED)
+		return
+	end
+	if Steal.IsCarrying(player) then
+		notice(player, "Mit Beute kannst du nicht reisen. Bring sie erst zu Fuß nach Hause!", RED)
+		return
+	end
+	if world then
+		if toWorld(player, state, world) then
+			lastHome[player] = now
+		end
+	else
+		lastHome[player] = now
+		travel(player, hubCenter, nil)
+	end
 end
 
 -- Läuft ständig: Wer steht in welcher Welt, wer steht in einem Portal?
@@ -198,6 +235,9 @@ function Worlds.Start(mapFolder: Instance, remoteFolder: Instance)
 
 	local shop = Map.PackShopPosition
 	local count = #W.List
+	-- Ankunft für den Knopf "Welten": hinter der Theke, Blick auf die vier Portale
+	local middle = shop + Vector3.new(17, 3.5, 0)
+	hubCenter = CFrame.lookAt(middle, middle + Vector3.xAxis)
 	for i, world in W.List do
 		-- Die Insel, weit draußen im Himmel
 		local angle = math.rad(45 + (i - 1) * 90)
