@@ -118,7 +118,7 @@ function Clicker.Start(remoteFolder: Instance)
 			task.wait(1)
 			for player, state in Bases.States do
 				local perSecond = Bases.Skill(state, "AutoClick")
-				if perSecond > 0 then
+				if perSecond > 0 and player.Parent then
 					local value = whole(entry(player), Clicker.BaseValue(state) * perSecond)
 					if value > 0 then
 						Bases.AddMoney(state, value)
