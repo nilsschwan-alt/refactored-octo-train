@@ -3041,7 +3041,7 @@ end
 
 -- Mehrere Packs: ein Pack platzt, die Karten fliegen verdeckt raus. Erst drehen sich die
 -- normalen schnell um, die besten glühen schon vorher und kommen einzeln zum Schluss.
-local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number, storedCount: number)
+local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number, storedCount: number, gain: number?)
 	local pack = findPack(packId)
 	local packColor = pack and pack.Color or WHITE
 	local bestRank = 1
@@ -3355,8 +3355,14 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 			total += Config.EntryIncome(entry)
 		end
 		task.wait(0.25)
-		local sum, sumScale = showLine(show, "Zusammen +0 $/s", Color3.fromRGB(130, 255, 130), 0.1, 0.07)
-		countIncome(sum, sumScale, 0, total, 0.5, "Zusammen ")
+		-- gain = so viel mehr verdient die Base jetzt wirklich (was im Inventar liegt, verdient nichts)
+		if gain and gain ~= total then
+			local sum, sumScale = showLine(show, "Deine Base +0 $/s", Color3.fromRGB(130, 255, 130), 0.1, 0.07)
+			countIncome(sum, sumScale, 0, gain, 0.5, "Deine Base ")
+		else
+			local sum, sumScale = showLine(show, "Zusammen +0 $/s", Color3.fromRGB(130, 255, 130), 0.1, 0.07)
+			countIncome(sum, sumScale, 0, total, 0.5, "Zusammen ")
+		end
 		if soldCount + storedCount > 0 then
 			-- was bei voller Base mit den neuen passiert ist
 			local parts = {}
@@ -3380,14 +3386,14 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 	end)
 end
 
-Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?, _soldMoney: number?, storedCount: number?)
+Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?, _soldMoney: number?, storedCount: number?, gain: number?)
 	if opening or type(entries) ~= "table" or #entries == 0 then
 		return
 	end
 	if #entries == 1 then
 		task.spawn(openPackAnimation, entries[1], packId, pities[1])
 	else
-		task.spawn(openMultiAnimation, entries, packId, pities, soldCount or 0, storedCount or 0)
+		task.spawn(openMultiAnimation, entries, packId, pities, soldCount or 0, storedCount or 0, gain)
 	end
 end)
 
@@ -3945,6 +3951,9 @@ require(script.Parent:WaitForChild("Klicker"))({
 	Busy = function()
 		return opening
 	end,
+	WindowOpen = function()
+		return gui:GetAttribute("FensterOffen") == true
+	end,
 })
 
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
@@ -3959,6 +3968,12 @@ do
 					end
 				end
 			end
+			-- Merker für andere Skripte (der Klick-Hinweis blendet sich aus, solange ein Fenster offen ist)
+			local open = false
+			for _, other in panels do
+				open = open or other.Visible
+			end
+			gui:SetAttribute("FensterOffen", open)
 		end)
 	end
 end
