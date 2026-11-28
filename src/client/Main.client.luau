@@ -477,6 +477,7 @@ do
 	local gainLabel: TextLabel? = nil
 	local gainSum = 0
 	local gainRun = 0
+	local gainAt = 0 -- wann zuletzt Geld dazukam
 	local START = UDim2.new(1, 10, 0, 8) -- rechts neben der Geld-Anzeige
 	player:GetAttributeChangedSignal("Money"):Connect(function()
 		local now = player:GetAttribute("Money") or 0
@@ -498,6 +499,12 @@ do
 			gainLabel = shown
 			gainSum = 0
 		end
+		-- nur schnelle Folgen (Klicken) zählen zusammen, sonst beginnt die Zahl neu
+		local clock = os.clock()
+		if clock - gainAt > 0.35 then
+			gainSum = 0
+		end
+		gainAt = clock
 		gainSum += gain
 		gainRun += 1
 		local run = gainRun
