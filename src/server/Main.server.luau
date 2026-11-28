@@ -26,7 +26,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "TravelTo", "Click", "Clicked", "EventFx" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Inventory", "InventoryAction", "Travel", "GoHome", "TravelTo", "Click", "Clicked", "EventFx" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -200,7 +200,7 @@ remotes.BuyPack.OnServerEvent:Connect(function(player, packId, count)
 	end
 end)
 
--- Wiedergeburt, Skill-Baum und Verschmelzen
+-- Wiedergeburt, Skill-Baum und Inventar
 remotes.Rebirth.OnServerEvent:Connect(function(player)
 	Rebirth.Do(player)
 end)
@@ -215,20 +215,49 @@ end)
 remotes.GoHome.OnServerEvent:Connect(function(player)
 	Worlds.GoHome(player)
 end)
-local lastMerge = {} -- [player] = os.clock(), damit niemand den Knopf hämmert
-remotes.Merge.OnServerEvent:Connect(function(player, entry)
-	if type(entry) ~= "string" or #entry > 80 then
+-- Inventar: Aufstellen, Einpacken, Verbessern, Verkaufen
+local lastInventory = {} -- [player] = os.clock(), damit niemand die Knöpfe hämmert
+remotes.InventoryAction.OnServerEvent:Connect(function(player, action, entry, slot)
+	if type(action) ~= "string" then
+		return
+	end
+	if entry ~= nil and (type(entry) ~= "string" or #entry > 80) then
+		return
+	end
+	if slot ~= nil and (type(slot) ~= "number" or slot % 1 ~= 0 or slot < 1 or slot > 12) then
 		return
 	end
 	local now = os.clock()
-	if lastMerge[player] and now - lastMerge[player] < 0.5 then
+	if lastInventory[player] and now - lastInventory[player] < 0.15 then
 		return
 	end
-	lastMerge[player] = now
-	Bases.Merge(player, entry)
+	lastInventory[player] = now
+	local state = Bases.GetState(player)
+	if not state then
+		return
+	end
+	if action == "EquipBest" then
+		Bases.EquipBest(player)
+	elseif action == "StarUpAll" then
+		Bases.StarUpAll(player)
+	elseif action == "Unequip" and slot then
+		Bases.Unequip(player, slot)
+	elseif action == "SellActive" and slot then
+		Bases.Sell(player, state.Plot.Index, slot)
+	elseif not entry then
+		return
+	elseif action == "Equip" then
+		Bases.Equip(player, entry)
+	elseif action == "StarUp" then
+		Bases.StarUp(player, entry, slot)
+	elseif action == "Sell" then
+		Bases.SellFromBag(player, entry, false)
+	elseif action == "SellAll" then
+		Bases.SellFromBag(player, entry, true)
+	end
 end)
 Players.PlayerRemoving:Connect(function(player)
-	lastMerge[player] = nil
+	lastInventory[player] = nil
 end)
 
 -- Schleifen ------------------------------------------------------------------

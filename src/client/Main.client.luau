@@ -1301,7 +1301,7 @@ local function buildDetail(pack)
 			Font = Enum.Font.Gotham,
 			TextColor3 = Color3.fromRGB(185, 180, 215),
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = "Base voll? Doppelte kommen ins Lager (zählt für Fusion), sonst bleiben die besten.",
+			Text = "Base voll? Die besten stehen in der Base, der Rest kommt ins Inventar.",
 			Parent = content,
 		})
 	else
@@ -3041,7 +3041,7 @@ end
 
 -- Mehrere Packs: ein Pack platzt, die Karten fliegen verdeckt raus. Erst drehen sich die
 -- normalen schnell um, die besten glühen schon vorher und kommen einzeln zum Schluss.
-local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number, mergedCount: number, storedCount: number)
+local function openMultiAnimation(entries: { string }, packId: string, pities: { boolean }, soldCount: number, storedCount: number)
 	local pack = findPack(packId)
 	local packColor = pack and pack.Color or WHITE
 	local bestRank = 1
@@ -3357,17 +3357,14 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 		task.wait(0.25)
 		local sum, sumScale = showLine(show, "Zusammen +0 $/s", Color3.fromRGB(130, 255, 130), 0.1, 0.07)
 		countIncome(sum, sumScale, 0, total, 0.5, "Zusammen ")
-		if soldCount + mergedCount + storedCount > 0 then
+		if soldCount + storedCount > 0 then
 			-- was bei voller Base mit den neuen passiert ist
 			local parts = {}
-			if mergedCount > 0 then
-				table.insert(parts, `{mergedCount} verschmolzen`)
-			end
 			if storedCount > 0 then
-				table.insert(parts, `{storedCount} eingelagert`)
+				table.insert(parts, `{storedCount} ins Inventar`)
 			end
 			if soldCount > 0 then
-				table.insert(parts, `{soldCount} schwächste verkauft`)
+				table.insert(parts, `Inventar voll, {soldCount} schwächste verkauft`)
 			end
 			label({
 				AnchorPoint = Vector2.new(0.5, 0.5),
@@ -3383,14 +3380,14 @@ local function openMultiAnimation(entries: { string }, packId: string, pities: {
 	end)
 end
 
-Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?, _soldMoney: number?, mergedCount: number?, storedCount: number?)
+Remotes.PackResult.OnClientEvent:Connect(function(entries: { string }, packId: string, pities: { boolean }, soldCount: number?, _soldMoney: number?, storedCount: number?)
 	if opening or type(entries) ~= "table" or #entries == 0 then
 		return
 	end
 	if #entries == 1 then
 		task.spawn(openPackAnimation, entries[1], packId, pities[1])
 	else
-		task.spawn(openMultiAnimation, entries, packId, pities, soldCount or 0, mergedCount or 0, storedCount or 0)
+		task.spawn(openMultiAnimation, entries, packId, pities, soldCount or 0, storedCount or 0)
 	end
 end)
 
@@ -3893,7 +3890,7 @@ rebirthClose.Activated:Connect(function()
 	rebirthPanel.Visible = false
 end)
 
--- Skill-Baum und Fusion (eigene Datei: Menus.luau)
+-- Skill-Baum und Inventar (eigene Datei: Menus.luau)
 local menus = require(script.Parent:WaitForChild("Menus"))({
 	Gui = gui,
 	HudButton = hudButton,
@@ -3952,7 +3949,7 @@ require(script.Parent:WaitForChild("Klicker"))({
 
 -- Es ist immer nur ein Fenster offen: Geht eins auf, gehen die anderen zu.
 do
-	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.MergePanel, welten.Panel }
+	local panels = { shop, rebirthPanel, menus.SkillPanel, menus.BagPanel, welten.Panel }
 	for _, panel in panels do
 		panel:GetPropertyChangedSignal("Visible"):Connect(function()
 			if panel.Visible then

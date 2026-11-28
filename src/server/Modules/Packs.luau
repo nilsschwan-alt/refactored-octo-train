@@ -47,22 +47,7 @@ local function roll(state, pack)
 	return Config.MakeEntry(def.Id, mutation), pity
 end
 
--- Schlechteste Kreatur in der Base (die gerade nicht geklaut wird)
-local function worstSlot(state): (number?, number)
-	local worst, worstIncome = nil, math.huge
-	for slotKey, entry in state.Data.Slots do
-		local slot = tonumber(slotKey)
-		if slot and not state.Plot.Stolen[slot] then
-			local income = Config.EntryIncome(entry)
-			if income < worstIncome then
-				worst, worstIncome = slot, income
-			end
-		end
-	end
-	return worst, worstIncome
-end
-
--- count = 1, 3 oder 10. Ist die Base voll, bleiben die besten Kreaturen, der Rest wird verkauft.
+-- count = 1, 3 oder 10. Ist die Base voll, stehen danach die besten dort, der Rest kommt ins Inventar.
 function Packs.Buy(player: Player, packId: string, count: number?)
 	local state = Bases.GetState(player)
 	local pack = packById[packId]
@@ -97,49 +82,28 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	local refund = math.floor(cost / count * freeCount)
 
 	local entries, pities = {}, {}
-	local soldCount, soldMoney = 0, 0
-	local absorbed = {} -- Meldungen: bei voller Base automatisch verschmolzen oder eingelagert
-	local mergedCount, storedCount = 0, 0
+	local soldCount, soldMoney = 0, 0 -- wegen vollem Inventar verkauft
+	local storedCount = 0 -- so viele Kreaturen kamen ins Inventar
+	local lastText: string? = nil -- Meldung zur letzten Kreatur (für die einzelne Kiste)
 	for i = 1, count do
 		local entry, pity = roll(state, pack)
 		entries[i] = entry
 		pities[i] = pity
-		if not Bases.FreeSlot(state) then
-			-- Base voll. Steht schon eine gleiche da? Dann verschmelzen oder einlagern statt verkaufen.
-			local result, kind = Bases.TryAbsorb(state, entry)
-			if result and kind then
-				table.insert(absorbed, Bases.AbsorbText(state, result, kind))
-				if kind == "merged" then
-					mergedCount += 1
-				else
-					storedCount += 1
-				end
-				continue
-			end
-			-- Sonst: ist die neue besser als die schlechteste? Dann tauschen.
-			local slot, worstIncome = worstSlot(state)
-			local price
-			if slot and Config.EntryIncome(entry) > worstIncome then
-				-- die schwächste macht Platz (ihr Lager wird mitverkauft, wenn keine gleiche mehr steht)
-				local _, taken = Bases.TakeForSale(state, slot)
-				price = taken
-				Bases.GiveCreature(state, entry)
-			else
-				price = Bases.SellPrice(state, entry)
-			end
+		local got = Bases.Receive(state, entry)
+		lastText = Bases.ReceiveText(got, entry)
+		if got.Kind ~= "placed" then
+			storedCount += 1
+		end
+		if got.Sold then
+			storedCount -= 1
 			soldCount += 1
-			soldMoney += price
-		else
-			Bases.GiveCreature(state, entry)
+			soldMoney += got.Money
 		end
 	end
 	player:SetAttribute("Pity", state.Data.Pity)
-	if soldMoney > 0 then
-		Bases.AddMoney(state, soldMoney)
-	end
 	Bases.Track(state, "OpenPacks", count)
 
-	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney, mergedCount, storedCount)
+	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney, storedCount)
 	local showDelay = if count > 1 then 6 else 4 -- erst nach der Öffnungs-Animation
 	if refund > 0 then
 		Bases.AddMoney(state, refund, "quest")
@@ -149,19 +113,19 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 			end
 		end)
 	end
-	if #absorbed > 0 then
-		task.delay(showDelay + 0.5, function()
-			-- höchstens drei Zeilen, sonst läuft die Meldungsliste über
-			for i = math.max(1, #absorbed - 2), #absorbed do
-				Bases.Notify(player, absorbed[i], Color3.fromRGB(255, 215, 70))
-			end
-		end)
-	end
-	if soldCount > 0 then
-		task.delay(if count > 1 then 6 else 4, function()
+	if count == 1 then
+		-- bei mehreren Kisten steht das auf dem Ergebnis-Bildschirm
+		if lastText then
+			local text = lastText
+			task.delay(showDelay, function()
+				Bases.Notify(player, text, Color3.fromRGB(120, 200, 255))
+			end)
+		end
+	elseif soldCount > 0 then
+		task.delay(showDelay, function()
 			Bases.Notify(
 				player,
-				`Base voll: {soldCount} schwächste Kreatur(en) automatisch für {Config.FormatNumber(soldMoney)} $ verkauft.`,
+				`Inventar voll: {soldCount} schwächste Kreatur(en) für {Config.FormatNumber(soldMoney)} $ verkauft.`,
 				Color3.fromRGB(255, 200, 90)
 			)
 		end)
