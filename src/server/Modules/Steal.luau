@@ -307,9 +307,7 @@ function Steal.Deliver(thief: Player)
 			Steal.Return(thief, "full")
 			return
 		end
-		tState.Data.Slots[tostring(slot)] = nil
-		Bases.RenderSlot(tState, slot)
-		local price = Bases.SellPrice(tState, old)
+		local _, price = Bases.TakeForSale(tState, slot)
 		Bases.AddMoney(tState, price)
 		Bases.Notify(thief, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, YELLOW)
 	end

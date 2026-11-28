@@ -112,18 +112,17 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 			end
 			-- Sonst: ist die neue besser als die schlechteste? Dann tauschen.
 			local slot, worstIncome = worstSlot(state)
-			local sellEntry = entry
+			local price
 			if slot and Config.EntryIncome(entry) > worstIncome then
-				sellEntry = state.Data.Slots[tostring(slot)]
-				state.Data.Slots[tostring(slot)] = nil
-				Bases.RenderSlot(state, slot)
+				-- die schwächste macht Platz (ihr Lager wird mitverkauft, wenn keine gleiche mehr steht)
+				local _, taken = Bases.TakeForSale(state, slot)
+				price = taken
+				Bases.GiveCreature(state, entry)
+			else
+				price = Bases.SellPrice(state, entry)
 			end
-			local price = Bases.SellPrice(state, sellEntry)
 			soldCount += 1
 			soldMoney += price
-			if sellEntry ~= entry then
-				Bases.GiveCreature(state, entry)
-			end
 		else
 			Bases.GiveCreature(state, entry)
 		end

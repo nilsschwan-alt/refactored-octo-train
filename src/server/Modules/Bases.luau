@@ -460,10 +460,29 @@ function Bases.Merge(player: Player, entry: string)
 	mergeSlots(state, entry, use)
 end
 
+-- Nimmt die Kreatur von diesem Platz, damit sie verkauft werden kann. Gibt (Eintrag, Preis)
+-- zurück; das Geld bucht der Aufrufer. Steht danach keine gleiche mehr in der Base, wird ihr
+-- Lager mitverkauft (sonst läge es nutzlos herum) und steckt schon im Preis.
+function Bases.TakeForSale(state, slot: number): (string?, number)
+	local entry = state.Data.Slots[tostring(slot)]
+	if not entry then
+		return nil, 0
+	end
+	state.Data.Slots[tostring(slot)] = nil
+	Bases.RenderSlot(state, slot)
+	local count = 1
+	if #standing(state, entry) == 0 then
+		count += Bases.Stock(state, entry)
+		state.Data.Stock[entry] = nil
+	end
+	return entry, Bases.SellPrice(state, entry) * count
+end
+
 -- Kann eine neue Kreatur bei voller Base aufgenommen werden (verschmelzen oder einlagern)?
--- Das geht, wenn schon eine gleiche in der Base steht und sie noch Sterne bekommen kann.
+-- Das geht, wenn schon eine gleiche in der Base steht oder im Lager liegt und sie noch
+-- Sterne bekommen kann.
 function Bases.CanAbsorb(state, entry: string): boolean
-	return Config.MergeResult(entry) ~= nil and #standing(state, entry) > 0
+	return Config.MergeResult(entry) ~= nil and (#standing(state, entry) > 0 or Bases.Stock(state, entry) > 0)
 end
 
 -- Base voll und eine neue Kreatur kommt. Steht schon eine gleiche da, wird die neue nicht
@@ -475,7 +494,23 @@ function Bases.TryAbsorb(state, entry: string): (string?, string?)
 	end
 	local same = standing(state, entry)
 	local need = Config.Stars.Need - 1 -- so viele braucht die neue noch dazu
-	if #same + Bases.Stock(state, entry) < need then
+	if #same == 0 and Bases.Stock(state, entry) >= need then
+		-- Keine steht mehr (z.B. geklaut), aber mit dem Lager reicht es: Die verschmolzene
+		-- Kreatur nimmt den Platz der schwächsten, wenn sie besser ist als die.
+		local result = Config.MergeResult(entry) :: string
+		local slot = Bases.WeakestSlot(state)
+		local old = slot and state.Data.Slots[tostring(slot)]
+		if slot and old and Config.EntryIncome(old) < Config.EntryIncome(result) then
+			useStock(state, entry, need)
+			local _, price = Bases.TakeForSale(state, slot)
+			Bases.AddMoney(state, price)
+			Bases.Notify(state.Player, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, Color3.fromRGB(255, 200, 90))
+			state.Data.Slots[tostring(slot)] = result
+			Bases.RenderSlot(state, slot)
+			return result, "merged"
+		end
+	end
+	if #same == 0 or #same + Bases.Stock(state, entry) < need then
 		state.Data.Stock[entry] = Bases.Stock(state, entry) + 1
 		Bases.QueueMerges(state)
 		return entry, "stored"
@@ -676,16 +711,16 @@ function Bases.Sell(player: Player, plotIndex: number, slot: number)
 	if not state or state.Plot.Index ~= plotIndex or state.Plot.Stolen[slot] then
 		return
 	end
-	local entry = state.Data.Slots[tostring(slot)]
+	local stocked = Bases.Stock(state, state.Data.Slots[tostring(slot)] or "")
+	local entry, price = Bases.TakeForSale(state, slot)
 	if not entry then
 		return
 	end
-	state.Data.Slots[tostring(slot)] = nil
-	Bases.RenderSlot(state, slot)
-	local price = Bases.SellPrice(state, entry)
 	Bases.AddMoney(state, price)
 	remotes.MoneyPopup:FireClient(player, price)
-	Bases.Notify(player, `{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
+	-- war es die letzte ihrer Art in der Base, ist ihr Lager mit verkauft
+	local extra = if stocked > 0 and Bases.Stock(state, entry) == 0 then ` (mit {stocked} aus dem Lager)` else ""
+	Bases.Notify(player, `{Config.EntryName(entry)}{extra} für {Config.FormatNumber(price)} $ verkauft.`)
 end
 
 function Bases.Upgrade(player: Player, plotIndex: number)
