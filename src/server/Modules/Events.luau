@@ -195,6 +195,7 @@ local function prepareMeteor()
 	pillar.Parent = marks
 
 	marks.Parent = folder
+	targetId = nil -- eine alte, fallen gelassene Meteor-Kreatur bestimmt den Pfeil jetzt nicht mehr
 	setTarget(target)
 	return { Target = target, Marks = marks }
 end
@@ -289,18 +290,16 @@ end
 -- Klick-Fieber -------------------------------------------------------------------
 local function runKlickfieber()
 	local cfg = Config.Events.Klickfieber
-	local fever = { ComboSpeed = cfg.ComboSpeed, CritFactor = cfg.CritFactor, Clicks = {} }
+	local fever = { ComboSpeed = cfg.ComboSpeed, CritFactor = cfg.CritFactor, Clicks = {}, Money = {} }
 	Clicker.Fever = fever
-	Bases.EventEarned = {}
 	Bases.Announce(`🔥 KLICK-FIEBER! {cfg.Duration} Sekunden: Die Combo reißt nicht ab, Volltreffer x{cfg.CritFactor}. Klick, klick, klick!`,
 		COLORS.Klickfieber)
 	setPhase("Klickfieber", "active", cfg.Duration)
 	task.wait(cfg.Duration)
 	Clicker.Fever = nil
-	local earned = Bases.EventEarned or {}
-	Bases.EventEarned = nil
+	-- Bilanz: nur das Geld aus den Klicks
 	for player, clicks in fever.Clicks do
-		Bases.BigText(player, `🔥 Fieber vorbei: {clicks} Klicks, +{Config.FormatNumber(math.floor(earned[player] or 0))} $!`,
+		Bases.BigText(player, `🔥 Fieber vorbei: {clicks} Klicks, +{Config.FormatNumber(math.floor(fever.Money[player] or 0))} $!`,
 			COLORS.Klickfieber, "EventEnd")
 	end
 end
@@ -446,6 +445,7 @@ end
 
 local function spawnShadows()
 	local S = Config.Events.Diebesnacht.Shadows
+	local floorY = Map.RandomStreetPoint().Y -- Höhe des Straßenbodens
 	for player, state in Bases.States do
 		local plot = state.Plot
 		local count = 0
@@ -454,12 +454,15 @@ local function spawnShadows()
 				count += 1
 			end
 		end
-		local slot = if plot and count < S.MaxPerBase then pickSlot(state) else nil
+		-- Wer gerade in einer Welt unterwegs ist, bleibt verschont (er könnte sich nicht wehren)
+		local world = player:GetAttribute("World")
+		local away = type(world) == "string" and world ~= ""
+		local slot = if plot and not away and count < S.MaxPerBase then pickSlot(state) else nil
 		if slot then
 			local target = Map.SlotCFrame(plot, slot).Position
 			-- Er kommt von der Straße vor der Base
 			local street = Config.Map.StreetWidth / 2 - 3
-			local home = groundBelow(Vector3.new(target.X + math.random(-20, 20), target.Y + 10, (math.random() * 2 - 1) * street))
+			local home = Vector3.new(target.X + math.random(-20, 20), floorY, (math.random() * 2 - 1) * street)
 			local s = {
 				Model = buildShadow(),
 				Owner = player,
@@ -689,11 +692,14 @@ function Events.Run(name: string)
 		return
 	end
 	local warnTime = Config.Events.Warning
-	local prep = if PREPARE[name] then PREPARE[name]() else nil
-	Bases.Announce(`{TITLES[name]} in {warnTime} Sekunden!`, COLORS[name])
-	setPhase(name, "warn", warnTime)
-	task.wait(warnTime)
-	local ok, err = pcall(RUNNERS[name], prep)
+	-- Alles in einem pcall: Ein Fehler darf die Event-Schleife nicht für immer anhalten
+	local ok, err = pcall(function()
+		local prep = if PREPARE[name] then PREPARE[name]() else nil
+		Bases.Announce(`{TITLES[name]} in {warnTime} Sekunden!`, COLORS[name])
+		setPhase(name, "warn", warnTime)
+		task.wait(warnTime)
+		RUNNERS[name](prep)
+	end)
 	if not ok then
 		warn(`[Events] {name} ist abgebrochen: {err}`)
 		resetAll()

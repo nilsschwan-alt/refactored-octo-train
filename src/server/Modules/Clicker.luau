@@ -12,8 +12,9 @@ local Bases = require(script.Parent.Bases)
 local Clicker = {}
 
 -- Klick-Fieber (Event): solange gesetzt, reißt die Combo nicht ab, sie wächst schneller und
--- Volltreffer kommen öfter. Das Events-Modul setzt { ComboSpeed, CritFactor, Clicks = {} }.
-Clicker.Fever = nil :: { ComboSpeed: number, CritFactor: number, Clicks: { [Player]: number } }?
+-- Volltreffer kommen öfter. Das Events-Modul setzt { ComboSpeed, CritFactor, Clicks = {}, Money = {} }
+-- (Clicks und Money zählen für die Bilanz am Ende mit).
+Clicker.Fever = nil :: { ComboSpeed: number, CritFactor: number, Clicks: { [Player]: number }, Money: { [Player]: number } }?
 
 local C = Config.Click
 local BURST = 4 -- so viele Klicks dürfen auf einmal ankommen (Netz-Ruckler)
@@ -89,9 +90,6 @@ function Clicker.Click(player: Player)
 	end
 	c.Last = now
 	c.Combo += if fever then fever.ComboSpeed else 1
-	if fever then
-		fever.Clicks[player] = (fever.Clicks[player] or 0) + 1
-	end
 	local step, mult = comboFor(state, c.Combo)
 
 	local value = Clicker.BaseValue(state) * mult
@@ -107,6 +105,10 @@ function Clicker.Click(player: Player)
 
 	Bases.AddMoney(state, value)
 	Bases.Track(state, "Clicks", 1)
+	if fever then
+		fever.Clicks[player] = (fever.Clicks[player] or 0) + 1
+		fever.Money[player] = (fever.Money[player] or 0) + value
+	end
 	remotes.Clicked:FireClient(player, value, kind, c.Combo, step, mult)
 	if kind == "jackpot" then
 		Bases.BigText(player, `🎰 JACKPOT! +{Config.FormatNumber(value)} $`, GOLD, "Legendary", true)

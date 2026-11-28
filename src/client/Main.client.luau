@@ -231,7 +231,9 @@ end
 -- schrumpft sie. Die Knöpfe stehen in zwei Spalten: So bleibt die Leiste niedrig und es
 -- ist Platz für neue Knöpfe (einfach den nächsten Platz nehmen, die Leiste wächst mit).
 -- Am Handy sitzt sie ganz oben, damit unten links Platz für den Lauf-Stick bleibt.
-gui.DisplayOrder = 1
+-- Ebenen von unten nach oben: EventEffekte 0 (leuchtender Rand, Meteor-Pfeil), SpielLeiste 1,
+-- SpielUI 2, KlickEffekte 5, SpielOverlay 10
+gui.DisplayOrder = 2
 local hud = Instance.new("Frame")
 hud.Name = "LinkeLeiste"
 hud.BackgroundTransparency = 1
@@ -242,7 +244,7 @@ do
 	local hudGui = Instance.new("ScreenGui")
 	hudGui.Name = "SpielLeiste"
 	hudGui.ResetOnSpawn = false
-	hudGui.DisplayOrder = 0
+	hudGui.DisplayOrder = 1
 	hudGui.Parent = player.PlayerGui
 	hud.Parent = hudGui
 	local height = 84 + HUD_ROWS * 72 - 4

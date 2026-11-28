@@ -31,7 +31,7 @@ local NO_MOOD = { TintColor = WHITE, Saturation = 0, Brightness = 0, Contrast = 
 -- Leuchtender Bildschirmrand: Farbe und wie schnell er pulsiert
 local GLOWS = {
 	Goldrausch = { Color = GOLD, Pulse = 0.9 },
-	Klickfieber = { Color = FEVER, Pulse = 0.35 },
+	Klickfieber = { Color = FEVER, Pulse = 0.6 },
 }
 local START_SOUNDS = { Goldrausch = "GoldStart", Diebesnacht = "NightStart", Klickfieber = "FeverStart" }
 
@@ -40,12 +40,12 @@ return function(ctx)
 	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local corner, label, stroke, tween, playSound = ctx.Corner, ctx.Label, ctx.Stroke, ctx.Tween, ctx.PlaySound
 
-	-- eigene Ebene über den ganzen Bildschirm (auch hinter der Roblox-Leiste oben)
+	-- eigene Ebene über den ganzen Bildschirm, liegt unter der Knopf-Leiste und allen Fenstern
 	local fx = Instance.new("ScreenGui")
 	fx.Name = "EventEffekte"
 	fx.ResetOnSpawn = false
 	fx.IgnoreGuiInset = true
-	fx.DisplayOrder = 0
+	fx.DisplayOrder = 0 -- SpielLeiste hat 1, SpielUI 2
 	fx.Parent = player:WaitForChild("PlayerGui")
 
 	local mood = Instance.new("ColorCorrectionEffect")
@@ -62,10 +62,10 @@ return function(ctx)
 	local glowSides = {}
 	-- { Größe, Position, Drehung des Verlaufs }: außen kräftig, nach innen durchsichtig
 	for _, side in {
-		{ UDim2.new(1, 0, 0, 110), UDim2.fromScale(0, 0), 90 },
-		{ UDim2.new(1, 0, 0, 110), UDim2.new(0, 0, 1, -110), 270 },
-		{ UDim2.new(0, 110, 1, 0), UDim2.fromScale(0, 0), 0 },
-		{ UDim2.new(0, 110, 1, 0), UDim2.new(1, -110, 0, 0), 180 },
+		{ UDim2.new(1, 0, 0, 90), UDim2.fromScale(0, 0), 90 },
+		{ UDim2.new(1, 0, 0, 90), UDim2.new(0, 0, 1, -90), 270 },
+		{ UDim2.new(0, 90, 1, 0), UDim2.fromScale(0, 0), 0 },
+		{ UDim2.new(0, 90, 1, 0), UDim2.new(1, -90, 0, 0), 180 },
 	} do
 		local f = Instance.new("Frame")
 		f.Size = side[1]
@@ -102,7 +102,7 @@ return function(ctx)
 			f.BackgroundColor3 = info.Color
 			f.BackgroundTransparency = 0.75
 			local t = TweenService:Create(f, TweenInfo.new(info.Pulse, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ BackgroundTransparency = 0.2 })
+				{ BackgroundTransparency = 0.35 })
 			t:Play()
 			table.insert(glowTweens, t)
 		end
@@ -204,8 +204,9 @@ return function(ctx)
 	stroke(distance, ORANGE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	TweenService:Create(pointerScale, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.15 }):Play()
 
-	-- Ränder, die der Pfeil frei lässt (links die Knopf-Leiste, oben die Ansagen)
-	local LEFT, RIGHT, TOP, BOTTOM = 210, 100, 170, 170
+	-- Ränder, die der Pfeil frei lässt: links die Knopf-Leiste mit der Geld-Anzeige, rechts die
+	-- Aufgaben, oben Ansage und Countdown, unten die Combo-Anzeige
+	local LEFT, RIGHT, TOP, BOTTOM = 310, 340, 230, 280
 	local hideAt = Config.Events.Meteor.ArrowHide
 
 	RunService.RenderStepped:Connect(function()
@@ -225,7 +226,7 @@ return function(ctx)
 			arrow.Visible = false
 			distance.Size = UDim2.fromOffset(300, 28)
 			distance.Text = "☄️ Meteor auf der Hauptinsel!"
-			pointer.Position = UDim2.fromOffset(view.X / 2, TOP - 20)
+			pointer.Position = UDim2.fromOffset(view.X / 2, view.Y - BOTTOM - 10)
 			return
 		end
 		local far = (target - root.Position).Magnitude
