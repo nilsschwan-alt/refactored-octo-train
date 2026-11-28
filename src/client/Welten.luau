@@ -105,6 +105,7 @@ return function(ctx)
 	end)
 
 	local homeButton: TextButton
+	local homeHolder: Frame -- Halter des Heim-Knopfs (zum Ein- und Ausblenden)
 	local outsideSky -- Dunst-Farben der Hauptinsel, beim ersten Mal gemerkt
 	local outsideAmbient = Lighting.OutdoorAmbient -- Schattenlicht der Hauptinsel
 	local outsideBloom -- Leuchten der Hauptinsel, beim ersten Mal gemerkt
@@ -139,7 +140,7 @@ return function(ctx)
 			wantedClock = nil
 			Lighting.ClockTime = outsideClock
 		end
-		homeButton.Visible = world ~= nil
+		homeHolder.Visible = world ~= nil
 	end
 
 	-- Lichtblitz beim Reisen
@@ -164,27 +165,13 @@ return function(ctx)
 	end)
 
 	-- Knopf "Heim": nur in einer Welt zu sehen, bringt einen direkt vor die eigene Base
-	homeButton = Instance.new("TextButton")
-	homeButton.Name = "HeimKnopf"
-	homeButton.Size = UDim2.fromOffset(72, 72)
-	homeButton.Position = UDim2.new(0, 412, 0.5, 40)
-	homeButton.BackgroundColor3 = Color3.fromRGB(50, 165, 105)
-	homeButton.Text = ""
-	homeButton.Visible = false
-	homeButton.Parent = gui
-	corner(homeButton, 12)
-	stroke(homeButton, WHITE, 2)
-	label({ Size = UDim2.new(1, 0, 0.62, 0), Position = UDim2.fromScale(0, 0.04), Text = "🏠", Parent = homeButton })
-	label({
-		Size = UDim2.new(1, -8, 0.3, 0),
-		Position = UDim2.new(0, 4, 0.66, 0),
-		Font = Enum.Font.FredokaOne,
-		TextStrokeTransparency = 0.4,
-		Text = "Heim",
-		Parent = homeButton,
-	})
+	do
+		local button, _, _, holder = ctx.HudButton(6, Color3.fromRGB(50, 165, 105), "🏠", "Heim", "H")
+		homeButton, homeHolder = button, holder
+		homeHolder.Visible = false
+	end
 	local function goHome()
-		if homeButton.Visible then
+		if homeHolder.Visible then
 			playSound("Click")
 			Remotes.GoHome:FireServer()
 		end
@@ -192,24 +179,7 @@ return function(ctx)
 	homeButton.Activated:Connect(goHome)
 
 	-- Knopf "Welten": Reise-Fenster, von überall direkt in eine offene Welt ------------
-	local worldButton = Instance.new("TextButton")
-	worldButton.Name = "WeltenKnopf"
-	worldButton.Size = UDim2.fromOffset(72, 72)
-	worldButton.Position = UDim2.new(0, 332, 0.5, 40)
-	worldButton.BackgroundColor3 = Color3.fromRGB(120, 95, 235)
-	worldButton.Text = ""
-	worldButton.Parent = gui
-	corner(worldButton, 12)
-	stroke(worldButton, WHITE, 2)
-	label({ Size = UDim2.new(1, 0, 0.62, 0), Position = UDim2.fromScale(0, 0.04), Text = "🌀", Parent = worldButton })
-	label({
-		Size = UDim2.new(1, -8, 0.3, 0),
-		Position = UDim2.new(0, 4, 0.66, 0),
-		Font = Enum.Font.FredokaOne,
-		TextStrokeTransparency = 0.4,
-		Text = "Welten",
-		Parent = worldButton,
-	})
+	local worldButton = ctx.HudButton(5, Color3.fromRGB(120, 95, 235), "🌀", "Welten", "T")
 
 	local ROW = 62
 	local panel = Instance.new("Frame")

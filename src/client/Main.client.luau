@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -224,38 +225,207 @@ local function sunburst(parent: Instance, color: Color3, size: number): Frame
 	return holder
 end
 
+-- Linke Leiste: oben die Geld-Anzeige, darunter die Knöpfe untereinander ---------------
+-- Alles sitzt in einem Rahmen am linken Rand. Auf kleinen Bildschirmen (Handy quer)
+-- schrumpft die ganze Leiste, damit sie immer ins Bild passt.
+local hud = Instance.new("Frame")
+hud.Name = "LinkeLeiste"
+hud.AnchorPoint = Vector2.new(0, 0.5)
+hud.Position = UDim2.new(0, 10, 0.5, 0)
+hud.Size = UDim2.fromOffset(236, 474) -- Geld 72 + Abstand 12 + 6 Knöpfe je 58 mit 8 Abstand
+hud.BackgroundTransparency = 1
+hud.Parent = gui
+do
+	local hudScale = Instance.new("UIScale")
+	hudScale.Parent = hud
+	local function fit()
+		hudScale.Scale = math.clamp((gui.AbsoluteSize.Y - 24) / 474, 0.5, 1)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	fit()
+end
+
+-- Quadratischer Knopf in der linken Leiste. slot = Platz von oben (1 = direkt unter dem Geld),
+-- key = Taste, die oben links als kleiner Hinweis steht (nur mit Tastatur).
+-- Gibt zurück: Knopf, UIScale (zum Pulsieren), rote Zahl-Plakette, Halter (zum Verstecken).
+local function hudButton(slot: number, color: Color3, icon: string, text: string, key: string?)
+	local holder = Instance.new("Frame")
+	holder.Name = text .. "Knopf"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(58, 62)
+	holder.Position = UDim2.fromOffset(29, 84 + (slot - 1) * 66 + 31)
+	holder.BackgroundTransparency = 1
+	holder.Parent = hud
+	local scale = Instance.new("UIScale")
+	scale.Parent = holder
+	-- dunkle Unterkante: der Knopf wirkt dick und drückt sich beim Klick hinein
+	local lip = Instance.new("Frame")
+	lip.Size = UDim2.fromOffset(58, 58)
+	lip.Position = UDim2.fromOffset(0, 4)
+	lip.BackgroundColor3 = color:Lerp(BLACK, 0.6)
+	lip.BorderSizePixel = 0
+	lip.Parent = holder
+	corner(lip, 15)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.fromOffset(58, 58)
+	button.BackgroundColor3 = WHITE
+	button.AutoButtonColor = false
+	button.BorderSizePixel = 0
+	button.Text = ""
+	button.ZIndex = 2
+	button.Parent = holder
+	corner(button, 15)
+	local shade = Instance.new("UIGradient") -- oben heller, unten kräftiger
+	shade.Rotation = 90
+	shade.Color = ColorSequence.new(color:Lerp(WHITE, 0.4), color:Lerp(BLACK, 0.12))
+	shade.Parent = button
+	stroke(button, color:Lerp(BLACK, 0.55), 2.5).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local shine = Instance.new("Frame") -- Glanzstreifen oben
+	shine.Size = UDim2.new(1, -14, 0, 14)
+	shine.Position = UDim2.fromOffset(7, 5)
+	shine.BackgroundColor3 = WHITE
+	shine.BackgroundTransparency = 0.72
+	shine.BorderSizePixel = 0
+	shine.ZIndex = 2
+	shine.Parent = button
+	corner(shine, 7)
+	local iconLabel = label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(34, 34),
+		Position = UDim2.new(0.5, 0, 0, 23),
+		ZIndex = 3,
+		Text = icon,
+		Parent = button,
+	})
+	local nameLabel = label({
+		Size = UDim2.new(1, -6, 0, 15),
+		Position = UDim2.new(0, 3, 1, -19),
+		Font = Enum.Font.FredokaOne,
+		ZIndex = 3,
+		Text = text,
+		Parent = button,
+	})
+	stroke(nameLabel, color:Lerp(BLACK, 0.7), 2)
+	if key and UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled then
+		local hint = label({
+			Size = UDim2.fromOffset(17, 17),
+			Position = UDim2.fromOffset(-5, -5),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Color3.fromRGB(30, 28, 44),
+			Font = Enum.Font.GothamBold,
+			ZIndex = 4,
+			Text = key,
+			Parent = button,
+		})
+		corner(hint, 5)
+		stroke(hint, WHITE, 1.5).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	end
+	local badge = label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(1, -3, 0, 3),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Color3.fromRGB(235, 60, 70),
+		Font = Enum.Font.FredokaOne,
+		Text = "",
+		Visible = false,
+		ZIndex = 5,
+		Parent = button,
+	})
+	corner(badge, 12)
+	-- Rand um die Plakette, nicht um die Schrift
+	stroke(badge, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	-- Maus drüber: Symbol wächst. Gedrückt: Knopf sinkt auf seine Unterkante.
+	button.MouseEnter:Connect(function()
+		tween(iconLabel, 0.12, { Size = UDim2.fromOffset(40, 40) }, Enum.EasingStyle.Back)
+	end)
+	button.MouseLeave:Connect(function()
+		tween(iconLabel, 0.12, { Size = UDim2.fromOffset(34, 34) })
+		tween(button, 0.08, { Position = UDim2.fromOffset(0, 0) })
+	end)
+	button.MouseButton1Down:Connect(function()
+		tween(button, 0.05, { Position = UDim2.fromOffset(0, 3) })
+	end)
+	button.MouseButton1Up:Connect(function()
+		tween(button, 0.12, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
+	end)
+	return button, scale, badge, holder
+end
+
 -- Geld-Anzeige -----------------------------------------------------------------
 local moneyBox = Instance.new("Frame")
+moneyBox.Name = "GeldAnzeige"
 moneyBox.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
-moneyBox.Size = UDim2.fromOffset(240, 64)
-moneyBox.Position = UDim2.new(0, 12, 0.5, -32)
-moneyBox.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-moneyBox.BackgroundTransparency = 0.2
-moneyBox.Parent = gui
-corner(moneyBox)
+moneyBox.AnchorPoint = Vector2.new(0.5, 0.5)
+moneyBox.Size = UDim2.fromOffset(236, 72)
+moneyBox.Position = UDim2.fromOffset(118, 36)
+moneyBox.BackgroundColor3 = WHITE
+moneyBox.Parent = hud
+corner(moneyBox, 16)
+stroke(moneyBox, Color3.fromRGB(255, 200, 60), 2.5)
+do
+	local shade = Instance.new("UIGradient") -- dunkelblau nach lila
+	shade.Rotation = 90
+	shade.Color = ColorSequence.new(Color3.fromRGB(46, 40, 78), Color3.fromRGB(22, 20, 38))
+	shade.Parent = moneyBox
+	-- goldene Münze links
+	local coin = Instance.new("Frame")
+	coin.Name = "Muenze"
+	coin.Size = UDim2.fromOffset(50, 50)
+	coin.Position = UDim2.fromOffset(11, 11)
+	coin.BackgroundColor3 = WHITE
+	coin.Parent = moneyBox
+	corner(coin, 25)
+	stroke(coin, Color3.fromRGB(170, 105, 10), 3)
+	local gold = Instance.new("UIGradient")
+	gold.Rotation = 60
+	gold.Color = ColorSequence.new(Color3.fromRGB(255, 240, 130), Color3.fromRGB(255, 170, 30))
+	gold.Parent = coin
+	label({
+		Size = UDim2.fromScale(0.62, 0.72),
+		Position = UDim2.fromScale(0.19, 0.14),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(150, 90, 5),
+		Text = "$",
+		Parent = coin,
+	})
+	-- grüne Pille hinter dem Einkommen
+	local pill = Instance.new("Frame")
+	pill.Name = "EinkommenPille"
+	pill.Size = UDim2.fromOffset(152, 22)
+	pill.Position = UDim2.fromOffset(72, 42)
+	pill.BackgroundColor3 = Color3.fromRGB(40, 150, 80)
+	pill.BackgroundTransparency = 0.35
+	pill.BorderSizePixel = 0
+	pill.Parent = moneyBox
+	corner(pill, 11)
+end
 
 local moneyLabel = label({
-	Size = UDim2.new(1, -16, 0.6, 0),
-	Position = UDim2.fromOffset(8, 4),
+	Size = UDim2.fromOffset(154, 32),
+	Position = UDim2.fromOffset(72, 7),
 	Font = Enum.Font.FredokaOne,
-	TextColor3 = Color3.fromRGB(255, 220, 60),
+	TextColor3 = Color3.fromRGB(255, 225, 80),
+	TextStrokeTransparency = 0.5,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Text = "0 $",
 	Parent = moneyBox,
 })
 local incomeLabel = label({
-	Size = UDim2.new(1, -16, 0.35, 0),
-	Position = UDim2.new(0, 8, 0.6, 0),
-	TextColor3 = Color3.fromRGB(130, 255, 130),
+	Size = UDim2.fromOffset(140, 16),
+	Position = UDim2.fromOffset(78, 45),
+	Font = Enum.Font.FredokaOne,
+	TextColor3 = Color3.fromRGB(170, 255, 170),
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "+0 $/s automatisch",
+	ZIndex = 2,
+	Text = "▲ +0 $ pro Sekunde",
 	Parent = moneyBox,
 })
 
 -- Die Zahl zählt sichtbar hoch/runter statt zu springen
 local shownMoney = player:GetAttribute("Money") or 0
 local function updateMoney()
-	incomeLabel.Text = `+{Config.FormatRate(player:GetAttribute("Income") or 0)} $/s automatisch`
+	incomeLabel.Text = `▲ +{Config.FormatRate(player:GetAttribute("Income") or 0)} $ pro Sekunde`
 end
 
 -- Wenn Geld dazukommt: kleines grünes "+X $" steigt neben der Geld-Anzeige auf.
@@ -283,7 +453,7 @@ do
 			local gainLabel = Instance.new("TextLabel")
 			gainLabel.BackgroundTransparency = 1
 			gainLabel.Size = UDim2.fromOffset(140, 26)
-			gainLabel.Position = UDim2.new(1, 8, 0, 6) -- rechts neben der Geld-Anzeige
+			gainLabel.Position = UDim2.new(1, 10, 0, 8) -- rechts neben der Geld-Anzeige
 			gainLabel.Font = Enum.Font.FredokaOne
 			gainLabel.TextScaled = true
 			gainLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -305,7 +475,7 @@ RunService.RenderStepped:Connect(function(dt)
 	else
 		shownMoney += (target - shownMoney) * math.min(1, dt * 6)
 	end
-	moneyLabel.Text = `💰 {Config.FormatNumber(shownMoney)} $`
+	moneyLabel.Text = `{Config.FormatNumber(shownMoney)} $`
 end)
 player:GetAttributeChangedSignal("Income"):Connect(updateMoney)
 updateMoney()
@@ -315,7 +485,8 @@ Remotes.MoneyPopup.OnClientEvent:Connect(function(amount: number)
 	local coins = math.clamp(math.floor(math.log10(math.max(amount, 1)) * 3), 4, 14)
 	local camera = workspace.CurrentCamera
 	local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-	local targetPos = moneyBox.AbsolutePosition + Vector2.new(30, 30)
+	-- die Münzen liegen in der Ebene über allem, die oben am Bildschirmrand beginnt
+	local targetPos = moneyBox.AbsolutePosition + Vector2.new(36, 36) + game:GetService("GuiService"):GetGuiInset()
 	for i = 1, coins do
 		local coin = Instance.new("TextLabel")
 		coin.BackgroundTransparency = 1
@@ -333,14 +504,14 @@ Remotes.MoneyPopup.OnClientEvent:Connect(function(amount: number)
 			t.Completed:Wait()
 			coin:Destroy()
 			playSound("Coin", 1 + i * 0.03)
-			moneyBox.Size = UDim2.fromOffset(256, 68)
-			tween(moneyBox, 0.15, { Size = UDim2.fromOffset(240, 64) }, Enum.EasingStyle.Back)
+			moneyBox.Size = UDim2.fromOffset(250, 78)
+			tween(moneyBox, 0.15, { Size = UDim2.fromOffset(236, 72) }, Enum.EasingStyle.Back)
 		end)
 	end
 	playSound("Collect")
 	local pop = label({
 		Size = UDim2.fromOffset(260, 50),
-		Position = UDim2.new(0, 20, 0.5, -90),
+		Position = UDim2.fromOffset(moneyBox.AbsolutePosition.X + moneyBox.AbsoluteSize.X + 12, moneyBox.AbsolutePosition.Y + 34),
 		Font = Enum.Font.FredokaOne,
 		TextColor3 = Color3.fromRGB(120, 255, 120),
 		TextStrokeTransparency = 0,
@@ -353,7 +524,7 @@ Remotes.MoneyPopup.OnClientEvent:Connect(function(amount: number)
 	popScale.Parent = pop
 	tween(popScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
 	task.delay(0.5, function()
-		tween(pop, 1, { Position = UDim2.new(0, 20, 0.5, -170), TextTransparency = 1, TextStrokeTransparency = 1 })
+		tween(pop, 1, { Position = pop.Position - UDim2.fromOffset(0, 70), TextTransparency = 1, TextStrokeTransparency = 1 })
 	end)
 	task.delay(1.6, function()
 		pop:Destroy()
@@ -1351,33 +1522,8 @@ Remotes.OpenPacks.OnClientEvent:Connect(showShop)
 
 -- Packs-Knopf: öffnet den Shop von überall (auch Taste P)
 local opening = false -- läuft gerade eine Pack-Öffnung?
-local UserInputService = game:GetService("UserInputService")
--- Kleiner quadratischer Shop-Knopf unter der Geld-Anzeige
-local packsButton = Instance.new("TextButton")
-packsButton.Size = UDim2.fromOffset(72, 72)
-packsButton.Position = UDim2.new(0, 12, 0.5, 40)
-packsButton.BackgroundColor3 = Color3.fromRGB(255, 170, 40)
-packsButton.Text = ""
-packsButton.AutoButtonColor = true
-packsButton.Parent = gui
-corner(packsButton, 12)
-stroke(packsButton, Color3.fromRGB(255, 255, 255), 2)
-local packsScale = Instance.new("UIScale")
-packsScale.Parent = packsButton
-label({
-	Size = UDim2.new(1, 0, 0.62, 0),
-	Position = UDim2.fromScale(0, 0.04),
-	Text = "🏪",
-	Parent = packsButton,
-})
-label({
-	Size = UDim2.new(1, -8, 0.3, 0),
-	Position = UDim2.new(0, 4, 0.66, 0),
-	Font = Enum.Font.FredokaOne,
-	TextStrokeTransparency = 0.4,
-	Text = "Shop",
-	Parent = packsButton,
-})
+-- Shop-Knopf: erster Knopf in der linken Leiste
+local packsButton, packsScale = hudButton(1, Color3.fromRGB(255, 170, 40), "🏪", "Shop", "P")
 
 local function toggleShop()
 	if opening then
@@ -3473,30 +3619,7 @@ end)
 
 -- Wiedergeburt (Rebirth) ---------------------------------------------------------
 local PURPLE = Color3.fromRGB(170, 90, 255)
-local rebirthButton = Instance.new("TextButton")
-rebirthButton.Size = UDim2.fromOffset(72, 72)
-rebirthButton.Position = UDim2.new(0, 92, 0.5, 40)
-rebirthButton.BackgroundColor3 = PURPLE
-rebirthButton.Text = ""
-rebirthButton.Parent = gui
-corner(rebirthButton, 12)
-stroke(rebirthButton, Color3.fromRGB(255, 255, 255), 2)
-local rebirthButtonScale = Instance.new("UIScale")
-rebirthButtonScale.Parent = rebirthButton
-label({
-	Size = UDim2.new(1, 0, 0.62, 0),
-	Position = UDim2.fromScale(0, 0.04),
-	Text = "🔄",
-	Parent = rebirthButton,
-})
-label({
-	Size = UDim2.new(1, -8, 0.3, 0),
-	Position = UDim2.new(0, 4, 0.66, 0),
-	Font = Enum.Font.FredokaOne,
-	TextStrokeTransparency = 0.4,
-	Text = "Rebirth",
-	Parent = rebirthButton,
-})
+local rebirthButton, rebirthButtonScale = hudButton(2, PURPLE, "🔄", "Rebirth", "R")
 
 local rebirthPanel = Instance.new("Frame")
 rebirthPanel.Active = true -- fängt Klicks ab, damit hier kein Klick-Geld entsteht
@@ -3690,6 +3813,7 @@ end)
 -- Skill-Baum und Fusion (eigene Datei: Menus.luau)
 local menus = require(script.Parent:WaitForChild("Menus"))({
 	Gui = gui,
+	HudButton = hudButton,
 	Corner = corner,
 	Label = label,
 	Stroke = stroke,
@@ -3708,6 +3832,7 @@ end)
 -- Welten: Portale, Licht-Stimmung, Reise-Blitz und Knopf "Heim" (eigene Datei: Welten.luau)
 local welten = require(script.Parent:WaitForChild("Welten"))({
 	Gui = gui,
+	HudButton = hudButton,
 	Corner = corner,
 	Label = label,
 	Stroke = stroke,
@@ -3718,6 +3843,7 @@ local welten = require(script.Parent:WaitForChild("Welten"))({
 -- Klicker: überall klicken oder tippen gibt Geld, mit Combo (eigene Datei: Klicker.luau)
 require(script.Parent:WaitForChild("Klicker"))({
 	Corner = corner,
+	MoneyBox = moneyBox,
 	Label = label,
 	Stroke = stroke,
 	Tween = tween,

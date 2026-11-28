@@ -25,44 +25,8 @@ return function(ctx)
 	local corner, label, stroke, tween, playSound = ctx.Corner, ctx.Label, ctx.Stroke, ctx.Tween, ctx.PlaySound
 
 	-- Bausteine -----------------------------------------------------------------------
-	-- Quadratischer Knopf am linken Rand (wie Shop und Rebirth), mit kleiner roter Zahl oben rechts
-	local function hudButton(x: number, color: Color3, icon: string, text: string)
-		local button = Instance.new("TextButton")
-		button.Size = UDim2.fromOffset(72, 72)
-		button.Position = UDim2.new(0, x, 0.5, 40)
-		button.BackgroundColor3 = color
-		button.Text = ""
-		button.Parent = gui
-		corner(button, 12)
-		stroke(button, WHITE, 2)
-		local scale = Instance.new("UIScale")
-		scale.Parent = button
-		label({ Size = UDim2.new(1, 0, 0.62, 0), Position = UDim2.fromScale(0, 0.04), Text = icon, Parent = button })
-		label({
-			Size = UDim2.new(1, -8, 0.3, 0),
-			Position = UDim2.new(0, 4, 0.66, 0),
-			Font = Enum.Font.FredokaOne,
-			TextStrokeTransparency = 0.4,
-			Text = text,
-			Parent = button,
-		})
-		local badge = label({
-			AnchorPoint = CENTER,
-			Size = UDim2.fromOffset(26, 26),
-			Position = UDim2.new(1, -4, 0, 4),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = Color3.fromRGB(235, 60, 70),
-			Font = Enum.Font.FredokaOne,
-			Text = "",
-			Visible = false,
-			ZIndex = 3,
-			Parent = button,
-		})
-		corner(badge, 13)
-		-- Rand um die Plakette, nicht um die Schrift
-		stroke(badge, WHITE, 2).ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		return button, scale, badge
-	end
+	-- Quadratischer Knopf in der linken Leiste (baut Main, damit alle Knöpfe gleich aussehen)
+	local hudButton = ctx.HudButton
 
 	-- Fenster in der Bildschirmmitte mit Titel und X
 	local function window(width: number, height: number, color: Color3, title: string)
@@ -121,7 +85,7 @@ return function(ctx)
 	local HEX_X, HEX_Y = 264, 296 -- Mitte des Netzes im Fenster (drei Ringe = 36 Waben + Mitte)
 	local SKILL_COLOR = Color3.fromRGB(90, 160, 255)
 
-	local skillButton, skillButtonScale, skillBadge = hudButton(172, SKILL_COLOR, "🧠", "Skills")
+	local skillButton, skillButtonScale, skillBadge = hudButton(3, SKILL_COLOR, "🧠", "Skills", "K")
 	local skillPanel, showSkillPanel = window(940, 600, SKILL_COLOR, "💠 Skill-Baum")
 	local tokenTitle = label({
 		Size = UDim2.fromOffset(330, 34),
@@ -498,7 +462,7 @@ return function(ctx)
 
 	-- Fusion ----------------------------------------------------------------------------
 	local MERGE_COLOR = GOLD
-	local mergeButton, mergeButtonScale, mergeBadge = hudButton(252, Color3.fromRGB(235, 150, 40), "✨", "Fusion")
+	local mergeButton, mergeButtonScale, mergeBadge = hudButton(4, Color3.fromRGB(235, 150, 40), "✨", "Fusion", "V")
 	local mergePanel, showMergePanel = window(600, 500, MERGE_COLOR, "✨ Fusion")
 	label({
 		Size = UDim2.new(1, -32, 0, 64),
