@@ -84,11 +84,13 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	local entries, pities = {}, {}
 	local soldCount, soldMoney = 0, 0 -- wegen vollem Inventar verkauft
 	local storedCount = 0 -- so viele Kreaturen kamen ins Inventar
+	local lastText: string? = nil -- Meldung zur letzten Kreatur (für die einzelne Kiste)
 	for i = 1, count do
 		local entry, pity = roll(state, pack)
 		entries[i] = entry
 		pities[i] = pity
 		local got = Bases.Receive(state, entry)
+		lastText = Bases.ReceiveText(got, entry)
 		if got.Kind ~= "placed" then
 			storedCount += 1
 		end
@@ -111,13 +113,15 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 			end
 		end)
 	end
-	if count == 1 and storedCount > 0 then
-		-- bei mehreren Kisten steht das schon auf dem Ergebnis-Bildschirm
-		task.delay(showDelay, function()
-			Bases.Notify(player, `🎒 Base voll: {Config.EntryName(entries[1])} liegt im Inventar.`, Color3.fromRGB(120, 200, 255))
-		end)
-	end
-	if soldCount > 0 then
+	if count == 1 then
+		-- bei mehreren Kisten steht das auf dem Ergebnis-Bildschirm
+		if lastText then
+			local text = lastText
+			task.delay(showDelay, function()
+				Bases.Notify(player, text, Color3.fromRGB(120, 200, 255))
+			end)
+		end
+	elseif soldCount > 0 then
 		task.delay(showDelay, function()
 			Bases.Notify(
 				player,

@@ -281,6 +281,7 @@ function Steal.Deliver(thief: Player)
 		Bases.Notify(thief, `{Config.EntryName(entry)} gehört jetzt dir!`, GREEN)
 		Bases.BigText(info.Owner, "DU WURDEST BEKLAUT!", RED, "Stolen", true)
 		Bases.Notify(info.Owner, `{thief.DisplayName} hat deinen {Config.EntryName(entry)} geklaut!`, RED)
+		Bases.FillFree(oState) -- der leere Platz wird aus dem Inventar besetzt
 		Bases.AnnounceIfRare(thief, entry, "geklaut")
 		Bases.Track(tState, "Steal", 1)
 		-- Skill-Baum: Beute-Bonus für den Dieb, Trostpflaster für den Beklauten

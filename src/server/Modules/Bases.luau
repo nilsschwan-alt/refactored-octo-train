@@ -314,7 +314,8 @@ function Bases.Store(state, entry: string): (string?, number)
 	return worst, price
 end
 
--- Futter für diese Kreatur: alle im Inventar von derselben Art, die nicht stärker sind als sie.
+-- Futter für diese Kreatur: alle im Inventar von derselben Art, die schwächer sind als sie
+-- (oder genau gleich). Gleich starke andere, z.B. Gold ohne Stern und Normal mit Stern, bleiben.
 -- inBag = sie liegt selbst im Inventar (dann zählt sie nicht als ihr eigenes Futter).
 -- Gibt die Liste { { Entry, Count, Points } } (das schwächste Futter zuerst) und die Summe zurück.
 local function foodFor(state, entry: string, inBag: boolean)
@@ -322,7 +323,8 @@ local function foodFor(state, entry: string, inBag: boolean)
 	local income = Config.EntryIncome(entry)
 	local list, total = {}, 0
 	for other, count in state.Data.Bag do
-		if Config.ParseEntry(other) == def and Config.EntryIncome(other) <= income then
+		-- gleiche Art, und entweder genau die gleiche Kreatur oder eine schwächere
+		if Config.ParseEntry(other) == def and (other == entry or Config.EntryIncome(other) < income) then
 			local n = if inBag and other == entry then count - 1 else count
 			if n > 0 then
 				local points = Config.FoodPoints(other)
@@ -652,6 +654,31 @@ function Bases.EquipBest(player: Player)
 	end
 end
 
+-- Freie Plätze in der Base mit den stärksten Kreaturen aus dem Inventar füllen (nach einem
+-- Base-Upgrade, einem Verkauf oder wenn etwas geklaut wurde). Gibt zurück, wie viele nachrückten.
+function Bases.FillFree(state): number
+	local moved = 0
+	while Bases.FreeSlot(state) do
+		local best, bestIncome = nil, -1
+		for entry in state.Data.Bag do
+			local income = Config.EntryIncome(entry)
+			if income > bestIncome or (income == bestIncome and best and entry < best) then
+				best, bestIncome = entry, income
+			end
+		end
+		if not best or not bagTake(state, best, 1) then
+			break
+		end
+		Bases.GiveCreature(state, best)
+		moved += 1
+	end
+	if moved > 0 then
+		Bases.RefreshPlot(state.Plot)
+		Bases.Notify(state.Player, `🎒 {moved} {if moved == 1 then "Kreatur rückt" else "Kreaturen rücken"} aus dem Inventar in die Base nach.`, BAG_COLOR)
+	end
+	return moved
+end
+
 -- Eine neue Kreatur kommt an (Kiste, Meteor, Welt, geklaut). Ist ein Platz frei, kommt sie in
 -- die Base. Ist die Base voll und sie ist besser als die schwächste dort, tauschen die beiden.
 -- Wer keinen Platz in der Base bekommt, landet im Inventar. Verkauft wird nur, wenn das voll ist.
@@ -683,7 +710,9 @@ function Bases.ReceiveText(got, entry: string): string?
 		text = `🎒 Base voll: {Config.EntryName(entry)} liegt im Inventar.`
 	end
 	if got.Sold then
-		text = `{text or ""} Inventar voll: {Config.EntryName(got.Sold)} für {Config.FormatNumber(got.Money)} $ verkauft.`
+		local sold = `Inventar voll: {Config.EntryName(got.Sold)} für {Config.FormatNumber(got.Money)} $ verkauft.`
+		-- war die neue selbst die schwächste, lag sie nie wirklich im Inventar
+		text = if text and not (got.Kind == "stored" and got.Sold == entry) then `{text} {sold}` else sold
 	end
 	return text
 end
@@ -876,6 +905,7 @@ function Bases.Sell(player: Player, plotIndex: number, slot: number)
 	Bases.AddMoney(state, price)
 	remotes.MoneyPopup:FireClient(player, price)
 	Bases.Notify(player, `{Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`)
+	Bases.FillFree(state)
 end
 
 function Bases.Upgrade(player: Player, plotIndex: number)
@@ -897,6 +927,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	Bases.RefreshStats(state)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
 	Bases.RenderAll(state) -- das größere Haus ordnet die Plätze neu an
+	Bases.FillFree(state) -- die neuen Plätze gleich aus dem Inventar besetzen
 	Bases.RefreshRings(state)
 	Bases.RefreshPlot(state.Plot)
 	Bases.BigText(player, `BASE-UPGRADE: {Config.Upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")

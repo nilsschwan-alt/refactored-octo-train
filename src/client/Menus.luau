@@ -466,12 +466,12 @@ return function(ctx)
 	local BAG_COLOR = Color3.fromRGB(120, 200, 255)
 	local RED = Color3.fromRGB(215, 70, 70)
 	local BLUE = Color3.fromRGB(60, 140, 235)
-	local TILE_W, TILE_H = 94, 112
+	local TILE_W, TILE_H = 94, 126
 	local bagButton, bagButtonScale, bagBadge = hudButton(4, Color3.fromRGB(70, 150, 235), "🎒", "Inventar", "V")
 	local bagPanel, showBagPanel = window(830, 560, BAG_COLOR, "🎒 Inventar")
 	local bagInfo = label({
 		Size = UDim2.fromOffset(330, 24),
-		Position = UDim2.fromOffset(205, 16),
+		Position = UDim2.fromOffset(215, 16),
 		TextScaled = false,
 		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -632,14 +632,11 @@ return function(ctx)
 	local sellButton = textButton(detail, "Verkaufen", RED, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 390))
 	local sellAllButton = textButton(detail, "Alle verkaufen", RED, UDim2.new(1, -24, 0, 34), UDim2.fromOffset(12, 432))
 	label({
-		Size = UDim2.new(1, -16, 0, 22),
-		Position = UDim2.fromOffset(8, 470),
-		TextScaled = false,
-		TextSize = 12,
-		TextWrapped = true,
+		Size = UDim2.new(1, -16, 0, 18),
+		Position = UDim2.fromOffset(8, 471),
 		Font = Enum.Font.Gotham,
 		TextColor3 = Color3.fromRGB(150, 145, 175),
-		Text = "Futter = gleiche Art aus dem Inventar, nie eine stärkere.",
+		Text = "Futter: gleiche Art, nur schwächere",
 		Parent = detail,
 	})
 
@@ -792,9 +789,18 @@ return function(ctx)
 			})
 			starLabel.TextStrokeColor3 = BLACK
 		end
+		-- Name (mit Mutation), damit man z.B. Gold und Normal auseinanderhält
+		local m = Config.Mutations[mutation]
+		label({
+			Size = UDim2.new(1, -6, 0, 14),
+			Position = UDim2.fromOffset(3, 79),
+			TextColor3 = m.Color or WHITE,
+			Text = if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name,
+			Parent = tile,
+		})
 		label({
 			Size = UDim2.new(1, -6, 0, 16),
-			Position = UDim2.fromOffset(3, 80),
+			Position = UDim2.fromOffset(3, 94),
 			TextColor3 = Color3.fromRGB(130, 255, 150),
 			Text = `+{Config.FormatRate(Config.EntryIncome(item.Entry))} $/s`,
 			Parent = tile,

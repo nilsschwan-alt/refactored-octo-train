@@ -201,7 +201,7 @@ Config.Inventory = {
 
 -- Sterne (Verbessern) ---------------------------------------------------------------
 -- Im Inventar kann man eine Kreatur verbessern: Sie frisst Kreaturen ihrer Art aus dem
--- Inventar (die Mutation ist egal, aber nie eine stärkere) und bekommt dafür einen Stern.
+-- Inventar (die Mutation ist egal, aber nur schwächere oder genau gleiche) und bekommt dafür einen Stern.
 Config.Stars = {
 	Max = 5,
 	-- So viel Futter kostet der 1., 2., 3., 4. und 5. Stern (eine normale Kreatur = 1 Futter)
