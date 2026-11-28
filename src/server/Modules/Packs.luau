@@ -99,6 +99,7 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	local entries, pities = {}, {}
 	local soldCount, soldMoney = 0, 0
 	local absorbed = {} -- Meldungen: bei voller Base automatisch verschmolzen oder eingelagert
+	local mergedCount, storedCount = 0, 0
 	for i = 1, count do
 		local entry, pity = roll(state, pack)
 		entries[i] = entry
@@ -108,6 +109,11 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 			local result, kind = Bases.TryAbsorb(state, entry)
 			if result and kind then
 				table.insert(absorbed, Bases.AbsorbText(state, result, kind))
+				if kind == "merged" then
+					mergedCount += 1
+				else
+					storedCount += 1
+				end
 				continue
 			end
 			-- Sonst: ist die neue besser als die schlechteste? Dann tauschen.
@@ -133,7 +139,7 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	end
 	Bases.Track(state, "OpenPacks", count)
 
-	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney)
+	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney, mergedCount, storedCount)
 	local showDelay = if count > 1 then 6 else 4 -- erst nach der Öffnungs-Animation
 	if refund > 0 then
 		Bases.AddMoney(state, refund, "quest")

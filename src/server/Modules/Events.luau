@@ -297,6 +297,7 @@ local function runKlickfieber()
 	setPhase("Klickfieber", "active", cfg.Duration)
 	task.wait(cfg.Duration)
 	Clicker.Fever = nil
+	Bases.Announce("🔥 Das Klick-Fieber ist vorbei.", COLORS.Klickfieber)
 	-- Bilanz: nur das Geld aus den Klicks
 	for player, clicks in fever.Clicks do
 		Bases.BigText(player, `🔥 Fieber vorbei: {clicks} Klicks, +{Config.FormatNumber(math.floor(fever.Money[player] or 0))} $!`,
@@ -508,6 +509,9 @@ local function stepShadows(dt: number)
 		if not oState or oState.Plot ~= s.Plot then
 			-- Besitzer ist weg: der Schatten löst sich auf
 			s.Plot.Stolen[s.Slot] = if s.Plot.Stolen[s.Slot] == SHADOW_MARK then nil else s.Plot.Stolen[s.Slot]
+			removeShadow(i, true)
+		elseif not s.Entry and (s.Owner:GetAttribute("World") or "") ~= "" then
+			-- Besitzer ist in eine Welt gereist, bevor der Schatten etwas hatte: er gibt auf
 			removeShadow(i, true)
 		elseif s.Phase == "come" then
 			if glide(s, s.Target, S.Speed, dt) then
