@@ -1290,7 +1290,7 @@ local function buildDetail(pack)
 			Font = Enum.Font.Gotham,
 			TextColor3 = Color3.fromRGB(185, 180, 215),
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = "Base voll? Die besten stehen in der Base, der Rest kommt ins Inventar.",
+			Text = "Base voll? Der Rest kommt ins Inventar.",
 			Parent = content,
 		})
 	else

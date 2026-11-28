@@ -272,7 +272,7 @@ Config.Skills = {
 		{ Id = "TokenLuck", Branch = "Glueck", Name = "Token-Finder", Icon = "💠", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "{v} % Chance auf ein Extra-Token bei jeder Aufgabe" },
 		{ Id = "DailyLuck", Branch = "Glueck", Name = "Frühaufsteher", Icon = "🌅", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Percent = true, Text = "Der Tagesbonus ist +{v} % größer" },
 		{ Id = "MythicLuck", Branch = "Glueck", Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
-		{ Id = "Heritage", Branch = "Glueck", Name = "Erbstück", Icon = "🧳", Max = 2, Costs = { 3, 5 }, PerLevel = 1, Text = "Bei der Wiedergeburt bleiben {v} Kreatur(en) mehr, die Stein-Burg gibt es dann gleich dazu" },
+		{ Id = "Heritage", Branch = "Glueck", Name = "Erbstück", Icon = "🧳", Max = 2, Costs = { 3, 5 }, PerLevel = 1, Text = "Wiedergeburt: {v} Kreatur(en) mehr behalten, Stein-Burg gratis" },
 		{ Id = "StartMoney", Branch = "Glueck", Name = "Startkapital", Icon = "💼", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 5, Percent = true, Text = "+{v} % Startgeld nach der Wiedergeburt" },
 		{ Id = "UpgradeDiscount", Branch = "Glueck", Name = "Baumeister", Icon = "🔨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "Der Base-Ausbau kostet {v} % weniger" },
 		-- Dieb & Schutz
@@ -621,14 +621,14 @@ Config.Quests = {
 -- Gezählt wird über die ganze Zeit, auch über Wiedergeburten hinweg.
 Config.Achievements = {
 	{ Id = "Packs", Kind = "OpenPacks", Icon = "📦", Text = "{n} Kisten geöffnet", Goals = { 5, 25, 100, 400, 1500 }, Tokens = { 1, 1, 2, 2, 3 } },
-	{ Id = "Clicks", Kind = "Clicks", Icon = "👆", Text = "{n}x geklickt", Goals = { 250, 2500, 15000, 60000 }, Tokens = { 1, 1, 2, 3 } },
+	{ Id = "Clicks", Kind = "Clicks", Icon = "👆", Text = "{n} Klicks", Goals = { 250, 2500, 15000, 60000 }, Tokens = { 1, 1, 2, 3 } },
 	{ Id = "Earn", Kind = "Earn", Icon = "💰", Text = "{n} $ verdient", Goals = { 5_000, 250_000, 10_000_000, 500_000_000, 25_000_000_000 }, Tokens = { 1, 1, 2, 2, 3 } },
-	{ Id = "Stars", Kind = "StarUp", Icon = "⭐", Text = "{n} Stern(e) verteilt", Goals = { 1, 10, 40, 150 }, Tokens = { 1, 1, 2, 3 } },
-	{ Id = "Legend", Kind = "Legendary", Icon = "👑", Text = "{n} legendäre oder bessere Kreatur(en) gezogen", Goals = { 1, 5, 20 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Stars", Kind = "StarUp", Icon = "⭐", Text = "{n} Sterne verteilt", Goals = { 1, 10, 40, 150 }, Tokens = { 1, 1, 2, 3 } },
+	{ Id = "Legend", Kind = "Legendary", Icon = "👑", Text = "{n} Legendäre gezogen", Goals = { 1, 5, 20 }, Tokens = { 1, 2, 3 } },
 	{ Id = "Base", Kind = "BaseUpgrade", Icon = "🏠", Text = "Base {n}x ausgebaut", Goals = { 1, 4, 10 }, Tokens = { 1, 2, 3 } },
-	{ Id = "Wild", Kind = "Wild", Icon = "☄️", Text = "{n} wilde Kreatur(en) heimgebracht", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Wild", Kind = "Wild", Icon = "☄️", Text = "{n} Wilde heimgebracht", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
 	{ Id = "Shadows", Kind = "Shadow", Icon = "👤", Text = "{n} Schatten verjagt", Goals = { 3, 20, 80 }, Tokens = { 1, 2, 3 } },
-	{ Id = "Thief", Kind = "Steal", Icon = "🦹", Text = "{n} Kreatur(en) geklaut", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Thief", Kind = "Steal", Icon = "🦹", Text = "{n} Kreaturen geklaut", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
 }
 
 -- Bestenliste

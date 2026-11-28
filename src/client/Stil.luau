@@ -13,7 +13,6 @@ return function(ctx)
 	local corner, label, stroke, tween, playSound = ctx.Corner, ctx.Label, ctx.Stroke, ctx.Tween, ctx.PlaySound
 
 	local Stil = {}
-	Stil.Header = HEADER
 	-- Farben (hier ändern = überall anders)
 	Stil.Back = Color3.fromRGB(24, 27, 58) -- Fenster-Hintergrund
 	Stil.Card = Color3.fromRGB(38, 42, 82) -- Karten
@@ -21,7 +20,7 @@ return function(ctx)
 	Stil.Dark = Color3.fromRGB(15, 17, 40) -- vertiefte Flächen (Balken, Listen)
 	Stil.Outline = Color3.fromRGB(8, 9, 26) -- dicker Rand
 	Stil.Dim = Color3.fromRGB(172, 180, 222) -- blasser Text
-	Stil.Grey = Color3.fromRGB(84, 88, 122) -- Knopf, der gerade nicht geht
+	Stil.Grey = Color3.fromRGB(96, 101, 140) -- Knopf, der gerade nicht geht
 	Stil.Green = Color3.fromRGB(62, 198, 92)
 	Stil.Gold = Color3.fromRGB(255, 196, 48)
 	Stil.Red = Color3.fromRGB(232, 72, 84)
@@ -128,12 +127,17 @@ return function(ctx)
 		panel.AnchorPoint = CENTER
 		panel.Position = UDim2.fromScale(0.5, 0.5)
 		panel.Size = UDim2.fromOffset(width, height)
-		panel.BackgroundColor3 = Stil.Back
+		panel.BackgroundColor3 = WHITE
 		panel.Visible = false
 		panel.Active = true -- fängt Klicks ab, damit im Fenster kein Klick-Geld entsteht
 		panel.Parent = gui
 		corner(panel, 22)
 		stroke(panel, Stil.Outline, 4)
+		-- sanfter Verlauf: oben etwas heller und in der Farbe des Fensters getönt
+		local ground = Instance.new("UIGradient")
+		ground.Rotation = 90
+		ground.Color = ColorSequence.new(Stil.Back:Lerp(color, 0.22), Stil.Back)
+		ground.Parent = panel
 		local scale = Instance.new("UIScale")
 		scale.Parent = panel
 
@@ -231,7 +235,7 @@ return function(ctx)
 			self.Enabled = on
 			self.Color = c or self.Color
 			paint(if on then self.Color else Stil.Grey)
-			caption.TextTransparency = if on then 0 else 0.4
+			caption.TextTransparency = if on then 0 else 0.2
 			shine.Visible = on
 		end
 		-- kurzer Hüpfer, z.B. nach einem Kauf

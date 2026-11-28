@@ -73,7 +73,7 @@ return function(ctx)
 	local doRebirth = Stil.Button(panel, "WIEDERGEBURT!", PURPLE, UDim2.fromOffset(W - 32, 62), UDim2.fromOffset(16, 298))
 	local _, tokenText = Stil.Pill(panel, "", Stil.Dark, UDim2.fromOffset(190, 42), UDim2.fromOffset(16, 372))
 	tokenText.TextColor3 = Stil.Token
-	local skillLink = Stil.Button(panel, "🧠 Tokens im Skill-Baum ausgeben", Stil.Blue, UDim2.fromOffset(W - 32 - 200, 46), UDim2.fromOffset(216, 370))
+	local skillLink = Stil.Button(panel, "🧠 Zum Skill-Baum", Stil.Blue, UDim2.fromOffset(W - 32 - 200, 46), UDim2.fromOffset(216, 370))
 
 	local function update()
 		local rebirths = player:GetAttribute("Rebirths") or 0
@@ -81,7 +81,10 @@ return function(ctx)
 		local tokens = player:GetAttribute("Tokens") or 0
 		local cost = Config.RebirthCost(rebirths)
 		countText.Text = tostring(rebirths)
-		incomeText.Text = `x{Config.RebirthMultiplier(rebirths)}  →  x{Config.RebirthMultiplier(rebirths + 1)}`
+		-- deutsches Komma: x1,5
+		local now = string.gsub(tostring(Config.RebirthMultiplier(rebirths)), "%.", ",")
+		local after = string.gsub(tostring(Config.RebirthMultiplier(rebirths + 1)), "%.", ",")
+		incomeText.Text = `x{now}  →  x{after}`
 		local keep = Config.Rebirth.KeepCreatures + (player:GetAttribute("Sk_Heritage") or 0)
 		desc.Text = `Du behältst deine {keep} besten Kreaturen. Geld und Base-Stufe starten neu. Dafür bekommst du für immer mehr Einkommen und +{Config.Rebirth.TokensPerRebirth} Tokens für den Skill-Baum.`
 		local unlock = Config.RebirthUnlock(rebirths)

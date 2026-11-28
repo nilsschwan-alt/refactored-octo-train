@@ -66,6 +66,7 @@ return function(ctx, Stil)
 	scroll.BackgroundColor3 = Stil.Dark
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 6
+	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
 	scroll.CanvasSize = UDim2.new()
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.Parent = panel
@@ -279,7 +280,7 @@ return function(ctx, Stil)
 		if position then
 			tile.Position = position
 		end
-		tile.BackgroundColor3 = if item.Slot then Color3.fromRGB(34, 64, 66) else Stil.Card
+		tile.BackgroundColor3 = Stil.Card:Lerp(color, 0.2) -- leicht in der Farbe der Seltenheit
 		tile.BorderSizePixel = 0
 		tile.LayoutOrder = order
 		tile.Parent = parent
@@ -354,7 +355,7 @@ return function(ctx, Stil)
 			})
 			corner(ribbon, 8)
 		elseif ready(item) then
-			readyBadge(tile, if small then 18 else 22)
+			readyBadge(tile, if not small then 22 elseif width < 56 then 14 else 18)
 		end
 		tiles[key] = { Stroke = tileStroke, Color = color }
 		tile.Activated:Connect(function()

@@ -41,6 +41,8 @@ return function(ctx)
 
 	local function makeTab(index: number, id: string, name: string, color: Color3)
 		local button = Stil.Button(skillPanel, name, color, UDim2.fromOffset(219, 46), UDim2.fromOffset(16 + (index - 1) * 229, 74))
+		button.Label.TextScaled = false -- alle Reiter gleich groß beschriftet
+		button.Label.TextSize = 16
 		-- grüner Punkt: hier gibt es gerade etwas zu holen
 		local dot = label({
 			Size = UDim2.fromOffset(22, 22),
@@ -120,6 +122,9 @@ return function(ctx)
 			Text = skill.Name,
 			Parent = card,
 		})
+		local nameLimit = Instance.new("UITextSizeConstraint")
+		nameLimit.MaxTextSize = 18
+		nameLimit.Parent = name
 		-- Stufen als kleine Striche
 		local pips = {}
 		local pipWidth = math.min(34, math.floor((146 - (skill.Max - 1) * 4) / skill.Max))
@@ -145,7 +150,7 @@ return function(ctx)
 		})
 		local limit = Instance.new("UITextSizeConstraint")
 		limit.MaxTextSize = 14
-		limit.MinTextSize = 8
+		limit.MinTextSize = 10
 		limit.Parent = text
 		local button = Stil.Button(card, "", Stil.Green, UDim2.fromOffset(198, 38), UDim2.fromOffset(10, 98))
 		local entry = { Frame = card, Line = line, Scale = scale, Icon = icon, Name = name, Pips = pips, Text = text, Button = button, CanBuy = false, Color = color }
@@ -194,7 +199,12 @@ return function(ctx)
 	local achStats, achTiers = {}, {} -- vom Server: Zähler und erreichte Stufen
 	for index, achievement in Config.Achievements do
 		local col, row = (index - 1) % 3, math.floor((index - 1) / 3)
-		local card, line = Stil.Panel(achTab.Page, UDim2.fromOffset(ACH_W, CARD_H), UDim2.fromOffset(col * (ACH_W + 13), row * (CARD_H + GAP)))
+		local card, line = Stil.Panel(
+			achTab.Page,
+			UDim2.fromOffset(ACH_W, CARD_H),
+			UDim2.fromOffset(col * (ACH_W + 13), row * (CARD_H + GAP)),
+			Stil.Card:Lerp(Stil.Gold, 0.08)
+		)
 		local circle = Instance.new("Frame")
 		circle.Size = UDim2.fromOffset(46, 46)
 		circle.Position = UDim2.fromOffset(10, 10)
@@ -204,13 +214,16 @@ return function(ctx)
 		corner(circle, 23)
 		label({ AnchorPoint = CENTER, Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(32, 32), Text = achievement.Icon, Parent = circle })
 		local title = label({
-			Size = UDim2.fromOffset(220, 24),
-			Position = UDim2.fromOffset(64, 9),
+			Size = UDim2.fromOffset(220, 26),
+			Position = UDim2.fromOffset(64, 8),
 			Font = Enum.Font.FredokaOne,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Text = "",
 			Parent = card,
 		})
+		local titleLimit = Instance.new("UITextSizeConstraint")
+		titleLimit.MaxTextSize = 18
+		titleLimit.Parent = title
 		local pips = {}
 		for i = 1, #achievement.Goals do
 			local pip = Instance.new("Frame")
@@ -314,7 +327,7 @@ return function(ctx)
 					card.Text.Text = effect
 					card.Text.TextColor3 = Stil.Gold
 					card.Line.Color = Stil.Gold
-					card.Frame.BackgroundColor3 = Stil.Card:Lerp(branch.Color, 0.14)
+					card.Frame.BackgroundColor3 = Stil.Card:Lerp(branch.Color, 0.26)
 					card.Button.SetEnabled(true, Stil.Gold)
 					card.Button.SetText("★ MAXIMAL")
 				else
@@ -322,7 +335,7 @@ return function(ctx)
 					card.Text.Text = if level > 0 then `<font color="#aab4de">Stufe {level + 1}:</font> {effect}` else effect
 					card.Text.TextColor3 = WHITE
 					card.Line.Color = if level > 0 then branch.Color:Lerp(BLACK, 0.2) else Stil.CardLine
-					card.Frame.BackgroundColor3 = if level > 0 then Stil.Card:Lerp(branch.Color, 0.08) else Stil.Card
+					card.Frame.BackgroundColor3 = Stil.Card:Lerp(branch.Color, if level > 0 then 0.18 else 0.09)
 					if open and tokens >= cost then
 						card.CanBuy = true
 						anyBuy = true

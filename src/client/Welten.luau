@@ -191,7 +191,7 @@ return function(ctx)
 		Position = UDim2.new(0, 16, 1, -30),
 		Font = Enum.Font.GothamMedium,
 		TextColor3 = Stil.Dim,
-		Text = "Mit Beute auf dem Kopf kannst du nicht reisen.",
+		Text = "",
 		Parent = panel,
 	})
 
@@ -212,7 +212,7 @@ return function(ctx)
 			Parent = row,
 		})
 		local sub = label({
-			Size = UDim2.fromOffset(240, 18),
+			Size = UDim2.fromOffset(254, 18),
 			Position = UDim2.fromOffset(64, 35),
 			Font = Enum.Font.GothamMedium,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -264,7 +264,7 @@ return function(ctx)
 			row.Go.SetEnabled(can, TRAVEL_GREEN)
 			row.Stroke.Transparency = if open then 0 else 0.6
 		end
-		hint.Visible = player:GetAttribute("Carrying") ~= nil
+		hint.Text = if carrying then "Mit Beute auf dem Kopf kannst du nicht reisen." else "Neue Welten schaltest du mit Wiedergeburten frei."
 	end
 
 	local function toggleWorlds()
