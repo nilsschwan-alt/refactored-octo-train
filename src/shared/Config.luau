@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.16.1"
+Config.Version = "0.17.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -239,7 +239,7 @@ end
 -- Max = höchste Stufe, Costs = Token-Preis je Stufe, PerLevel = Wirkung pro Stufe.
 -- Text: {v} wird durch die Wirkung ersetzt (bei Percent = true als Prozent).
 Config.Skills = {
-	QuestsPerToken = 2, -- jede 2. geschaffte Aufgabe gibt Tokens
+	QuestsPerToken = 1, -- jede geschaffte Aufgabe gibt Tokens (2 = nur jede zweite)
 	TokensPerQuest = 1,
 	Branches = {
 		Geld = { Name = "Geld & Klick", Icon = "💰", Color = Color3.fromRGB(255, 200, 60) },
@@ -600,12 +600,30 @@ Config.Quests = {
 	RewardSeconds = 150,
 	MinReward = 300,
 	Types = {
+		-- Players = so viele Spieler müssen auf dem Server sein, damit es die Aufgabe gibt
 		OpenPacks = { Text = "Öffne {n} Kisten", Min = 3, Max = 8, Factor = 1.2 },
-		Steal = { Text = "Klau {n} Kreatur(en) aus fremden Bases", Min = 1, Max = 2, Factor = 2 },
-		Clicks = { Text = "Klicke {n}x für Geld", Min = 200, Max = 500, Factor = 0.8 },
+		Steal = { Text = "Klau {n} Kreatur(en) aus fremden Bases", Min = 1, Max = 2, Factor = 2, Players = 2 },
+		Clicks = { Text = "Klicke {n}x für Geld", Min = 150, Max = 400, Factor = 0.8 },
 		Earn = { Text = "Verdiene {n} $", EarnSeconds = 200, MinGoal = 1000, Factor = 1 },
-		HitThief = { Text = "Hau {n} Dieb(e) mit der Klatsche", Min = 1, Max = 2, Factor = 1.5 },
+		HitThief = { Text = "Hau {n} Dieb(e) mit der Klatsche", Min = 1, Max = 2, Factor = 1.5, Players = 2 },
+		StarUp = { Text = "Verbessere {n} Kreatur(en) im Inventar", Min = 1, Max = 3, Factor = 1.2 },
 	},
+}
+
+-- Erfolge -------------------------------------------------------------------------
+-- Meilensteine, die man nebenbei erreicht. Jede Stufe gibt Tokens für den Skill-Baum.
+-- Kind = was gezählt wird, Goals = die Ziele der Reihe nach, Tokens = Belohnung je Ziel.
+-- Gezählt wird über die ganze Zeit, auch über Wiedergeburten hinweg.
+Config.Achievements = {
+	{ Id = "Packs", Kind = "OpenPacks", Icon = "📦", Text = "{n} Kisten geöffnet", Goals = { 5, 25, 100, 400, 1500 }, Tokens = { 1, 1, 2, 2, 3 } },
+	{ Id = "Clicks", Kind = "Clicks", Icon = "👆", Text = "{n}x geklickt", Goals = { 250, 2500, 15000, 60000 }, Tokens = { 1, 1, 2, 3 } },
+	{ Id = "Earn", Kind = "Earn", Icon = "💰", Text = "{n} $ verdient", Goals = { 5_000, 250_000, 10_000_000, 500_000_000, 25_000_000_000 }, Tokens = { 1, 1, 2, 2, 3 } },
+	{ Id = "Stars", Kind = "StarUp", Icon = "⭐", Text = "{n} Stern(e) verteilt", Goals = { 1, 10, 40, 150 }, Tokens = { 1, 1, 2, 3 } },
+	{ Id = "Legend", Kind = "Legendary", Icon = "👑", Text = "{n} legendäre oder bessere Kreatur(en) gezogen", Goals = { 1, 5, 20 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Base", Kind = "BaseUpgrade", Icon = "🏠", Text = "Base {n}x ausgebaut", Goals = { 1, 4, 10 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Wild", Kind = "Wild", Icon = "☄️", Text = "{n} wilde Kreatur(en) heimgebracht", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Shadows", Kind = "Shadow", Icon = "👤", Text = "{n} Schatten verjagt", Goals = { 3, 20, 80 }, Tokens = { 1, 2, 3 } },
+	{ Id = "Thief", Kind = "Steal", Icon = "🦹", Text = "{n} Kreatur(en) geklaut", Goals = { 1, 10, 50 }, Tokens = { 1, 2, 3 } },
 }
 
 -- Bestenliste
@@ -778,6 +796,7 @@ Config.Sounds = {
 	Announce = { { "Ping", 1.5, 0.4, 0 }, { "Ping", 2, 0.4, 0.12 } },
 	-- Verschmelzen: Zischen beim Zusammenfliegen, dann der Schlag, wenn die neue Kreatur erscheint
 	Merge = { { "ZoomUp", 1, 0.9, 0 }, { "Anvil", 1.2, 1.1, 0.38 }, { "Bell", 1.5, 0.9, 0.38, 1.4 } },
+	Achievement = { { "StingWin", 1.15, 0.8, 0 }, { "Bell", 1.8, 0.7, 0.12, 1.2 }, { "Ping", 2.4, 0.5, 0.3 } }, -- Erfolg geschafft
 	MergeBig = { { "ZoomUp", 0.9, 1, 0 }, { "Smash", 1, 0.6, 0.38, 1.8 }, { "StingWin", 1, 0.8, 0.42 } }, -- ab 3 Sternen
 	ClickTick = { { "Click", 1.5, 0.22, 0 }, { "Ping", 2.4, 0.1, 0 } }, -- jeder Klick (wird mit der Combo höher)
 	Crit = { { "Punch", 1.4, 0.5, 0, 0.6 }, { "Ping", 2, 0.4, 0.03 }, { "Ping", 2.6, 0.3, 0.09 } }, -- Volltreffer

@@ -1,6 +1,7 @@
 -- Aufgaben: Immer 3 gleichzeitig (z.B. "Öffne 5 Kisten"). Geschafft = Geld + Fanfare,
 -- und sofort kommt eine neue. Ziele und Belohnungen wachsen mit deinem Einkommen.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -31,15 +32,25 @@ local function describe(quest): string
 	return text
 end
 
+-- Geht diese Aufgabe gerade überhaupt? (Klauen und Diebe hauen braucht Mitspieler)
+local function possible(kind: string): boolean
+	local need = Q.Types[kind].Players
+	return not need or #Players:GetPlayers() >= need
+end
+
 local function newQuest(state, avoid)
 	local options = {}
 	for _, kind in ALL_KINDS do
-		if not avoid[kind] then
+		if not avoid[kind] and possible(kind) then
 			table.insert(options, kind)
 		end
 	end
 	if #options == 0 then
-		options = ALL_KINDS
+		for _, kind in ALL_KINDS do
+			if possible(kind) then
+				table.insert(options, kind)
+			end
+		end
 	end
 	local kind = options[math.random(1, #options)]
 	local info = Q.Types[kind]
@@ -92,6 +103,12 @@ end
 -- Fehlende Aufgaben auffüllen (keine doppelte Sorte)
 function Quests.Fill(state)
 	local quests = state.Data.Quests
+	-- Aufgaben, die gerade nicht gehen (kein Mitspieler da) und noch nicht angefangen sind, tauschen
+	for i = #quests, 1, -1 do
+		if not possible(quests[i].Kind) and quests[i].Progress <= 0 then
+			table.remove(quests, i)
+		end
+	end
 	while #quests < Q.Active do
 		local avoid = {}
 		for _, quest in quests do
@@ -155,6 +172,18 @@ end
 function Quests.Init(remoteFolder)
 	remotes = remoteFolder
 	Bases.Track = Quests.Add
+	-- Kommt oder geht jemand, ändert sich, welche Aufgaben möglich sind
+	local function refreshAll()
+		task.delay(1, function()
+			for _, state in Bases.States do
+				if state.Data.Quests then
+					Quests.Fill(state)
+				end
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(refreshAll)
+	Players.PlayerRemoving:Connect(refreshAll)
 end
 
 function Quests.Forget(state)

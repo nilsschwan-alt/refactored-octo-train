@@ -3630,7 +3630,10 @@ local lastProgress = {}
 
 Remotes.Quests.OnClientEvent:Connect(function(list, tokenIn: number?)
 	if tokenIn then
-		questToken.Text = if tokenIn <= 1 then "💠 Token: nächste Aufgabe!" else `💠 Token in {tokenIn} Aufgaben`
+		questToken.Text = if Config.Skills.QuestsPerToken <= 1
+			then "💠 Jede Aufgabe gibt 1 Token"
+			elseif tokenIn <= 1 then "💠 Token: nächste Aufgabe!"
+			else `💠 Token in {tokenIn} Aufgaben`
 	end
 	for i, quest in list do
 		local row = questRows[i]

@@ -16,6 +16,7 @@ local Packs = require(Modules.Packs)
 local Events = require(Modules.Events)
 local Clicker = require(Modules.Clicker)
 local Quests = require(Modules.Quests)
+local Achievements = require(Modules.Achievements)
 local Rebirth = require(Modules.Rebirth)
 local Skills = require(Modules.Skills)
 local Worlds = require(Modules.Worlds)
@@ -48,6 +49,7 @@ do
 	end
 end
 Quests.Init(remotes)
+Achievements.Init() -- nach den Aufgaben: zählt alles mit, was dort gezählt wird
 Leaderboard.Start(mapFolder)
 
 -- Klatsche (zum Schlagen von Dieben) -------------------------------------------

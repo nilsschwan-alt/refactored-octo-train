@@ -443,6 +443,7 @@ local function starUp(state, entry: string, slot: number?): (string?, any)
 		bagTake(state, entry, 1)
 		bagAdd(state, result, 1)
 	end
+	Bases.Track(state, "StarUp", 1)
 	return result, lucky
 end
 
@@ -939,6 +940,7 @@ function Bases.Upgrade(player: Player, plotIndex: number)
 	Map.BuildDecor(state.Plot, state.Data.BaseLevel)
 	Bases.RenderAll(state) -- das größere Haus ordnet die Plätze neu an
 	Bases.FillFree(state) -- die neuen Plätze gleich aus dem Inventar besetzen
+	Bases.Track(state, "BaseUpgrade", 1)
 	Bases.RefreshRings(state)
 	Bases.RefreshPlot(state.Plot)
 	Bases.BigText(player, `BASE-UPGRADE: {Config.Upper(nextLevel.Name)}!`, Color3.fromRGB(80, 255, 120), "Upgrade")
