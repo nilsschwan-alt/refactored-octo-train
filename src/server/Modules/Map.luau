@@ -318,7 +318,8 @@ local function crystal(folder: Instance, cf: CFrame, x: number, y: number, z: nu
 	for i, info in { { 0, 0, 1, 0, 0 }, { 0.32, 0.2, 0.62, 22, 40 }, { -0.28, -0.24, 0.5, -26, 110 } } do
 		local hgt = height * info[3]
 		local width = hgt * 0.2
-		local base = cf * CFrame.new(x + info[1] * height * 0.5, y, z + info[2] * height * 0.5) * CFrame.Angles(0, math.rad(info[5]), 0) * CFrame.Angles(math.rad(info[4]), 0, 0)
+		-- die schrägen kleinen stecken etwas tiefer, sonst hebt sich eine Kante vom Boden
+		local base = cf * CFrame.new(x + info[1] * height * 0.5, y - (if i > 1 then 0.6 else 0), z + info[2] * height * 0.5) * CFrame.Angles(0, math.rad(info[5]), 0) * CFrame.Angles(math.rad(info[4]), 0, 0)
 		local shaft = part({
 			Name = "Kristall",
 			Size = Vector3.new(width, hgt, width),
@@ -334,7 +335,7 @@ local function crystal(folder: Instance, cf: CFrame, x: number, y: number, z: nu
 		part({
 			Name = "Kristallspitze",
 			Size = Vector3.new(width * 0.98, width * 0.98, width * 0.98),
-			CFrame = base * CFrame.new(0, hgt, 0) * CFrame.Angles(0, math.rad(45), 0) * CFrame.Angles(math.rad(45), 0, math.rad(35.26)),
+			CFrame = base * CFrame.new(0, hgt, 0) * CFrame.Angles(0, math.rad(45), 0) * CFrame.Angles(0, 0, math.rad(35.264)) * CFrame.Angles(math.rad(45), 0, 0),
 			Color = color:Lerp(Color3.new(1, 1, 1), 0.25),
 			Material = Enum.Material.Neon,
 			Transparency = 0.12,
@@ -567,11 +568,12 @@ function Map.BuildDecor(plot, level: number)
 		for _, sx in { -1, 1 } do
 			for _, z in { FRONT, zBack + WALL / 2 } do
 				i += 1
-				crystal(folder, cf, sx * (hw + WALL / 2), h, z, 14, if i % 2 == 0 then cyan else purple)
+				local zc = if z == FRONT then FRONT + 3 else zBack - 2
+				crystal(folder, cf, sx * (hw - 3), h + 1, zc, 13, if i % 2 == 0 then cyan else purple)
 			end
-			crystal(folder, cf, sx * (outer + 4.5), -1, FRONT - 1, 16, cyan)
-			crystal(folder, cf, sx * (outer + 3.5), -1, zMid + 9, 13, purple)
-			crystal(folder, cf, sx * (outer + 4.5), -1, zBack - 2, 15, cyan)
+			crystal(folder, cf, sx * (outer + 2.5), -1, FRONT - 1, 13, cyan)
+			crystal(folder, cf, sx * (outer + 2.5), -1, zMid + 9, 11, purple)
+			crystal(folder, cf, sx * (outer + 2.5), -1, zBack - 2, 12, cyan)
 		end
 		crystal(folder, cf, 0, h + 1, zMid, 18, purple)
 		local beam = part({
