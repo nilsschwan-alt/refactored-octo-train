@@ -185,7 +185,8 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 		return
 	end
 
-	local info = { Source = "base", Owner = owner, Plot = plot, Slot = slot }
+	-- Slow: Fähigkeit "Klebefalle" des Besitzers bremst den Dieb zusätzlich
+	local info = { Source = "base", Owner = owner, Plot = plot, Slot = slot, Slow = Bases.Skill(oState, "ThiefSlow") }
 	if not startCarry(thief, entry, info) then
 		return
 	end
