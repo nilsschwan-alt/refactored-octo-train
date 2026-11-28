@@ -509,6 +509,15 @@ function Bases.TryAbsorb(state, entry: string): (string?, string?)
 			Bases.RenderSlot(state, slot)
 			return result, "merged"
 		end
+		-- Lohnt sich nicht (alles in der Base ist stärker): Lager auflösen, damit es nicht
+		-- endlos wächst. Die neue Kreatur wird dann ganz normal behandelt.
+		local stock = Bases.Stock(state, entry)
+		local price = Bases.SellPrice(state, entry) * stock
+		state.Data.Stock[entry] = nil
+		Bases.AddMoney(state, price)
+		Bases.Notify(state.Player, `📦 Lager aufgelöst: {stock}x {Config.EntryName(entry)} für {Config.FormatNumber(price)} $ verkauft.`, Color3.fromRGB(255, 200, 90))
+		Bases.QueueMerges(state)
+		return nil, nil
 	end
 	if #same == 0 or #same + Bases.Stock(state, entry) < need then
 		state.Data.Stock[entry] = Bases.Stock(state, entry) + 1
