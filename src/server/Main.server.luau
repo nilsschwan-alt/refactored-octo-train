@@ -14,7 +14,7 @@ local Bases = require(Modules.Bases)
 local Steal = require(Modules.Steal)
 local Packs = require(Modules.Packs)
 local Events = require(Modules.Events)
-local Coins = require(Modules.Coins)
+local Clicker = require(Modules.Clicker)
 local Quests = require(Modules.Quests)
 local Rebirth = require(Modules.Rebirth)
 local Skills = require(Modules.Skills)
@@ -26,7 +26,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "Click", "Clicked" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -39,7 +39,7 @@ Bases.Init(plots, remotes)
 Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
 Events.Start(mapFolder)
-Coins.Start(mapFolder)
+Clicker.Start(remotes)
 do
 	-- Falls beim Bauen der Welten etwas schiefgeht, soll der Rest des Spiels trotzdem laufen
 	local ok, err = pcall(Worlds.Start, mapFolder, remotes)
@@ -122,7 +122,7 @@ local function onCharacter(player: Player, character: Model)
 	end
 	local hum = character:FindFirstChildOfClass("Humanoid")
 	if hum then
-		hum.WalkSpeed = Steal.WalkSpeed
+		hum.WalkSpeed = Steal.SpeedFor(player)
 	end
 	giveSlapper(player)
 end

@@ -105,6 +105,8 @@ return function(ctx)
 
 	local homeButton: TextButton
 	local outsideSky -- Dunst-Farben der Hauptinsel, beim ersten Mal gemerkt
+	local outsideAmbient = Lighting.OutdoorAmbient -- Schattenlicht der Hauptinsel
+	local outsideBloom -- Leuchten der Hauptinsel, beim ersten Mal gemerkt
 
 	local function applyWorld()
 		local world = Config.WorldById[player:GetAttribute("World") or ""]
@@ -120,6 +122,14 @@ return function(ctx)
 				goal[key] = if sky[key] ~= nil then sky[key] else value
 			end
 			tween(haze, 0.6, goal)
+		end
+		tween(Lighting, 0.6, { OutdoorAmbient = (world and world.Ambient) or outsideAmbient })
+		local bloom = Lighting:FindFirstChild("SpielLeuchten")
+		if bloom and bloom:IsA("BloomEffect") then
+			outsideBloom = outsideBloom or { Intensity = bloom.Intensity, Threshold = bloom.Threshold }
+			local want = (world and world.Bloom) or outsideBloom
+			bloom.Intensity = want.Intensity or outsideBloom.Intensity
+			bloom.Threshold = want.Threshold or outsideBloom.Threshold
 		end
 		if world and world.Clock then
 			wantedClock = world.Clock + CLOCK_MARK

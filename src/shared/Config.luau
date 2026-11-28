@@ -4,7 +4,7 @@
 local Config = {}
 
 Config.GameName = "Kreaturen-Klau"
-Config.Version = "0.12.0"
+Config.Version = "0.13.0"
 
 -- Geld & Speichern ---------------------------------------------------------
 Config.StartMoney = 300 -- reicht für die erste Holz-Kiste
@@ -221,19 +221,24 @@ Config.Skills = {
 	QuestsPerToken = 2, -- jede 2. geschaffte Aufgabe gibt Tokens
 	TokensPerQuest = 1,
 	Branches = {
-		Geld = { Name = "Geld", Icon = "💰", Color = Color3.fromRGB(255, 200, 60) },
+		Geld = { Name = "Geld & Klick", Icon = "💰", Color = Color3.fromRGB(255, 200, 60) },
 		Glueck = { Name = "Glück", Icon = "🍀", Color = Color3.fromRGB(90, 220, 110) },
 		Dieb = { Name = "Dieb & Schutz", Icon = "🛡️", Color = Color3.fromRGB(255, 95, 110) },
 	},
 	List = {
-		-- Geld
+		-- Geld & Klick (innen: 2 Waben, Mitte: 4, außen: 6)
 		{ Id = "Income", Branch = "Geld", Hex = { 1, 0 }, Name = "Sparschwein", Icon = "🐷", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.05, Percent = true, Text = "+{v} % Einkommen" },
-		{ Id = "ClickPower", Branch = "Geld", Hex = { 1, -1 }, Name = "Klick-Kraft", Icon = "👆", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Percent = true, Text = "+{v} % Geld pro Klick" },
-		{ Id = "Magnet", Branch = "Geld", Hex = { 2, 0 }, Name = "Münz-Magnet", Icon = "🧲", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 3, Text = "Münzen aus +{v} Studs Entfernung einsammeln" },
-		{ Id = "CoinValue", Branch = "Geld", Hex = { 2, -1 }, Name = "Dicke Münzen", Icon = "💵", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Münzen sind +{v} % mehr wert" },
-		{ Id = "BigCoins", Branch = "Geld", Hex = { 2, -2 }, Name = "Riesen-Münzen", Icon = "🌟", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance: Münze wird zur Riesen-Münze" },
+		{ Id = "ClickPower", Branch = "Geld", Hex = { 1, -1 }, Name = "Klick-Kraft", Icon = "👆", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Geld pro Klick" },
+		{ Id = "AutoClick", Branch = "Geld", Hex = { 2, 0 }, Name = "Auto-Klicker", Icon = "🤖", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 1, Text = "{v} Klick(s) pro Sekunde ganz von allein" },
+		{ Id = "Crit", Branch = "Geld", Hex = { 2, -1 }, Name = "Volltreffer", Icon = "💥", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.02, Percent = true, Text = "+{v} % Chance auf einen Volltreffer (viel mehr Geld)" },
+		{ Id = "CritPower", Branch = "Geld", Hex = { 2, -2 }, Name = "Wumms", Icon = "🌟", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 1, Text = "Volltreffer bringen noch {v}x mehr" },
 		{ Id = "QuestBonus", Branch = "Geld", Hex = { 1, -2 }, Name = "Quest-Profi", Icon = "📜", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.15, Percent = true, Text = "Aufgaben bringen +{v} % Geld" },
+		{ Id = "ComboTime", Branch = "Geld", Hex = { 3, 0 }, Name = "Langer Atem", Icon = "⏱️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Die Combo hält {v} Sekunden länger" },
+		{ Id = "ComboPower", Branch = "Geld", Hex = { 3, -1 }, Name = "Combo-Meister", Icon = "🔥", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "Der Combo-Bonus ist +{v} % stärker" },
 		{ Id = "GoldDonkey", Branch = "Geld", Hex = { 3, -2 }, Name = "Goldesel", Icon = "👑", Max = 1, Costs = { 8 }, PerLevel = 0.25, Percent = true, Text = "+{v} % Einkommen, für immer" },
+		{ Id = "WorldClick", Branch = "Geld", Hex = { 3, -3 }, Name = "Welten-Bummler", Icon = "🌍", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.2, Percent = true, Text = "In den Welten +{v} % Geld pro Klick" },
+		{ Id = "Jackpot", Branch = "Geld", Hex = { 2, -3 }, Name = "Jackpot", Icon = "🎰", Max = 3, Costs = { 3, 4, 5 }, PerLevel = 0.002, Percent = true, Text = "{v} % Chance pro Klick auf den Jackpot" },
+		{ Id = "GoldRush", Branch = "Geld", Hex = { 1, -3 }, Name = "Goldgräber", Icon = "⛏️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Im Goldrausch noch +{v} % Einkommen dazu" },
 		-- Glück
 		{ Id = "Luck", Branch = "Glueck", Hex = { 0, -1 }, Name = "Glück", Icon = "🍀", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.2, Percent = true, Text = "Selten und besser: +{v} % wahrscheinlicher" },
 		{ Id = "Mutation", Branch = "Glueck", Hex = { -1, 0 }, Name = "Mutations-Gespür", Icon = "🌈", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Mutationen: +{v} % wahrscheinlicher" },
@@ -241,7 +246,12 @@ Config.Skills = {
 		{ Id = "Refund", Branch = "Glueck", Hex = { -1, -1 }, Name = "Gratis-Kiste", Icon = "🎁", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.03, Percent = true, Text = "{v} % Chance: eine Kiste kostet nichts" },
 		{ Id = "SellBonus", Branch = "Glueck", Hex = { -2, 0 }, Name = "Händler", Icon = "🤝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "+{v} % Geld beim Verkaufen" },
 		{ Id = "StarLuck", Branch = "Glueck", Hex = { -2, 1 }, Name = "Sternen-Glück", Icon = "✨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "{v} % Chance auf einen Extra-Stern beim Verschmelzen" },
+		{ Id = "TokenLuck", Branch = "Glueck", Hex = { 0, -3 }, Name = "Token-Finder", Icon = "💠", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "{v} % Chance auf ein Extra-Token bei jeder Aufgabe" },
+		{ Id = "DailyLuck", Branch = "Glueck", Hex = { -1, -2 }, Name = "Frühaufsteher", Icon = "🌅", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Percent = true, Text = "Der Tagesbonus ist +{v} % größer" },
 		{ Id = "MythicLuck", Branch = "Glueck", Hex = { -2, -1 }, Name = "Glückspilz", Icon = "🍄", Max = 1, Costs = { 8 }, PerLevel = 1, Percent = true, Text = "Mythisch: +{v} % wahrscheinlicher" },
+		{ Id = "Heritage", Branch = "Glueck", Hex = { -3, 0 }, Name = "Erbstück", Icon = "🧳", Max = 2, Costs = { 3, 5 }, PerLevel = 1, Text = "Bei der Wiedergeburt bleiben {v} Kreatur(en) mehr, die Stein-Burg gibt es dann gleich dazu" },
+		{ Id = "StartMoney", Branch = "Glueck", Hex = { -3, 1 }, Name = "Startkapital", Icon = "💼", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 5, Percent = true, Text = "+{v} % Startgeld nach der Wiedergeburt" },
+		{ Id = "UpgradeDiscount", Branch = "Glueck", Hex = { -3, 2 }, Name = "Baumeister", Icon = "🔨", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.05, Percent = true, Text = "Der Base-Ausbau kostet {v} % weniger" },
 		-- Dieb & Schutz
 		{ Id = "CarrySpeed", Branch = "Dieb", Hex = { -1, 1 }, Name = "Schnelle Beine", Icon = "👟", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.6, Text = "+{v} Tempo, wenn du Beute trägst" },
 		{ Id = "LockTime", Branch = "Dieb", Hex = { 0, 1 }, Name = "Dickes Schloss", Icon = "🔒", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 0.15, Percent = true, Text = "Schloss hält +{v} % länger" },
@@ -249,7 +259,12 @@ Config.Skills = {
 		{ Id = "LockCooldown", Branch = "Dieb", Hex = { -1, 2 }, Name = "Schnelles Schloss", Icon = "⏰", Max = 5, Costs = { 1, 1, 2, 2, 3 }, PerLevel = 8, Text = "Schloss ist {v} Sekunden früher wieder bereit" },
 		{ Id = "LootBonus", Branch = "Dieb", Hex = { 0, 2 }, Name = "Beute-Bonus", Icon = "💎", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 30, Text = "Geklaut: sofort {v} Sekunden Einkommen der Beute" },
 		{ Id = "Comfort", Branch = "Dieb", Hex = { 1, 1 }, Name = "Trostpflaster", Icon = "💝", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.25, Percent = true, Text = "Wirst du beklaut: {v} % vom Wert als Geld" },
+		{ Id = "ThiefSlow", Branch = "Dieb", Hex = { -3, 3 }, Name = "Klebefalle", Icon = "🕸️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.08, Percent = true, Text = "Wer dich beklaut, trägt {v} % langsamer" },
+		{ Id = "StunTime", Branch = "Dieb", Hex = { -2, 3 }, Name = "Dicker Brummer", Icon = "💫", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.5, Text = "Getroffene Diebe stehen {v} Sekunden länger still" },
 		{ Id = "Vault", Branch = "Dieb", Hex = { -1, 3 }, Name = "Tresor", Icon = "🏦", Max = 1, Costs = { 8 }, PerLevel = 1, Text = "Deine beste Kreatur kann niemand klauen" },
+		{ Id = "HitCooldown", Branch = "Dieb", Hex = { 0, 3 }, Name = "Flinke Klatsche", Icon = "⚡", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 0.1, Percent = true, Text = "Die Klatsche ist {v} % schneller wieder bereit" },
+		{ Id = "PortalShield", Branch = "Dieb", Hex = { 1, 2 }, Name = "Portal-Schutz", Icon = "🛡️", Max = 3, Costs = { 2, 3, 4 }, PerLevel = 2, Text = "Nach dem Portal {v} Sekunden länger geschützt" },
+		{ Id = "WalkSpeed", Branch = "Dieb", Hex = { 2, 1 }, Name = "Flitzer", Icon = "💨", Max = 4, Costs = { 2, 2, 3, 4 }, PerLevel = 0.5, Text = "+{v} Lauftempo, immer" },
 	},
 }
 Config.SkillById = {}
@@ -271,6 +286,7 @@ function Config.SkillText(skill, level: number): string
 		value *= 100
 	end
 	local shown = if math.abs(value - math.floor(value + 0.5)) < 0.001 then tostring(math.floor(value + 0.5)) else string.format("%.1f", value)
+	shown = string.gsub(shown, "%.", ",") -- deutsches Komma: "0,5 Sekunden"
 	return (string.gsub(skill.Text, "{v}", shown))
 end
 
@@ -441,30 +457,15 @@ function Config.PackWeights(pack, skills)
 	return weights
 end
 
--- Selbst Geld machen ---------------------------------------------------------------
--- Münzen liegen auf der Straße. Wert = so viele Sekunden von DEINEM Einkommen.
-Config.Coins = {
-	MaxOnMap = 30, -- so viele Münzen liegen höchstens herum
-	SpawnInterval = 1, -- alle X Sekunden kommt eine neue
-	Lifetime = 45, -- danach verschwindet sie
-	ValueSeconds = 4, -- Münze = 4 Sekunden Einkommen
-	MinValue = 10, -- aber mindestens so viel
-	BigChance = 0.07, -- Chance auf eine Riesen-Münze
-	BigFactor = 10, -- Riesen-Münze ist so viel mehr wert
-	PickupRadius = 4, -- so nah muss man ran (Münz-Magnet vergrößert das)
-}
-
--- Auf eigene Kreaturen klicken = sofort Geld
 -- Welten ---------------------------------------------------------------------
 -- Vier eigene Inseln, erreichbar durch die Portale hinter dem Kisten-Shop.
 -- Jede Welt gehört zu einer Kiste und geht mit derselben Wiedergeburt auf.
--- Dort liegen wertvollere Münzen, und immer wieder taucht ein wildes Monster aus der
+-- Dort bringt jeder Klick mehr Geld, und immer wieder taucht ein wildes Monster aus der
 -- Kiste dieser Welt auf: schnappen und zu Fuß nach Hause tragen (wie beim Meteor).
 Config.Worlds = {
 	ArrivalShield = 6, -- so viele Sekunden kann einen niemand hauen, wenn man mit Beute aus einer Welt kommt
 	PortalCooldown = 2.5, -- Pause zwischen zwei Reisen
 	HomeCooldown = 5, -- Pause für den Knopf "Nach Hause"
-	CoinsPerWorld = 25, -- so viele Münzen liegen in jeder Welt höchstens herum
 	Wild = {
 		Interval = 150, -- so viele Sekunden nach dem Schnappen kommt das nächste wilde Monster
 		FirstAfter = 20, -- das erste kommt kurz nach dem Start
@@ -473,9 +474,11 @@ Config.Worlds = {
 		MutationWeights = { Normal = 80, Gold = 13, Diamant = 5.5, Regenbogen = 1.5 },
 		AnnounceFrom = "Epic", -- ab dieser Seltenheit erfährt es der ganze Server
 	},
-	-- CoinFactor: Münzen sind dort so viel mehr wert als auf der Straße
+	-- ClickFactor: ein Klick bringt dort so viel mehr Geld als auf der Hauptinsel
 	-- Tint: Farbstich des Bildes in der Welt, Clock: Uhrzeit dort (0 = Nacht, weglassen = wie draußen)
 	-- Sky: Dunst und Horizont dort (Color = hell, Decay = dunkel; Density, Offset, Haze = wie dicht)
+	-- Ambient: Farbe des Schattenlichts dort (weglassen = wie draußen)
+	-- Bloom: wie stark Neon-Teile dort strahlen (Intensity kleiner = weniger, Threshold größer = weniger)
 	List = {
 		{
 			Id = "Kristall",
@@ -483,9 +486,8 @@ Config.Worlds = {
 			Icon = "💎",
 			Pack = "Kristall",
 			Rebirths = 1,
-			CoinFactor = 1.5,
+			ClickFactor = 1.5,
 			Color = Color3.fromRGB(190, 110, 255),
-			CoinColor = Color3.fromRGB(255, 130, 235),
 			Tint = Color3.fromRGB(242, 230, 255),
 			Sky = { Color = Color3.fromRGB(235, 205, 255), Decay = Color3.fromRGB(160, 120, 230) },
 		},
@@ -495,11 +497,11 @@ Config.Worlds = {
 			Icon = "🌋",
 			Pack = "Lava",
 			Rebirths = 2,
-			CoinFactor = 2,
+			ClickFactor = 2,
 			Color = Color3.fromRGB(255, 110, 35),
-			CoinColor = Color3.fromRGB(255, 150, 50),
 			Tint = Color3.fromRGB(255, 232, 214),
 			Sky = { Color = Color3.fromRGB(255, 170, 120), Decay = Color3.fromRGB(150, 60, 40), Density = 0.32, Offset = 0.2, Haze = 1.4 },
+			Ambient = Color3.fromRGB(195, 150, 130), -- warmes Schattenlicht, sonst wirkt der Boden grünlich
 			Clock = 17.85, -- Abendrot
 		},
 		{
@@ -508,9 +510,8 @@ Config.Worlds = {
 			Icon = "❄️",
 			Pack = "Eis",
 			Rebirths = 3,
-			CoinFactor = 2.5,
+			ClickFactor = 2.5,
 			Color = Color3.fromRGB(120, 215, 255),
-			CoinColor = Color3.fromRGB(150, 230, 255),
 			Tint = Color3.fromRGB(228, 240, 255),
 			Sky = { Color = Color3.fromRGB(225, 238, 255), Decay = Color3.fromRGB(170, 200, 240) },
 		},
@@ -520,11 +521,11 @@ Config.Worlds = {
 			Icon = "🌌",
 			Pack = "Galaxie",
 			Rebirths = 4,
-			CoinFactor = 3,
+			ClickFactor = 3,
 			Color = Color3.fromRGB(110, 120, 255),
-			CoinColor = Color3.fromRGB(190, 150, 255),
 			Tint = Color3.fromRGB(224, 218, 255),
 			Sky = { Color = Color3.fromRGB(120, 110, 210), Decay = Color3.fromRGB(40, 30, 90) },
+			Bloom = { Intensity = 0.2, Threshold = 1.9 }, -- nachts überstrahlen die Leuchtbäume sonst zu weißen Flecken
 			Clock = 0,
 		},
 	},
@@ -547,11 +548,27 @@ function Config.WorldAtRebirth(rebirths: number)
 	return nil
 end
 
+-- Selbst Geld machen: der Klicker ---------------------------------------------------
+-- Überall in die Welt klicken (oder tippen) gibt sofort Geld, zusätzlich zum Einkommen
+-- der Kreaturen. Schnell hintereinander klicken baut eine Combo auf.
 Config.Click = {
-	Cooldown = 0.1, -- höchstens 10 Klicks pro Sekunde
-	IncomeSeconds = 1, -- ein Klick = 1 Sekunde Einkommen DIESER Kreatur
-	MinValue = 1,
-	MaxDistance = 40,
+	IncomeSeconds = 0.08, -- ein Klick = so viele Sekunden von DEINEM Einkommen
+	MinValue = 1, -- aber mindestens so viel
+	MaxPerSecond = 12, -- mehr Klicks pro Sekunde zählt der Server nicht (gegen Auto-Klick-Programme)
+	CritChance = 0.03, -- Chance auf einen Volltreffer (Fähigkeit "Volltreffer" erhöht sie)
+	CritFactor = 5, -- ein Volltreffer bringt so viel mal mehr (Fähigkeit "Wumms" erhöht es)
+	JackpotFactor = 50, -- der Jackpot (nur mit der Fähigkeit) bringt so viel mal mehr
+	Combo = {
+		Timeout = 1.5, -- so viele Sekunden ohne Klick, dann ist die Combo weg
+		ShowFrom = 5, -- ab so vielen Klicks am Stück sieht man die Combo-Anzeige
+		-- { ab so vielen Klicks am Stück, Geld mal so viel, Name }
+		Steps = {
+			{ 10, 1.2, "WARM" },
+			{ 30, 1.5, "HEISS" },
+			{ 60, 2, "FEUER" },
+			{ 120, 3, "INFERNO" },
+		},
+	},
 }
 
 -- Aufgaben -----------------------------------------------------------------------
@@ -564,8 +581,7 @@ Config.Quests = {
 	Types = {
 		OpenPacks = { Text = "Öffne {n} Kisten", Min = 3, Max = 8, Factor = 1.2 },
 		Steal = { Text = "Klau {n} Kreatur(en) aus fremden Bases", Min = 1, Max = 2, Factor = 2 },
-		Coins = { Text = "Sammle {n} Münzen auf der Straße", Min = 15, Max = 35, Factor = 1 },
-		Clicks = { Text = "Klick {n}x auf deine Kreaturen", Min = 60, Max = 150, Factor = 0.8 },
+		Clicks = { Text = "Klicke {n}x für Geld", Min = 200, Max = 500, Factor = 0.8 },
 		Earn = { Text = "Verdiene {n} $", EarnSeconds = 200, MinGoal = 1000, Factor = 1 },
 		HitThief = { Text = "Hau {n} Dieb(e) mit der Klatsche", Min = 1, Max = 2, Factor = 1.5 },
 	},
@@ -718,6 +734,9 @@ Config.Sounds = {
 	-- Verschmelzen: Zischen beim Zusammenfliegen, dann der Schlag, wenn die neue Kreatur erscheint
 	Merge = { { "ZoomUp", 1, 0.9, 0 }, { "Anvil", 1.2, 1.1, 0.38 }, { "Bell", 1.5, 0.9, 0.38, 1.4 } },
 	MergeBig = { { "ZoomUp", 0.9, 1, 0 }, { "Smash", 1, 0.6, 0.38, 1.8 }, { "StingWin", 1, 0.8, 0.42 } }, -- ab 3 Sternen
+	ClickTick = { { "Click", 1.5, 0.22, 0 }, { "Ping", 2.4, 0.1, 0 } }, -- jeder Klick (wird mit der Combo höher)
+	Crit = { { "Punch", 1.4, 0.5, 0, 0.6 }, { "Ping", 2, 0.4, 0.03 }, { "Ping", 2.6, 0.3, 0.09 } }, -- Volltreffer
+	ComboUp = { { "MetalRing", 1, 0.5, 0, 0.7 }, { "Ping", 1.5, 0.4, 0.05 } }, -- nächste Combo-Stufe (wird höher)
 	Travel = { { "ZoomUp", 1.2, 0.8, 0 }, { "Bell", 2, 0.5, 0.25, 1 } }, -- durchs Portal
 	Skill = { { "MetalRing", 1.3, 0.6, 0, 0.9 }, { "Ping", 1.5, 0.5, 0.05 }, { "Ping", 2, 0.5, 0.14 } }, -- Fähigkeit gelernt
 	Stolen = { { "Oof", 0.85, 0.8, 0 }, { "Swoosh", 0.5, 0.6, 0 }, { "Ping", 0.5, 0.5, 0.15 } },

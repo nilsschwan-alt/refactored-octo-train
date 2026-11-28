@@ -39,7 +39,7 @@ function Data.Default()
 		Skills = {}, -- { Income = 2, Luck = 1, ... } gelernte Stufen im Skill-Baum
 		QuestCount = 0, -- geschaffte Aufgaben (jede x-te gibt Tokens)
 		TotalEarned = 0, -- insgesamt verdient (für die Bestenliste)
-		Quests = {}, -- { { Kind = "Coins", Goal = 20, Progress = 3, Reward = 500 }, ... }
+		Quests = {}, -- { { Kind = "Clicks", Goal = 20, Progress = 3, Reward = 500 }, ... }
 	}
 end
 
@@ -80,6 +80,14 @@ local function sanitize(raw)
 			local level = rawSkills[skill.Id]
 			if type(level) == "number" and level == level then
 				data.Skills[skill.Id] = math.clamp(math.floor(level), 0, skill.Max)
+			end
+		end
+		-- Die Münzen gibt es nicht mehr: Wer Münz-Fähigkeiten hatte, behält die Stufen
+		-- als die Klick-Fähigkeit, die jetzt auf derselben Wabe sitzt.
+		for old, new in { Magnet = "AutoClick", CoinValue = "Crit", BigCoins = "CritPower" } do
+			local level = rawSkills[old]
+			if type(level) == "number" and level == level and data.Skills[new] == nil then
+				data.Skills[new] = math.clamp(math.floor(level), 0, Config.SkillById[new].Max)
 			end
 		end
 	end
