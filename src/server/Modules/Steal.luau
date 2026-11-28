@@ -17,6 +17,9 @@ local Steal = {}
 -- Werden von der Diebes-Nacht verändert
 Steal.WalkSpeed = Config.WalkSpeed
 Steal.CarrySpeed = Config.Steal.CarrySpeed
+-- Hier hängt sich das Events-Modul ein: function(hitter, position, range): boolean
+-- (die Klatsche trifft damit auch Schatten-Diebe)
+Steal.ExtraHit = nil :: ((Player, Vector3, number) -> boolean)?
 
 local carrying = {} -- [thief] = info
 local lastHit = {} -- [player] = os.clock()
@@ -200,6 +203,17 @@ function Steal.TryStart(thief: Player, plotIndex: number, slot: number)
 	Bases.Notify(owner, `{thief.DisplayName} klaut deinen {name}! Hau den Dieb mit der Klatsche!`, RED)
 end
 
+-- Base voll: Welches Monster müsste für das neue weichen? Gibt den Eintrag des schwächsten
+-- zurück (und seinen Platz), aber nur, wenn das neue mehr Geld bringt.
+local function swapFor(state, entry: string): (string?, number?)
+	local slot = Bases.WeakestSlot(state)
+	local old = slot and state.Data.Slots[tostring(slot)]
+	if not old or Config.EntryIncome(old) >= Config.EntryIncome(entry) then
+		return nil, nil
+	end
+	return old, slot
+end
+
 -- Wilde Kreatur (Meteor, Welt) schnappen. onDrop(position) wird aufgerufen, wenn sie wieder runterfällt.
 -- how = Text für die große Ansage bei seltenen Funden (z.B. "im Lava-Krater gefangen")
 function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): boolean
@@ -207,13 +221,22 @@ function Steal.StartWild(thief: Player, entry: string, onDrop, how: string?): bo
 	if not tState or carrying[thief] then
 		return false
 	end
+	-- Base voll: Schnappen geht trotzdem, wenn das Neue besser ist als das schwächste Monster.
+	-- Das wird dann zu Hause dafür verkauft.
+	local swap: string? = nil
 	if not Bases.FreeSlot(tState) then
-		Bases.Notify(thief, "Deine Base ist voll!", RED)
-		return false
+		swap = swapFor(tState, entry)
+		if not swap then
+			Bases.Notify(thief, "Deine Base ist voll und deine Monster sind alle stärker!", RED)
+			return false
+		end
 	end
 	local ok = startCarry(thief, entry, { Source = "wild", OnDrop = onDrop, How = how })
 	if ok then
 		Bases.Notify(thief, `Du hast {Config.EntryName(entry)}! Bring es nach Hause!`, YELLOW)
+		if swap then
+			Bases.Notify(thief, `Deine Base ist voll: Zu Hause wird dafür {Config.EntryName(swap)} verkauft.`, YELLOW)
+		end
 	end
 	return ok
 end
@@ -262,11 +285,23 @@ function Steal.Deliver(thief: Player)
 	if not info or not tState then
 		return
 	end
-	if not Bases.FreeSlot(tState) then
-		Steal.Return(thief, "full")
-		return
-	end
 	local entry = info.Entry
+	if not Bases.FreeSlot(tState) then
+		-- Wilde Beute: das schwächste Monster wird verkauft und macht Platz
+		local old, slot = nil, nil
+		if info.Source == "wild" then
+			old, slot = swapFor(tState, entry)
+		end
+		if not old or not slot then
+			Steal.Return(thief, "full")
+			return
+		end
+		tState.Data.Slots[tostring(slot)] = nil
+		Bases.RenderSlot(tState, slot)
+		local price = Bases.SellPrice(tState, old)
+		Bases.AddMoney(tState, price)
+		Bases.Notify(thief, `Platz gemacht: {Config.EntryName(old)} für {Config.FormatNumber(price)} $ verkauft.`, YELLOW)
+	end
 
 	if info.Source == "base" then
 		local oState = Bases.GetState(info.Owner)
@@ -335,6 +370,10 @@ function Steal.Hit(hitter: Player): boolean
 	end
 	local range = Config.Steal.HitRange + (if hState then Bases.Skill(hState, "HitRange") else 0)
 	local hitSomeone = false
+	-- Schatten-Diebe der Diebes-Nacht (das Events-Modul hängt sich hier ein)
+	if Steal.ExtraHit and Steal.ExtraHit(hitter, myRoot.Position, range) then
+		hitSomeone = true
+	end
 	for thief, _ in carrying do
 		if thief ~= hitter and not (shielded[thief] and now < shielded[thief]) then
 			local hum, root = getHumanoid(thief)

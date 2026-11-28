@@ -26,7 +26,7 @@ print(`[Server] {Config.GameName} v{Config.Version} startet ...`)
 -- Remotes (Kommunikation Server <-> Client) ----------------------------------
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "TravelTo", "Click", "Clicked" } do
+for _, name in { "Notify", "BigText", "Announce", "MoneyPopup", "OpenPacks", "BuyPack", "PackResult", "Pop", "Quests", "Rebirth", "BuySkill", "Merge", "Merges", "Travel", "GoHome", "TravelTo", "Click", "Clicked", "EventFx" } do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = remotes
@@ -38,7 +38,7 @@ local plots = Map.Build()
 Bases.Init(plots, remotes)
 Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
-Events.Start(mapFolder)
+Events.Start(mapFolder, remotes)
 Clicker.Start(remotes)
 do
 	-- Falls beim Bauen der Welten etwas schiefgeht, soll der Rest des Spiels trotzdem laufen

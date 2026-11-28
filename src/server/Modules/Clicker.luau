@@ -11,6 +11,10 @@ local Bases = require(script.Parent.Bases)
 
 local Clicker = {}
 
+-- Klick-Fieber (Event): solange gesetzt, reißt die Combo nicht ab, sie wächst schneller und
+-- Volltreffer kommen öfter. Das Events-Modul setzt { ComboSpeed, CritFactor, Clicks = {} }.
+Clicker.Fever = nil :: { ComboSpeed: number, CritFactor: number, Clicks: { [Player]: number } }?
+
 local C = Config.Click
 local BURST = 4 -- so viele Klicks dürfen auf einmal ankommen (Netz-Ruckler)
 local GOLD = Color3.fromRGB(255, 215, 60)
@@ -39,7 +43,9 @@ end
 
 -- Wert eines einzelnen Klicks ohne Combo und Volltreffer
 function Clicker.BaseValue(state): number
-	local value = math.max(C.MinValue, Bases.Income(state) * C.IncomeSeconds) * (1 + Bases.Skill(state, "ClickPower"))
+	-- Der Goldrausch zählt erst nach dem Mindestwert, damit er auch bei 1 $ pro Klick wirkt
+	local rush = Bases.RushFactor(state)
+	local value = math.max(C.MinValue, Bases.Income(state) / rush * C.IncomeSeconds) * rush * (1 + Bases.Skill(state, "ClickPower"))
 	local world = Config.WorldById[state.Player:GetAttribute("World") or ""]
 	if world then
 		value *= world.ClickFactor * (1 + Bases.Skill(state, "WorldClick"))
@@ -76,12 +82,16 @@ function Clicker.Click(player: Player)
 	end
 	c.Budget -= 1
 
-	-- Combo: reißt ab, wenn man zu lange nicht klickt
-	if now - c.Last > C.Combo.Timeout + Bases.Skill(state, "ComboTime") then
+	-- Combo: reißt ab, wenn man zu lange nicht klickt (im Klick-Fieber nie)
+	local fever = Clicker.Fever
+	if not fever and now - c.Last > C.Combo.Timeout + Bases.Skill(state, "ComboTime") then
 		c.Combo = 0
 	end
 	c.Last = now
-	c.Combo += 1
+	c.Combo += if fever then fever.ComboSpeed else 1
+	if fever then
+		fever.Clicks[player] = (fever.Clicks[player] or 0) + 1
+	end
 	local step, mult = comboFor(state, c.Combo)
 
 	local value = Clicker.BaseValue(state) * mult
@@ -89,7 +99,7 @@ function Clicker.Click(player: Player)
 	if math.random() < Bases.Skill(state, "Jackpot") then
 		kind = "jackpot"
 		value *= C.JackpotFactor
-	elseif math.random() < C.CritChance + Bases.Skill(state, "Crit") then
+	elseif math.random() < (C.CritChance + Bases.Skill(state, "Crit")) * (if fever then fever.CritFactor else 1) then
 		kind = "crit"
 		value *= C.CritFactor + Bases.Skill(state, "CritPower")
 	end
