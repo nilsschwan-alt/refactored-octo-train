@@ -137,7 +137,11 @@ return function(ctx)
 		end
 	end
 
+	local busyAt = 0 -- wann zuletzt eine Kisten-Öffnung lief
 	RunService.RenderStepped:Connect(function()
+		if ctx.Busy and ctx.Busy() then
+			busyAt = os.clock()
+		end
 		if combo == 0 then
 			return
 		end
@@ -241,6 +245,9 @@ return function(ctx)
 			return
 		end
 		local now = os.clock()
+		if now - busyAt < 0.4 then
+			return -- der Klick auf "Fertig" nach einer Kiste soll kein Klick-Geld geben
+		end
 		if now - lastSent < minGap then
 			return
 		end

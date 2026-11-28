@@ -510,6 +510,9 @@ local function stepShadows(dt: number)
 			-- Besitzer ist weg: der Schatten löst sich auf
 			s.Plot.Stolen[s.Slot] = if s.Plot.Stolen[s.Slot] == SHADOW_MARK then nil else s.Plot.Stolen[s.Slot]
 			removeShadow(i, true)
+		elseif not s.Entry and (s.Owner:GetAttribute("World") or "") ~= "" then
+			-- Besitzer ist in eine Welt gereist, bevor der Schatten etwas hatte: er gibt auf
+			removeShadow(i, true)
 		elseif s.Phase == "come" then
 			if glide(s, s.Target, S.Speed, dt) then
 				s.Phase = "grab"
