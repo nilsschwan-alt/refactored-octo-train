@@ -42,7 +42,7 @@ return function(ctx)
 	local function makeTab(index: number, id: string, name: string, color: Color3)
 		local button = Stil.Button(skillPanel, name, color, UDim2.fromOffset(219, 46), UDim2.fromOffset(16 + (index - 1) * 229, 74))
 		button.Label.TextScaled = false -- alle Reiter gleich groß beschriftet
-		button.Label.TextSize = 16
+		button.Label.TextSize = 19
 		-- grüner Punkt: hier gibt es gerade etwas zu holen
 		local dot = label({
 			Size = UDim2.fromOffset(22, 22),

@@ -136,7 +136,7 @@ return function(ctx)
 		-- sanfter Verlauf: oben etwas heller und in der Farbe des Fensters getönt
 		local ground = Instance.new("UIGradient")
 		ground.Rotation = 90
-		ground.Color = ColorSequence.new(Stil.Back:Lerp(color, 0.22), Stil.Back)
+		ground.Color = ColorSequence.new(Stil.Back:Lerp(color, 0.34), Stil.Back)
 		ground.Parent = panel
 		local scale = Instance.new("UIScale")
 		scale.Parent = panel

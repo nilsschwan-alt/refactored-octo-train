@@ -280,7 +280,9 @@ return function(ctx, Stil)
 		if position then
 			tile.Position = position
 		end
-		tile.BackgroundColor3 = Stil.Card:Lerp(color, 0.2) -- leicht in der Farbe der Seltenheit
+		-- leicht in der Farbe der Seltenheit (über den Farbton, damit Gold nicht graubraun wird)
+		local hue, saturation = color:ToHSV()
+		tile.BackgroundColor3 = if saturation > 0.15 then Color3.fromHSV(hue, saturation * 0.55, 0.4) else Stil.Card
 		tile.BorderSizePixel = 0
 		tile.LayoutOrder = order
 		tile.Parent = parent
