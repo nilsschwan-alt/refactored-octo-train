@@ -572,8 +572,6 @@ return function(ctx)
 	local detailRarity = label({
 		Size = UDim2.new(1, -16, 0, 18),
 		Position = UDim2.fromOffset(8, 171),
-		TextScaled = false,
-		TextSize = 15,
 		TextColor3 = Color3.fromRGB(190, 185, 215),
 		Text = "",
 		Parent = detail,
@@ -789,15 +787,17 @@ return function(ctx)
 			})
 			starLabel.TextStrokeColor3 = BLACK
 		end
-		-- Name (mit Mutation), damit man z.B. Gold und Normal auseinanderhält
-		local m = Config.Mutations[mutation]
-		label({
+		-- Name in der Farbe der Mutation, damit man z.B. Gold und Normal auseinanderhält
+		local nameLabel = label({
 			Size = UDim2.new(1, -6, 0, 14),
 			Position = UDim2.fromOffset(3, 79),
-			TextColor3 = m.Color or WHITE,
-			Text = if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name,
+			TextColor3 = Config.Mutations[mutation].Color or WHITE,
+			Text = def.Name,
 			Parent = tile,
 		})
+		if mutation == "Regenbogen" then
+			nameLabel.Text = "🌈 " .. def.Name
+		end
 		label({
 			Size = UDim2.new(1, -6, 0, 16),
 			Position = UDim2.fromOffset(3, 94),
@@ -868,7 +868,7 @@ return function(ctx)
 		local m = Config.Mutations[mutation]
 		detailName.Text = if m.Name ~= "" then `{m.Name}-{def.Name}` else def.Name
 		detailName.TextColor3 = rarity.Color
-		detailRarity.Text = if item.Slot then `{rarity.Name} · steht in der Base` elseif item.Count > 1 then `{rarity.Name} · {item.Count} Stück im Inventar` else `{rarity.Name} · im Inventar`
+		detailRarity.Text = if item.Slot then `{rarity.Name} · steht in der Base` elseif item.Count > 1 then `{rarity.Name} · {item.Count}x im Inventar` else `{rarity.Name} · im Inventar`
 		detailIncome.Text = `+{Config.FormatRate(Config.EntryIncome(item.Entry))} $/s`
 
 		local canUse = not item.Stolen

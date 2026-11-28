@@ -228,6 +228,8 @@ return function(ctx)
 		local scale = Instance.new("UIScale")
 		scale.Parent = hint
 		while hint do
+			-- nicht über offenen Fenstern liegen
+			hint.Visible = not (ctx.WindowOpen and ctx.WindowOpen())
 			tween(scale, 0.5, { Scale = 1.08 })
 			task.wait(0.5)
 			tween(scale, 0.5, { Scale = 1 })

@@ -481,7 +481,7 @@ function Bases.StarUpAll(player: Player)
 	if not state then
 		return
 	end
-	local count, bestStars, bestEntry = 0, 0, nil
+	local count, bestStars, bestEntry = 0, 0, nil -- bestEntry = die stärkste, die einen Stern bekam
 	for _ = 1, 300 do
 		local targets = {}
 		for slot = 1, Bases.Level(state).Slots do
@@ -509,8 +509,9 @@ function Bases.StarUpAll(player: Player)
 			if result then
 				local _, _, stars = Config.ParseEntry(result)
 				count += 1
-				if stars > bestStars then
-					bestStars, bestEntry = stars, result
+				bestStars = math.max(bestStars, stars)
+				if not bestEntry or Config.EntryIncome(result) > Config.EntryIncome(bestEntry) then
+					bestEntry = result
 				end
 				done = true
 				break
@@ -524,7 +525,7 @@ function Bases.StarUpAll(player: Player)
 		Bases.Notify(player, "Gerade gibt es nichts zu verbessern: Es fehlt Futter.", RED)
 		return
 	end
-	Bases.BigText(player, `{count} {if count == 1 then "NEUER STERN" else "NEUE STERNE"}! {Config.StarText(bestStars)}`, STAR_COLOR, if bestStars >= 3 then "MergeBig" else "Merge")
+	Bases.BigText(player, `{count} {if count == 1 then "NEUER STERN" else "NEUE STERNE"}!`, STAR_COLOR, if bestStars >= 3 then "MergeBig" else "Merge")
 	Bases.Notify(player, `⭐ {count}x verbessert. Am besten: {Config.EntryName(bestEntry)} mit +{Config.FormatRate(Config.EntryIncome(bestEntry))} $/s.`, STAR_COLOR)
 	if bestStars >= Config.Stars.AnnounceFrom then
 		Bases.Announce(`{player.DisplayName} hat einen neuen Stern: {Config.EntryName(bestEntry)}!`, STAR_COLOR)
@@ -572,6 +573,7 @@ function Bases.Unequip(player: Player, slot: number)
 	Bases.RenderSlot(state, slot)
 	bagAdd(state, entry, 1)
 	Bases.RefreshPlot(state.Plot)
+	Bases.Notify(player, `🎒 {Config.EntryName(entry)} ist jetzt im Inventar. Der Platz bleibt frei.`, BAG_COLOR)
 end
 
 -- Kreaturen aus dem Inventar verkaufen (all = alle von diesem Eintrag)
@@ -711,8 +713,14 @@ function Bases.ReceiveText(got, entry: string): string?
 	end
 	if got.Sold then
 		local sold = `Inventar voll: {Config.EntryName(got.Sold)} für {Config.FormatNumber(got.Money)} $ verkauft.`
-		-- war die neue selbst die schwächste, lag sie nie wirklich im Inventar
-		text = if text and not (got.Kind == "stored" and got.Sold == entry) then `{text} {sold}` else sold
+		if got.Sold ~= got.Rest then
+			text = if text then `{text} {sold}` else sold
+		elseif got.Kind == "swapped" then
+			-- die rausgetauschte war selbst die schwächste: Sie lag nie wirklich im Inventar
+			text = `{Config.EntryName(entry)} steht jetzt in deiner Base. {sold}`
+		else
+			text = sold
+		end
 	end
 	return text
 end

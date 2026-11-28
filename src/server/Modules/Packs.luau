@@ -47,6 +47,15 @@ local function roll(state, pack)
 	return Config.MakeEntry(def.Id, mutation), pity
 end
 
+-- Einkommen aller Kreaturen in der Base zusammen (ohne Boni, so wie es auf den Kreaturen steht)
+function Packs.SlotIncome(state): number
+	local total = 0
+	for _, entry in state.Data.Slots do
+		total += Config.EntryIncome(entry)
+	end
+	return total
+end
+
 -- count = 1, 3 oder 10. Ist die Base voll, stehen danach die besten dort, der Rest kommt ins Inventar.
 function Packs.Buy(player: Player, packId: string, count: number?)
 	local state = Bases.GetState(player)
@@ -82,6 +91,7 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	local refund = math.floor(cost / count * freeCount)
 
 	local entries, pities = {}, {}
+	local incomeBefore = Packs.SlotIncome(state)
 	local soldCount, soldMoney = 0, 0 -- wegen vollem Inventar verkauft
 	local storedCount = 0 -- so viele Kreaturen kamen ins Inventar
 	local lastText: string? = nil -- Meldung zur letzten Kreatur (für die einzelne Kiste)
@@ -103,7 +113,9 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 	player:SetAttribute("Pity", state.Data.Pity)
 	Bases.Track(state, "OpenPacks", count)
 
-	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney, storedCount)
+	-- gain = so viel mehr verdienen die Kreaturen in der Base jetzt (für den Ergebnis-Bildschirm)
+	local gain = math.max(0, Packs.SlotIncome(state) - incomeBefore)
+	remotes.PackResult:FireClient(player, entries, pack.Id, pities, soldCount, soldMoney, storedCount, gain)
 	local showDelay = if count > 1 then 6 else 4 -- erst nach der Öffnungs-Animation
 	if refund > 0 then
 		Bases.AddMoney(state, refund, "quest")
