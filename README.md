@@ -64,6 +64,7 @@ Nach Play solltest du im **Output**-Fenster (Ansicht > Output) `[Server] Bereit!
 - **Aufgaben** (rechts): immer 3 gleichzeitig, z.B. "Klicke 300x für Geld". Geschafft = Geld, dann kommt sofort eine neue.
 - **Bestenlisten** neben der Riesen-Statue: Top 10 aller Zeiten (nur im veröffentlichten Spiel) und dieser Server.
 - **Wiedergeburt** (lila Knopf oder Taste **R**): Kostet Geld, setzt Geld und Base-Stufe zurück, deine 4 besten Kreaturen bleiben. Dafür +50 % Einkommen für immer und Tokens für den Skill-Baum (36 Fähigkeiten in drei Ästen: Geld & Klick, Glück, Dieb & Schutz).
+- **Fusion** (Knopf oder Taste **V**): 3 gleiche Kreaturen verschmelzen zu einer mit einem Stern mehr (bis 5 Sterne). Ist die Base voll und es kommt eine Kreatur dazu, von der schon eine gleiche dasteht, wird sie nicht verkauft, sondern eingelagert: Das Lager zählt beim Verschmelzen mit, und sobald es mit der neuen zusammen 3 sind, wird sofort verschmolzen.
 - **Welten** (Knopf 🌀 **Welten** oder Taste **T**): Vier Welten, eine pro Wiedergeburt 1 bis 4. Von überall direkt hinreisen oder zu Fuß durch die Portale hinter dem Kisten-Shop. Dort bringt jeder Klick mehr Geld und es tauchen wilde Monster auf, die man zu Fuß nach Hause trägt. Mit **Heim** (Taste **H**) geht es zurück.
 
 **Balancen:** Alle Zahlen und **alle Drop-Raten** (Packs, Mutationen, Meteor, Events) stehen in `src/shared/Config.luau`.

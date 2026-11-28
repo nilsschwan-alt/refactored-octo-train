@@ -98,16 +98,16 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 
 	local entries, pities = {}, {}
 	local soldCount, soldMoney = 0, 0
-	local merged = {} -- Namen der Kreaturen, die bei voller Base automatisch verschmolzen wurden
+	local absorbed = {} -- Meldungen: bei voller Base automatisch verschmolzen oder eingelagert
 	for i = 1, count do
 		local entry, pity = roll(state, pack)
 		entries[i] = entry
 		pities[i] = pity
 		if not Bases.FreeSlot(state) then
-			-- Base voll. Stehen schon genug gleiche da? Dann verschmelzen statt verkaufen.
-			local absorbed = Bases.TryAbsorb(state, entry)
-			if absorbed then
-				table.insert(merged, Config.EntryName(absorbed))
+			-- Base voll. Steht schon eine gleiche da? Dann verschmelzen oder einlagern statt verkaufen.
+			local result, kind = Bases.TryAbsorb(state, entry)
+			if result and kind then
+				table.insert(absorbed, Bases.AbsorbText(state, result, kind))
 				continue
 			end
 			-- Sonst: ist die neue besser als die schlechteste? Dann tauschen.
@@ -144,9 +144,12 @@ function Packs.Buy(player: Player, packId: string, count: number?)
 			end
 		end)
 	end
-	if #merged > 0 then
+	if #absorbed > 0 then
 		task.delay(showDelay + 0.5, function()
-			Bases.Notify(player, `✨ Base voll: automatisch verschmolzen zu {table.concat(merged, ", ")}.`, Color3.fromRGB(255, 215, 70))
+			-- höchstens drei Zeilen, sonst läuft die Meldungsliste über
+			for i = math.max(1, #absorbed - 2), #absorbed do
+				Bases.Notify(player, absorbed[i], Color3.fromRGB(255, 215, 70))
+			end
 		end)
 	end
 	if soldCount > 0 then

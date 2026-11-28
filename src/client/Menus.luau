@@ -474,7 +474,7 @@ return function(ctx)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		TextColor3 = Color3.fromRGB(205, 200, 225),
-		Text = `{Config.Stars.Need} gleiche Kreaturen (gleiche Mutation, gleiche Sterne) verschmelzen zu einer mit einem Stern mehr. Sie verdient mehr als alle zusammen und du hast wieder Plätze frei. Bis zu {Config.Stars.Max} Sterne!`,
+		Text = `{Config.Stars.Need} gleiche Kreaturen (gleiche Mutation, gleiche Sterne) verschmelzen zu einer mit einem Stern mehr, bis zu {Config.Stars.Max} Sterne. Bei voller Base werden doppelte eingelagert statt verkauft und zählen hier mit.`,
 		Parent = mergePanel,
 	})
 	local mergeScroll = Instance.new("ScrollingFrame")
@@ -497,11 +497,11 @@ return function(ctx)
 		TextSize = 20,
 		TextWrapped = true,
 		TextColor3 = Color3.fromRGB(170, 165, 195),
-		Text = `Gerade gibt es nichts zu verschmelzen.\nSammle {Config.Stars.Need} gleiche Kreaturen in deiner Base, dann tauchen sie hier auf.`,
+		Text = `Gerade gibt es nichts zu verschmelzen.\nSammle {Config.Stars.Need} gleiche Kreaturen, dann tauchen sie hier auf. Doppelte landen bei voller Base im Lager und zählen mit.`,
 		Parent = mergePanel,
 	})
 
-	local mergeList = {} -- vom Server: { { Entry, Count, Result }, ... }
+	local mergeList = {} -- vom Server: { { Entry, Count, Result, Ready }, ... } (Ready = false: es fehlen noch welche)
 	local mergeShown = "" -- was gerade in der Liste steht (damit nicht unnötig neu gebaut wird)
 
 	-- Kreatur-Bild mit Sternen darunter
@@ -536,7 +536,7 @@ return function(ctx)
 	local function rebuildMerges()
 		local parts = {}
 		for _, item in mergeList do
-			table.insert(parts, `{item.Entry}:{item.Count}`)
+			table.insert(parts, `{item.Entry}:{item.Count}:{tostring(item.Ready)}`)
 		end
 		local signature = table.concat(parts, ";")
 		mergeEmpty.Visible = #mergeList == 0
@@ -606,6 +606,13 @@ return function(ctx)
 			go.Text = "Verschmelzen"
 			go.Parent = row
 			corner(go, 12)
+			if not item.Ready then
+				-- noch nicht genug: zeigt nur, wie viele im Lager und in der Base schon da sind
+				go.Active = false
+				go.AutoButtonColor = false
+				go.BackgroundColor3 = GREY
+				go.Text = `Noch {math.max(1, Config.Stars.Need - item.Count)}`
+			end
 			local pad = Instance.new("UIPadding")
 			pad.PaddingLeft = UDim.new(0, 8)
 			pad.PaddingRight = UDim.new(0, 8)
@@ -632,8 +639,15 @@ return function(ctx)
 
 	Remotes.Merges.OnClientEvent:Connect(function(list)
 		mergeList = if type(list) == "table" then list else {}
-		mergeBadge.Visible = #mergeList > 0
-		mergeBadge.Text = tostring(#mergeList)
+		-- die Plakette zählt nur, was man sofort verschmelzen kann
+		local ready = 0
+		for _, item in mergeList do
+			if item.Ready then
+				ready += 1
+			end
+		end
+		mergeBadge.Visible = ready > 0
+		mergeBadge.Text = tostring(ready)
 		if mergePanel.Visible then
 			rebuildMerges()
 		end

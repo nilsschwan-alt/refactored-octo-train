@@ -261,8 +261,32 @@ function Bases.GiveCreature(state, entry: string): number?
 end
 
 -- Verschmelzen (Sterne) -------------------------------------------------------------
+-- Lager: Kommt bei voller Base eine Kreatur dazu, von der schon eine gleiche in der Base steht,
+-- wird sie nicht verkauft, sondern eingelagert (state.Data.Stock). Eingelagerte zählen beim
+-- Verschmelzen mit. So kann man auch mit voller Base Sterne sammeln.
+function Bases.Stock(state, entry: string): number
+	return state.Data.Stock[entry] or 0
+end
+
+local function useStock(state, entry: string, amount: number)
+	local left = Bases.Stock(state, entry) - amount
+	state.Data.Stock[entry] = if left > 0 then left else nil
+end
+
+-- Plätze, auf denen genau diese Kreatur gerade steht
+local function standing(state, entry: string): { number }
+	local slots = {}
+	for slot = 1, Bases.Level(state).Slots do
+		if state.Data.Slots[tostring(slot)] == entry and not state.Plot.Stolen[slot] then
+			table.insert(slots, slot)
+		end
+	end
+	return slots
+end
+
 -- Welche Kreaturen kann man gerade verschmelzen? Gibt { [eintrag] = { platz, platz, ... } } zurück
--- (nur Einträge, von denen genug gleiche in der Base stehen und die noch Sterne bekommen können).
+-- (nur Einträge, von denen mit dem Lager zusammen genug gleiche da sind, von denen mindestens
+-- eine in der Base steht und die noch Sterne bekommen können).
 function Bases.MergeGroups(state)
 	local groups = {}
 	for slot = 1, Bases.Level(state).Slots do
@@ -273,14 +297,15 @@ function Bases.MergeGroups(state)
 		end
 	end
 	for entry, slots in groups do
-		if #slots < Config.Stars.Need or not Config.MergeResult(entry) then
+		if #slots + Bases.Stock(state, entry) < Config.Stars.Need or not Config.MergeResult(entry) then
 			groups[entry] = nil
 		end
 	end
 	return groups
 end
 
--- Schickt die Liste der möglichen Verschmelzungen an den Client (gebündelt)
+-- Schickt die Liste der möglichen Verschmelzungen an den Client (gebündelt).
+-- Ready = false: es fehlen noch welche (steht in der Liste, damit man das Lager sieht).
 function Bases.QueueMerges(state)
 	if mergePending[state] then
 		return
@@ -292,10 +317,20 @@ function Bases.QueueMerges(state)
 			return
 		end
 		local list = {}
-		for entry, slots in Bases.MergeGroups(state) do
-			table.insert(list, { Entry = entry, Count = #slots, Result = Config.MergeResult(entry) })
+		local groups = Bases.MergeGroups(state)
+		for entry, slots in groups do
+			table.insert(list, { Entry = entry, Count = #slots + Bases.Stock(state, entry), Result = Config.MergeResult(entry), Ready = true })
+		end
+		for entry, amount in state.Data.Stock do
+			local result = Config.MergeResult(entry)
+			if not groups[entry] and result then
+				table.insert(list, { Entry = entry, Count = #standing(state, entry) + amount, Result = result, Ready = false })
+			end
 		end
 		table.sort(list, function(a, b)
+			if a.Ready ~= b.Ready then
+				return a.Ready
+			end
 			return Config.EntryIncome(a.Result) > Config.EntryIncome(b.Result)
 		end)
 		remotes.Merges:FireClient(state.Player, list)
@@ -411,38 +446,56 @@ function Bases.Merge(player: Player, entry: string)
 	end
 	local slots = Bases.MergeGroups(state)[entry]
 	if not slots then
-		Bases.Notify(player, `Dafür brauchst du {Config.Stars.Need} gleiche Kreaturen in deiner Base.`, RED)
+		Bases.Notify(player, `Dafür brauchst du {Config.Stars.Need} gleiche Kreaturen (Base und Lager zusammen).`, RED)
 		Bases.QueueMerges(state)
 		return
 	end
 	table.sort(slots)
+	-- Erst die aus der Base nehmen (das macht Plätze frei), den Rest aus dem Lager
 	local use = {}
-	for i = 1, Config.Stars.Need do
+	for i = 1, math.min(Config.Stars.Need, #slots) do
 		use[i] = slots[i]
 	end
+	useStock(state, entry, Config.Stars.Need - #use)
 	mergeSlots(state, entry, use)
 end
 
--- Base voll und eine neue Kreatur kommt: Stehen schon genug gleiche da, wird sofort
--- verschmolzen statt verkauft. Gibt den neuen Eintrag zurück oder nil.
-function Bases.TryAbsorb(state, entry: string): string?
-	if not Config.MergeResult(entry) then
-		return nil
+-- Kann eine neue Kreatur bei voller Base aufgenommen werden (verschmelzen oder einlagern)?
+-- Das geht, wenn schon eine gleiche in der Base steht und sie noch Sterne bekommen kann.
+function Bases.CanAbsorb(state, entry: string): boolean
+	return Config.MergeResult(entry) ~= nil and #standing(state, entry) > 0
+end
+
+-- Base voll und eine neue Kreatur kommt. Steht schon eine gleiche da, wird die neue nicht
+-- verkauft: Sind es mit dem Lager zusammen genug, wird sofort verschmolzen, sonst kommt sie
+-- ins Lager. Gibt (Eintrag, "merged" oder "stored") zurück, oder nil, wenn es keine gleiche gibt.
+function Bases.TryAbsorb(state, entry: string): (string?, string?)
+	if not Bases.CanAbsorb(state, entry) then
+		return nil, nil
 	end
-	local same = {}
-	for slot = 1, Bases.Level(state).Slots do
-		if state.Data.Slots[tostring(slot)] == entry and not state.Plot.Stolen[slot] then
-			table.insert(same, slot)
-		end
+	local same = standing(state, entry)
+	local need = Config.Stars.Need - 1 -- so viele braucht die neue noch dazu
+	if #same + Bases.Stock(state, entry) < need then
+		state.Data.Stock[entry] = Bases.Stock(state, entry) + 1
+		Bases.QueueMerges(state)
+		return entry, "stored"
 	end
-	if #same < Config.Stars.Need - 1 then
-		return nil
-	end
+	-- Erst die aus der Base nehmen (das macht Plätze frei), den Rest aus dem Lager
 	local use = {}
-	for i = 1, Config.Stars.Need - 1 do
+	for i = 1, math.min(need, #same) do
 		use[i] = same[i]
 	end
-	return mergeSlots(state, entry, use, true)
+	useStock(state, entry, need - #use)
+	return mergeSlots(state, entry, use, true), "merged"
+end
+
+-- Meldung dazu: was mit der neuen Kreatur passiert ist
+function Bases.AbsorbText(state, result: string, kind: string): string
+	if kind == "merged" then
+		return `✨ Base voll: automatisch verschmolzen zu {Config.EntryName(result)}.`
+	end
+	local have = #standing(state, result) + Bases.Stock(state, result)
+	return `📦 Base voll: {Config.EntryName(result)} eingelagert ({have}/{Config.Stars.Need} für den nächsten Stern).`
 end
 
 -- Der Platz mit der wertvollsten Kreatur (für den Tresor)
