@@ -29,6 +29,7 @@ local COLORS = {
 local folder
 local wildItems = {} -- [id] = { Entry, Model, ExpiresAt, Opts }
 local nextWildId = 0
+local meteorId: number? = nil -- die Kreatur des laufenden Meteor-Events
 
 local function setPhase(name: string?, phase: string?, seconds: number?)
 	workspace:SetAttribute("EventTitle", name and TITLES[name] or nil)
@@ -48,7 +49,7 @@ end
 -- Wilde Kreatur auf den Boden legen, die man schnappen kann.
 -- opts (für die Welten, beim Meteor leer): Tag = Kennung zum Zählen, How = Text für die große Ansage,
 -- OnGrab = function(player, entry) statt der Meteor-Ansage, Silent = verschwindet ohne Ansage
-local function placeWild(entry: string, position: Vector3, lifetime: number, opts: { [string]: any }?)
+local function placeWild(entry: string, position: Vector3, lifetime: number, opts: { [string]: any }?): number
 	nextWildId += 1
 	local id = nextWildId
 	local def, mutation = Config.ParseEntry(entry)
@@ -80,6 +81,7 @@ local function placeWild(entry: string, position: Vector3, lifetime: number, opt
 
 	model.Parent = folder
 	wildItems[id] = { Entry = entry, Model = model, ExpiresAt = os.clock() + lifetime, Opts = opts }
+	return id
 end
 Events.PlaceWild = placeWild
 
@@ -113,6 +115,9 @@ function Events.Grab(player: Player, id: number)
 	if ok then
 		wildItems[id] = nil
 		item.Model:Destroy()
+		if id == meteorId then
+			meteorId = nil -- geschnappt: das Meteor-Event ist vorbei
+		end
 		if opts and opts.OnGrab then
 			opts.OnGrab(player, entry)
 		else
@@ -166,11 +171,19 @@ local function runMeteor()
 	local def = Config.RandomCreatureOfRarity(Config.RollWeighted(cfg.Weights), pack)
 	local rarity = def.Rarity
 	local entry = Config.MakeEntry(def.Id, Config.RollWeighted(cfg.MutationWeights))
-	placeWild(entry, target, cfg.Duration)
+	local id = placeWild(entry, target, cfg.Duration)
+	meteorId = id
 	Bases.Announce(`☄️ Meteor gelandet: {Config.Upper(Config.Rarities[rarity].Name)} {Config.EntryName(entry)}! Schnell hin!`,
 		Config.Rarities[rarity].Color)
 	setPhase("Meteor", "active", cfg.Duration)
-	task.wait(cfg.Duration)
+	-- Läuft, bis die Zeit um ist oder jemand die Kreatur schnappt (dann ist der Countdown sofort weg)
+	local endAt = os.clock() + cfg.Duration
+	while meteorId == id and os.clock() < endAt do
+		task.wait(0.25)
+	end
+	if meteorId == id then
+		meteorId = nil
+	end
 end
 
 local function runGoldrausch()
@@ -210,7 +223,10 @@ function Events.Run(name: string)
 	setPhase(name, "warn", warnTime)
 	task.wait(warnTime)
 	RUNNERS[name]()
-	setPhase(nil, nil, nil)
+	-- Anzeige nur löschen, wenn sie noch zu diesem Event gehört
+	if workspace:GetAttribute("EventTitle") == TITLES[name] then
+		setPhase(nil, nil, nil)
+	end
 end
 
 function Events.Start(parentFolder: Instance)

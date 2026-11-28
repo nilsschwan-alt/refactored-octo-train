@@ -355,7 +355,7 @@ local function hudButton(slot: number, color: Color3, icon: string, text: string
 	local badge = label({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(22, 22),
-		Position = UDim2.new(1, -7, 0, 7), -- ganz auf dem Knopf, ragt nicht in den Nachbarn
+		Position = UDim2.new(1, -13, 0, 13), -- ganz auf dem Knopf (22 px + Rand), ragt nicht in den Nachbarn
 		BackgroundTransparency = 0,
 		BackgroundColor3 = Color3.fromRGB(235, 60, 70),
 		Font = Enum.Font.FredokaOne,
@@ -753,10 +753,10 @@ Remotes.Announce.OnClientEvent:Connect(function(text: string, color: Color3)
 	end)
 end)
 
--- Event-Countdown (oben rechts) -------------------------------------------------
+-- Event-Countdown (oben in der Mitte, unter der Ansage; oben rechts verdeckt ihn die Spielerliste)
 local eventBox = label({
 	Size = UDim2.fromOffset(300, 44),
-	Position = UDim2.new(1, -312, 0, 60),
+	Position = UDim2.new(0.5, -150, 0, 64),
 	BackgroundColor3 = Color3.fromRGB(30, 20, 50),
 	BackgroundTransparency = 0.15,
 	Font = Enum.Font.FredokaOne,
