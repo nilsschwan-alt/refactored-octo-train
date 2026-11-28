@@ -117,7 +117,7 @@ return function(ctx)
 	-- Skill-Baum ----------------------------------------------------------------------
 	local S = 42 -- Größe einer Wabe (Mitte bis Spitze)
 	local UNIT = SQRT3 * S -- Abstand zweier Waben nebeneinander
-	local HEX_X, HEX_Y = 262, 296 -- Mitte des Netzes im Fenster (drei Ringe = 36 Waben + Mitte)
+	local HEX_X, HEX_Y = 264, 296 -- Mitte des Netzes im Fenster (drei Ringe = 36 Waben + Mitte)
 	local SKILL_COLOR = Color3.fromRGB(90, 160, 255)
 
 	local skillButton, skillButtonScale, skillBadge = hudButton(172, SKILL_COLOR, "🧠", "Skills")

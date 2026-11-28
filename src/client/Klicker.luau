@@ -106,7 +106,7 @@ return function(ctx)
 		bar.BackgroundColor3 = color
 		if step > 0 then
 			local shown = if math.abs(mult * 10 - math.floor(mult * 10 + 0.5)) < 0.01 then string.format("%.1f", mult) else string.format("%.2f", mult)
-			comboName.Text = `{C.Combo.Steps[step][3]}! Geld x{shown}`
+			comboName.Text = `{C.Combo.Steps[step][3]}! Geld x{(string.gsub(shown, "%.", ","))}`
 			comboName.TextColor3 = color
 		else
 			comboName.Text = `noch {C.Combo.Steps[1][1] - count} bis zum Bonus`

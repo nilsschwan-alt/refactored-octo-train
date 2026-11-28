@@ -286,6 +286,7 @@ function Config.SkillText(skill, level: number): string
 		value *= 100
 	end
 	local shown = if math.abs(value - math.floor(value + 0.5)) < 0.001 then tostring(math.floor(value + 0.5)) else string.format("%.1f", value)
+	shown = string.gsub(shown, "%.", ",") -- deutsches Komma: "0,5 Sekunden"
 	return (string.gsub(skill.Text, "{v}", shown))
 end
 
