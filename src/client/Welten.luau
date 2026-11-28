@@ -111,9 +111,15 @@ return function(ctx)
 		tween(tint, 0.6, { TintColor = if world then world.Tint else WHITE })
 		local haze = Lighting:FindFirstChild("SpielDunst")
 		if haze and haze:IsA("Atmosphere") then
-			outsideSky = outsideSky or { Color = haze.Color, Decay = haze.Decay }
+			outsideSky = outsideSky
+				or { Color = haze.Color, Decay = haze.Decay, Density = haze.Density, Offset = haze.Offset, Haze = haze.Haze }
 			local sky = (world and world.Sky) or outsideSky
-			tween(haze, 0.6, { Color = sky.Color, Decay = sky.Decay })
+			-- was eine Welt nicht festlegt, bleibt wie auf der Hauptinsel
+			local goal = {}
+			for key, value in outsideSky do
+				goal[key] = if sky[key] ~= nil then sky[key] else value
+			end
+			tween(haze, 0.6, goal)
 		end
 		if world and world.Clock then
 			wantedClock = world.Clock + CLOCK_MARK

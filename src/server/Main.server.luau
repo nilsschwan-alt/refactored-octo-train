@@ -40,7 +40,13 @@ Packs.Init(remotes)
 local mapFolder = workspace:WaitForChild("KreaturenMap")
 Events.Start(mapFolder)
 Coins.Start(mapFolder)
-Worlds.Start(mapFolder, remotes)
+do
+	-- Falls beim Bauen der Welten etwas schiefgeht, soll der Rest des Spiels trotzdem laufen
+	local ok, err = pcall(Worlds.Start, mapFolder, remotes)
+	if not ok then
+		warn(`[Server] Die Welten konnten nicht gebaut werden: {err}`)
+	end
+end
 Quests.Init(remotes)
 Leaderboard.Start(mapFolder)
 

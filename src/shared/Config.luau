@@ -475,7 +475,7 @@ Config.Worlds = {
 	},
 	-- CoinFactor: Münzen sind dort so viel mehr wert als auf der Straße
 	-- Tint: Farbstich des Bildes in der Welt, Clock: Uhrzeit dort (0 = Nacht, weglassen = wie draußen)
-	-- Sky: Farbe von Dunst und Horizont dort (Color = hell, Decay = dunkel)
+	-- Sky: Dunst und Horizont dort (Color = hell, Decay = dunkel; Density, Offset, Haze = wie dicht)
 	List = {
 		{
 			Id = "Kristall",
@@ -499,8 +499,8 @@ Config.Worlds = {
 			Color = Color3.fromRGB(255, 110, 35),
 			CoinColor = Color3.fromRGB(255, 150, 50),
 			Tint = Color3.fromRGB(255, 232, 214),
-			Sky = { Color = Color3.fromRGB(255, 170, 120), Decay = Color3.fromRGB(150, 60, 40) },
-			Clock = 17.6,
+			Sky = { Color = Color3.fromRGB(255, 170, 120), Decay = Color3.fromRGB(150, 60, 40), Density = 0.32, Offset = 0.2, Haze = 1.4 },
+			Clock = 17.85, -- Abendrot
 		},
 		{
 			Id = "Eis",

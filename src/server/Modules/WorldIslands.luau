@@ -389,7 +389,7 @@ function Islands.Portal(parent: Instance, cf: CFrame, opts)
 	-- Schild über dem Tor
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Schild"
-	gui.Size = UDim2.fromScale(20, 6)
+	gui.Size = UDim2.fromScale(16, 4.8) -- schmal genug, dass sich Nachbar-Schilder nicht überdecken
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 6.5, 0)
 	gui.MaxDistance = 320
 	gui.LightInfluence = 0
@@ -439,9 +439,9 @@ local function crystalTree(ctx, x: number, z: number, s: number)
 	for i, size in { 7, 5.4, 3.8 } do
 		local side = size * s
 		-- (kein Glas: dahinter würden leuchtende Teile verschwinden)
-		local crown = put(ctx, "Krone", CFrame.new(x, y + side * 0.3, z) * CFrame.Angles(0, math.rad(i * 30), 0) * TIP, Vector3.new(side, side, side), color:Lerp(WHITE, (i - 1) * 0.18), M.Neon, {
+		local crown = put(ctx, "Krone", CFrame.new(x, y + side * 0.3, z) * CFrame.Angles(0, math.rad(i * 30), 0) * TIP, Vector3.new(side, side, side), color:Lerp(WHITE, 0.35 + (i - 1) * 0.15), M.Neon, {
 			Glow = true,
-			Transparency = 0.15,
+			Transparency = 0.32,
 		})
 		if i == 1 then
 			light(crown, color, 16, 0.8)
@@ -710,8 +710,8 @@ THEMES.Lava = function(ctx)
 		local yaw = rn(ctx, 0, math.pi)
 		local length = rn(ctx, 4, 9)
 		local cf = CFrame.new(x, 0, z) * CFrame.Angles(0, yaw, 0)
-		put(ctx, "Riss", cf * CFrame.new(0, -0.13, 0), Vector3.new(0.5, 0.3, length), LAVA, M.Neon, { Glow = true })
-		put(ctx, "Riss", cf * CFrame.new(0, -0.13, length / 2) * CFrame.Angles(0, 0.7, 0) * CFrame.new(0, 0, length * 0.3), Vector3.new(0.4, 0.3, length * 0.6), LAVA, M.Neon, { Glow = true })
+		put(ctx, "Riss", cf * CFrame.new(0, -0.1, 0), Vector3.new(0.5, 0.3, length), LAVA, M.Neon, { Glow = true })
+		put(ctx, "Riss", cf * CFrame.new(0, -0.1, length / 2) * CFrame.Angles(0, 0.7, 0) * CFrame.new(0, 0, length * 0.3), Vector3.new(0.4, 0.3, length * 0.6), LAVA, M.Neon, { Glow = true })
 	end)
 	scatter(ctx, 18, 22, 92, 3.6, true, function(x, z)
 		rockSpikes(ctx, x, z, rn(ctx, 0.8, 1.3), rgb(50, 40, 44))
@@ -976,7 +976,7 @@ local SPACE_CYAN = rgb(90, 220, 255)
 -- Planet mit Ring, schwebt am Himmel
 local function planet(ctx, x: number, y: number, z: number, d: number, color: Color3, ringColor: Color3?)
 	-- leicht leuchtend, sonst sind sie bei Nacht nur dunkle Kugeln
-	ball(ctx, "Planet", x, y, z, d, color:Lerp(BLACK, 0.3), M.Neon, { Glow = true })
+	ball(ctx, "Planet", x, y, z, d, color:Lerp(BLACK, 0.5), M.Neon, { Glow = true })
 	local tilt = CFrame.Angles(math.rad(rn(ctx, 12, 28)), 0, math.rad(rn(ctx, -20, 20)))
 	-- heller Streifen um den Bauch
 	cyl(ctx, "Planetenstreifen", x, y - d * 0.05, z, d * 0.502, d * 0.1, color:Lerp(WHITE, 0.15), M.Neon, { Glow = true, Rot = tilt })
@@ -999,8 +999,7 @@ local function alienPlant(ctx, x: number, z: number, s: number, color: Color3)
 	local h = rn(ctx, 4, 7) * s
 	local lean = CFrame.Angles(rn(ctx, -0.15, 0.15), 0, rn(ctx, -0.15, 0.15))
 	cyl(ctx, "Stiel", x, 0, z, 0.3 * s, h, rgb(60, 220, 200), M.Neon, { Glow = true, Rot = lean })
-	local bulb = ball(ctx, "Leuchtknolle", x, h + 0.6 * s, z, 1.9 * s, color, M.Neon, { Glow = true })
-	light(bulb, color, 10, 0.8)
+	ball(ctx, "Leuchtknolle", x, h + 0.6 * s, z, 1.9 * s, color, M.Neon, { Glow = true })
 end
 
 local function rocket(ctx)
@@ -1100,7 +1099,7 @@ THEMES.Galaxie = function(ctx)
 	-- Sternen-Sprenkel im Boden
 	scatter(ctx, 80, 12, 100, 2.5, nil, function(x, z)
 		local s = rn(ctx, 0.5, 1.3)
-		block(ctx, "Sprenkel", x, -0.13, z, s, 0.3, s, pick(ctx, STAR_COLORS), M.Neon, { Glow = true, Rot = CFrame.Angles(0, math.rad(45), 0) })
+		block(ctx, "Sprenkel", x, -0.1 + rn(ctx, 0, 0.02), z, s, 0.3, s, pick(ctx, STAR_COLORS), M.Neon, { Glow = true, Rot = CFrame.Angles(0, math.rad(45), 0) })
 	end)
 	-- Krater
 	scatter(ctx, 8, 34, 88, 8, false, function(x, z)
@@ -1155,7 +1154,7 @@ THEMES.Galaxie = function(ctx)
 	planet(ctx, 30, 105, -120, 38, rgb(255, 120, 170), rgb(255, 210, 230))
 	planet(ctx, 150, 30, -90, 16, rgb(130, 230, 150), nil)
 	planet(ctx, -40, 95, 120, 18, rgb(255, 215, 110), rgb(255, 245, 200))
-	ball(ctx, "Mond", -150, 70, -150, 64, rgb(196, 194, 218), M.Neon, { Glow = true })
+	ball(ctx, "Mond", -150, 70, -150, 64, rgb(122, 120, 142), M.Neon, { Glow = true })
 	for _ = 1, 70 do
 		local a = rn(ctx, 0, math.pi * 2)
 		local r = rn(ctx, 115, 270)
@@ -1172,8 +1171,7 @@ THEMES.Galaxie = function(ctx)
 	rim(ctx, 30, function(x, z, _, i)
 		rimRock(ctx, x, z, i, rgb(44, 38, 92):Lerp(rgb(70, 60, 140), rn(ctx, 0, 1)))
 		if i % 2 == 0 then
-			local glow = ball(ctx, "Randleuchte", x * 0.94, 1.2, z * 0.94, 2.2, pick(ctx, STAR_COLORS), M.Neon, { Glow = true })
-			light(glow, glow.Color, 12, 0.9)
+			ball(ctx, "Randleuchte", x * 0.94, 1.2, z * 0.94, 2.2, pick(ctx, STAR_COLORS), M.Neon, { Glow = true })
 		end
 	end)
 
@@ -1211,6 +1209,8 @@ function Islands.Build(parent: Instance, world, center: Vector3, floorY: number)
 		Blockers = {},
 		Keep = {},
 	}
+	-- Platz fürs Rück-Portal freihalten, bevor die Deko verteilt wird
+	blocker(ctx, 0, 92, 12)
 	local theme = THEMES[world.Id] or THEMES.Kristall
 	local style = theme(ctx)
 
@@ -1221,7 +1221,6 @@ function Islands.Build(parent: Instance, world, center: Vector3, floorY: number)
 		Subtitle = "Hier geht's nach Hause",
 		Stone = style.Rock:Lerp(WHITE, 0.12),
 	})
-	blocker(ctx, 0, 92, 11)
 	folder.Parent = parent
 
 	local origin = ctx.Origin
